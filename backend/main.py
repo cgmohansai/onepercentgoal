@@ -38,6 +38,7 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback").strip()
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
 BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "").strip()
+EMAIL_LOGO_URL = os.getenv("EMAIL_LOGO_URL", "").strip()
 DEMO_USER_ID = 1
 PASSWORD_ITERATIONS = 120_000
 SESSION_DAYS = 30
@@ -1090,13 +1091,14 @@ def send_email_via_brevo(to_email: str, subject: str, html_body: str) -> bool:
 
 def send_welcome_email(user_email: str, user_name: str):
     subject = "Welcome to OnePercentGoal! Let's start compounding."
+    logo_url = EMAIL_LOGO_URL if EMAIL_LOGO_URL else f"{FRONTEND_URL}/favicon.ico"
     html_body = f"""
-    <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 48px 32px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+    <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 24px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
         <div style="text-align: center; margin-bottom: 36px;">
-            <img src="https://onepercentgoal.onrender.com/favicon.ico" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
+            <img src="{logo_url}" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
             <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: #8e9088; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500;">ONEPERCENTGOAL</div>
         </div>
-        <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">🚀 ONEPERCENTGOAL ONBOARDING</p>
+        <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">ONEPERCENTGOAL ONBOARDING</p>
         <h1 style="font-size: 32px; font-weight: 600; color: #f6f5f1; letter-spacing: -0.05em; margin: 0 0 20px; font-family: 'Instrument Serif', serif; font-style: italic;">
             Welcome to OnePercentGoal, {user_name}!
         </h1>
@@ -1152,6 +1154,7 @@ def check_and_send_sprint_reminders():
     
     sprint_end = sprint_end_datetime(current_year, current_sprint)
     hours_left = (sprint_end - now).total_seconds() / 3600.0
+    logo_url = EMAIL_LOGO_URL if EMAIL_LOGO_URL else f"{FRONTEND_URL}/favicon.ico"
     
     reminder_type = None
     if 0 < hours_left <= 6.0:
@@ -1196,12 +1199,12 @@ def check_and_send_sprint_reminders():
                 
                 subject = f"{int(round(hours_left))} Hours Left! Complete your Sprint #{current_sprint} Goals"
                 html_body = f"""
-                <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 48px 32px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 24px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
                     <div style="text-align: center; margin-bottom: 36px;">
-                        <img src="https://onepercentgoal.onrender.com/favicon.ico" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
+                        <img src="{logo_url}" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
                         <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: #8e9088; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500;">ONEPERCENTGOAL</div>
                     </div>
-                    <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">⏳ SPRINT COUNTDOWN ALERT</p>
+                    <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">SPRINT COUNTDOWN ALERT</p>
                     <h1 style="font-size: 26px; font-weight: 600; color: #f6f5f1; letter-spacing: -0.04em; line-height: 1.25; margin: 0 0 20px;">
                         Hi {user_name}, you have {round(hours_left, 1)} hours left!
                     </h1>
@@ -1278,12 +1281,12 @@ def check_and_send_sprint_reminders():
                 # 100% completed congrats
                 subject = f"100% Completion! Congratulations on Sprint #{prev_sprint}!"
                 html_body = f"""
-                <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 48px 32px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 24px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
                     <div style="text-align: center; margin-bottom: 36px;">
-                        <img src="https://onepercentgoal.onrender.com/favicon.ico" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
+                        <img src="{logo_url}" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
                         <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: #8e9088; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500;">ONEPERCENTGOAL</div>
                     </div>
-                    <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">🎉 SPRINT END REPORT</p>
+                    <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">SPRINT END REPORT</p>
                     <h1 style="font-size: 32px; font-weight: 600; color: #c9f36a; letter-spacing: -0.05em; margin: 0 0 20px; font-family: 'Instrument Serif', serif; font-style: italic;">
                         Flawless Sprint! 100% Complete.
                     </h1>
@@ -1326,12 +1329,12 @@ def check_and_send_sprint_reminders():
                     ])
                     subject = f"Rollover Agenda: Sprint #{prev_sprint} Wrap-up & New Targets"
                     html_body = f"""
-                    <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 48px 32px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                    <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 24px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
                         <div style="text-align: center; margin-bottom: 36px;">
-                            <img src="https://onepercentgoal.onrender.com/favicon.ico" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
+                            <img src="{logo_url}" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
                             <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: #8e9088; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500;">ONEPERCENTGOAL</div>
                         </div>
-                        <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">🔄 SPRINT WRAP-UP AGENDA</p>
+                        <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">SPRINT WRAP-UP AGENDA</p>
                         <h1 style="font-size: 26px; font-weight: 600; color: #f6f5f1; letter-spacing: -0.04em; line-height: 1.25; margin: 0 0 20px;">
                             Sprint #{prev_sprint} Wrapped: Goals Rolled Over
                         </h1>
