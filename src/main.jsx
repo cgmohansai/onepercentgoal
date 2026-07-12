@@ -1332,7 +1332,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
               </>
             ) : (
               <p className="bio-empty-text" style={{ color: '#676a62', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
-                No focus directive registered yet.
+                No bio-data entered yet.
               </p>
             )}
           </div>
@@ -1999,7 +1999,7 @@ function App() {
           </div>
         </header>
 
-        <section className="content" style={{ marginTop: '90px', paddingBottom: '60px' }}>
+        <section className="content" style={{ paddingBottom: '60px' }}>
           {publicLoading && <p style={{ color: '#8c9085', textAlign: 'center', fontFamily: '"DM Mono", monospace' }}>Loading profile...</p>}
           {publicError && (
             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
@@ -2066,7 +2066,7 @@ function App() {
                     </>
                   ) : (
                     <p className="bio-empty-text" style={{ color: '#676a62', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
-                      No focus directive registered.
+                      No bio-data entered yet.
                     </p>
                   )}
                 </div>
@@ -2173,7 +2173,7 @@ function App() {
           </button>
         </div>
       </header>
-      <section className="content" style={{ marginTop: '90px' }}>
+      <section className="content">
         <AuthScreen mode={authMode} setMode={setAuthMode} onSubmit={handleAuth} onGoogle={handleGoogle} loading={authLoading} error={authError} />
       </section>
     </main>
@@ -2189,7 +2189,7 @@ function App() {
         <nav className="shell-nav" aria-label="Primary">
           {['Overview', 'Goals', 'Timeline', 'Profile'].map(item => <button key={item} onClick={() => { setActive(item); window.scrollTo({ top: 0, behavior: 'instant' }); }} className={active === item ? 'shell-nav-item active' : 'shell-nav-item'}>{item}</button>)}
         </nav>
-        <button className="shell-nav-item" type="button" onClick={logout}>Log out</button>
+        <button className="shell-nav-item" type="button" onClick={logout}>Logout</button>
       </div>
     </header>
 

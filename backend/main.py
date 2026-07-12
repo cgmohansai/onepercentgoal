@@ -16,7 +16,7 @@ from urllib.parse import urlencode
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException, status
+from fastapi import FastAPI, Header, HTTPException, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
@@ -36,6 +36,10 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").strip().rstrip
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback").strip()
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "465").strip())
+SMTP_EMAIL = os.getenv("SMTP_EMAIL", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
 DEMO_USER_ID = 1
 PASSWORD_ITERATIONS = 120_000
 SESSION_DAYS = 30
@@ -237,6 +241,14 @@ def sprint_window(year: int, sprint_number: int) -> tuple[str, str]:
         datetime.fromtimestamp(sprint_start, tz=IST).isoformat(),
         datetime.fromtimestamp(sprint_end, tz=IST).isoformat(),
     )
+
+
+def sprint_end_datetime(year: int, sprint_number: int) -> datetime:
+    start = datetime(year, 1, 1, tzinfo=IST)
+    end = datetime(year + 1, 1, 1, tzinfo=IST)
+    total_seconds = (end - start).total_seconds()
+    sprint_end = start.timestamp() + sprint_number * total_seconds / 100
+    return datetime.fromtimestamp(sprint_end, tz=IST)
 
 
 class GoalCreate(BaseModel):
@@ -544,6 +556,16 @@ def setup_database():
                     completion_note TEXT NOT NULL DEFAULT '',
                     rolled_from_goal_id BIGINT, source_goal_id BIGINT
                 )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS sprint_email_reminders (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    sprint_year INTEGER NOT NULL,
+                    sprint_number INTEGER NOT NULL,
+                    reminder_type TEXT NOT NULL,
+                    sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (user_id, sprint_year, sprint_number, reminder_type)
+                )""")
         else:
             execute(conn, """
                 CREATE TABLE IF NOT EXISTS users (
@@ -575,6 +597,17 @@ def setup_database():
                     rolled_from_goal_id INTEGER, source_goal_id INTEGER,
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                 )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS sprint_email_reminders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    sprint_year INTEGER NOT NULL,
+                    sprint_number INTEGER NOT NULL,
+                    reminder_type TEXT NOT NULL,
+                    sent_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    UNIQUE (user_id, sprint_year, sprint_number, reminder_type)
+                )""")
 
         alter_columns = [
             ("users", "username", "ALTER TABLE users ADD COLUMN username TEXT"),
@@ -601,6 +634,8 @@ def setup_database():
 @app.on_event("startup")
 def startup():
     setup_database()
+    t = threading.Thread(target=run_email_scheduler_loop, daemon=True)
+    t.start()
 
 
 @app.get("/api/health")
@@ -633,7 +668,7 @@ def auth_google_start():
 
 
 @app.get("/api/auth/google/callback")
-async def auth_google_callback(code: str | None = None, state: str | None = None):
+async def auth_google_callback(background_tasks: BackgroundTasks, code: str | None = None, state: str | None = None):
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         raise HTTPException(status_code=500, detail="Google auth is not configured")
     if not code or not state:
@@ -702,12 +737,13 @@ async def auth_google_callback(code: str | None = None, state: str | None = None
                 (display_name, email, display_name, None, google_sub, current_timestamp(), current_timestamp()),
             ).fetchone()
             user_id = int(row["id"])
+            background_tasks.add_task(send_welcome_email, email, display_name or "User")
         token = issue_session(conn, user_id)
     return RedirectResponse(f"{FRONTEND_URL}/?auth_token={token}")
 
 
 @app.post("/api/auth/register")
-def auth_register(payload: AuthRegister):
+def auth_register(payload: AuthRegister, background_tasks: BackgroundTasks):
     email = payload.email.strip().lower()
     display_name = (payload.display_name or "").strip() or None
     with db() as conn:
@@ -724,7 +760,9 @@ def auth_register(payload: AuthRegister):
             """,
             (display_name, email, display_name, None, digest, salt, current_timestamp(), current_timestamp()),
         ).fetchone()
-        return auth_payload(conn, int(row["id"]))
+        user_id = int(row["id"])
+        background_tasks.add_task(send_welcome_email, email, display_name or "User")
+        return auth_payload(conn, user_id)
 
 
 @app.post("/api/auth/login")
@@ -1017,3 +1055,312 @@ def get_public_profile(username: str, year: int | None = None):
             "sprint": current_sprint,
             "year": current_year
         }
+
+
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import threading
+import time
+
+def send_email_via_smtp(to_email: str, subject: str, html_body: str) -> bool:
+    if not SMTP_EMAIL or not SMTP_PASSWORD:
+        print("SMTP credentials are not configured. Skipping email send.")
+        return False
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"OnePercentGoal <{SMTP_EMAIL}>"
+        msg["To"] = to_email
+        
+        part = MIMEText(html_body, "html")
+        msg.attach(part)
+        
+        # Port 465 uses SSL. Port 587 uses STARTTLS
+        if SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=10.0) as server:
+                server.login(SMTP_EMAIL, SMTP_PASSWORD)
+                server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10.0) as server:
+                server.starttls()
+                server.login(SMTP_EMAIL, SMTP_PASSWORD)
+                server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
+                
+        print(f"Successfully sent email to {to_email} via SMTP")
+        return True
+    except Exception as e:
+        print(f"Error sending email via SMTP: {e}")
+        return False
+
+
+def send_welcome_email(user_email: str, user_name: str):
+    subject = "🚀 Welcome to OnePercentGoal! Let's start compounding."
+    html_body = f"""
+    <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 20px; max-width: 600px; margin: 0 auto; border: 1px solid #343630; border-radius: 8px;">
+        <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px;">ONEPERCENTGOAL ONBOARDING</p>
+        <h1 style="font-size: 32px; font-weight: 600; color: #f6f5f1; letter-spacing: -0.05em; margin: 0 0 20px; font-family: 'Instrument Serif', serif; font-style: italic;">
+            Welcome to OnePercentGoal, {user_name}!
+        </h1>
+        <p style="font-size: 15px; line-height: 1.55; color: #a8aaa2; margin-bottom: 18px;">
+            We're thrilled to have you here. OnePercentGoal is built around a single, powerful philosophy: 
+            <strong>getting 1% better every sprint</strong>.
+        </p>
+        <p style="font-size: 15px; line-height: 1.55; color: #a8aaa2; margin-bottom: 24px;">
+            A year consists of 100 sprints (each sprint is exactly 3.6 days, representing 1% of the year). By completing your goals consistently, you leverage compounding growth, leading to a massive <strong>37.78x increase</strong> in capability by the end of the year.
+        </p>
+        
+        <h3 style="color: #f6f5f1; font-size: 18px; margin-top: 28px; margin-bottom: 12px; font-weight: 500;">What you can do with the app:</h3>
+        <ul style="padding-left: 20px; color: #a8aaa2; font-size: 15px; line-height: 1.6; margin-bottom: 30px;">
+            <li style="margin-bottom: 10px;">🎯 <strong>Create Sprint Goals</strong>: Set concrete, actionable goals for the current 3.6-day active sprint.</li>
+            <li style="margin-bottom: 10px;">⏳ <strong>Track Progress In Real Time</strong>: Watch the compounding counter build up and count down towards the sprint limit.</li>
+            <li style="margin-bottom: 10px;">🔄 <strong>Automatic Rollovers</strong>: Any goals left incomplete are automatically rolled over to the next sprint, ensuring nothing gets lost.</li>
+            <li style="margin-bottom: 10px;">🔗 <strong>Share Your Profile</strong>: Copy your profile link to showcase your active goals and sprint history publicly with friends.</li>
+        </ul>
+        
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="{FRONTEND_URL}" style="display: inline-block; background: #c9f36a; color: #121411; text-decoration: none; padding: 12px 28px; border-radius: 99px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 15px rgba(201, 243, 106, 0.2);">
+                Launch Your First Sprint
+            </a>
+        </div>
+        <div style="border-top: 1px solid #2f322b; margin-top: 40px; padding-top: 20px; font-size: 11px; color: #8c9085; font-family: 'DM Mono', monospace; text-align: center;">
+            1 SPRINT = 1% OF YEAR · 1 SPRINT = 3.6 DAYS
+        </div>
+    </div>
+    """
+    send_email_via_smtp(user_email, subject, html_body)
+
+
+def log_sent_reminder(conn, user_id: int, year: int, sprint: int, rtype: str):
+    if USE_POSTGRES:
+        execute(
+            conn,
+            "INSERT INTO sprint_email_reminders (user_id, sprint_year, sprint_number, reminder_type, sent_at) VALUES (%s, %s, %s, %s, NOW()) ON CONFLICT DO NOTHING",
+            (user_id, year, sprint, rtype)
+        )
+    else:
+        execute(
+            conn,
+            "INSERT OR IGNORE INTO sprint_email_reminders (user_id, sprint_year, sprint_number, reminder_type, sent_at) VALUES (%s, %s, %s, %s, %s)",
+            (user_id, year, sprint, rtype, datetime.now(IST).isoformat())
+        )
+
+
+def check_and_send_sprint_reminders():
+    now = datetime.now(IST)
+    progress = year_progress(now)
+    current_year = progress["year"]
+    current_sprint = progress["sprint_number"]
+    
+    sprint_end = sprint_end_datetime(current_year, current_sprint)
+    hours_left = (sprint_end - now).total_seconds() / 3600.0
+    
+    reminder_type = None
+    if 0 < hours_left <= 6.0:
+        reminder_type = "6h"
+    elif 6.0 < hours_left <= 12.0:
+        reminder_type = "12h"
+        
+    with db() as conn:
+        users_rows = execute(conn, "SELECT id, email, display_name, name FROM users").fetchall()
+        
+        # 1. 12h / 6h active reminders
+        if reminder_type:
+            for u_row in users_rows:
+                user_id = u_row["id"]
+                user_email = u_row["email"]
+                user_name = u_row["display_name"] or u_row["name"] or "User"
+                
+                # Check if reminder already sent
+                reminder_sent = execute(
+                    conn,
+                    "SELECT id FROM sprint_email_reminders WHERE user_id = %s AND sprint_year = %s AND sprint_number = %s AND reminder_type = %s",
+                    (user_id, current_year, current_sprint, reminder_type)
+                ).fetchone()
+                
+                if reminder_sent:
+                    continue
+                    
+                # Check if pending goals exist
+                goals_rows = execute(
+                    conn,
+                    "SELECT title, target, progress FROM goals WHERE user_id = %s AND sprint_year = %s AND sprint_number = %s AND completed = 0",
+                    (user_id, current_year, current_sprint)
+                ).fetchall()
+                
+                if not goals_rows:
+                    continue
+                    
+                goals_list_html = "".join([
+                    f"<li style='margin-bottom: 12px; font-size: 15px; color: #eef0e9; list-style: none; display: flex; align-items: center;'><span style='color: #c9f36a; margin-right: 10px;'>▪</span> <span><strong>{row['title']}</strong> (Progress: {row['progress']}/{row['target']})</span></li>"
+                    for row in goals_rows
+                ])
+                
+                subject = f"⏳ {int(round(hours_left))} Hours Left! Complete your Sprint #{current_sprint} Goals"
+                html_body = f"""
+                <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 24px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                    <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">⏳ SPRINT COUNTDOWN ALERT</p>
+                    <h1 style="font-size: 26px; font-weight: 600; color: #f6f5f1; letter-spacing: -0.04em; line-height: 1.25; margin: 0 0 20px;">
+                        Hi {user_name}, you have {round(hours_left, 1)} hours left!
+                    </h1>
+                    <p style="font-size: 15px; line-height: 1.6; color: #a5a79e; margin: 0 0 24px;">
+                        Sprint #{current_sprint} of {current_year} is wrapping up. Don't let your compounding momentum slip. Here are the goals still requiring your attention:
+                    </p>
+                    <div style="background: #1c1d1a; border: 1px solid #2b2c28; border-radius: 8px; padding: 20px 20px 8px; margin-bottom: 28px;">
+                        <ul style="padding-left: 0; list-style-type: none; margin: 0;">
+                            {goals_list_html}
+                        </ul>
+                    </div>
+                    <div style="text-align: center;">
+                        <a href="{FRONTEND_URL}" style="display: inline-block; background: #c9f36a; color: #121411; text-decoration: none; padding: 12px 28px; border-radius: 99px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 15px rgba(201, 243, 106, 0.2);">
+                            Open Sprint Dashboard
+                        </a>
+                    </div>
+                    <div style="border-top: 1px solid #2f322b; margin-top: 40px; padding-top: 20px; font-size: 11px; color: #8c9085; font-family: 'DM Mono', monospace; text-align: center;">
+                        1 SPRINT = 1% OF YEAR · 1 SPRINT = 3.6 DAYS
+                    </div>
+                </div>
+                """
+                
+                success = send_email_via_smtp(user_email, subject, html_body)
+                if success:
+                    log_sent_reminder(conn, user_id, current_year, current_sprint, reminder_type)
+
+        # 2. Post-Sprint Outcomes check (Congrats or Rollovers)
+        if current_sprint > 1:
+            prev_sprint = current_sprint - 1
+            prev_year = current_year
+        else:
+            prev_sprint = 100
+            prev_year = current_year - 1
+
+        for u_row in users_rows:
+            user_id = u_row["id"]
+            user_email = u_row["email"]
+            user_name = u_row["display_name"] or u_row["name"] or "User"
+
+            # Trigger automated rollover evaluation
+            try:
+                ensure_sprint_rollover(conn, current_year, current_sprint, user_id)
+            except Exception as e:
+                print(f"Error running rollover during email check: {e}")
+
+            # Check if post-sprint email already evaluated
+            wrap_sent = execute(
+                conn,
+                """
+                SELECT id FROM sprint_email_reminders 
+                WHERE user_id = %s AND sprint_year = %s AND sprint_number = %s 
+                  AND reminder_type IN ('sprint_end_congrats', 'sprint_end_rollover', 'sprint_end_skipped')
+                """,
+                (user_id, prev_year, prev_sprint)
+            ).fetchone()
+
+            if wrap_sent:
+                continue
+
+            prev_goals = execute(
+                conn,
+                "SELECT title, completed FROM goals WHERE user_id = %s AND sprint_year = %s AND sprint_number = %s",
+                (user_id, prev_year, prev_sprint)
+            ).fetchall()
+
+            if not prev_goals:
+                log_sent_reminder(conn, user_id, prev_year, prev_sprint, "sprint_end_skipped")
+                continue
+
+            total_count = len(prev_goals)
+            completed_count = sum(1 for g in prev_goals if g["completed"])
+
+            if completed_count == total_count:
+                # 100% completed congrats
+                subject = f"🎉 100% Completion! Congratulations on Sprint #{prev_sprint}!"
+                html_body = f"""
+                <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 24px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                    <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">🎉 SPRINT END REPORT</p>
+                    <h1 style="font-size: 32px; font-weight: 600; color: #c9f36a; letter-spacing: -0.05em; margin: 0 0 20px; font-family: 'Instrument Serif', serif; font-style: italic;">
+                        Flawless Sprint! 100% Complete.
+                    </h1>
+                    <p style="font-size: 15px; line-height: 1.6; color: #a5a79e; margin: 0 0 20px;">
+                        Hi {user_name}, congratulations! You completed all <strong>{total_count}</strong> of your goals in Sprint #{prev_sprint} of {prev_year}.
+                    </p>
+                    <p style="font-size: 15px; line-height: 1.6; color: #a5a79e; margin: 0 0 28px;">
+                        This is a huge milestone for your compounding momentum. Staying consistent leads to a massive 37.78x yield by the end of the year. Let's keep the fire burning!
+                    </p>
+                    <div style="text-align: center; margin-top: 30px;">
+                        <a href="{FRONTEND_URL}" style="display: inline-block; background: #c9f36a; color: #121411; text-decoration: none; padding: 12px 28px; border-radius: 99px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 15px rgba(201, 243, 106, 0.2);">
+                            Define Sprint #{current_sprint} Directives
+                        </a>
+                    </div>
+                    <div style="border-top: 1px solid #2f322b; margin-top: 40px; padding-top: 20px; font-size: 11px; color: #8c9085; font-family: 'DM Mono', monospace; text-align: center;">
+                        1 SPRINT = 1% OF YEAR · 1 SPRINT = 3.6 DAYS
+                    </div>
+                </div>
+                """
+                success = send_email_via_smtp(user_email, subject, html_body)
+                if success:
+                    log_sent_reminder(conn, user_id, prev_year, prev_sprint, "sprint_end_congrats")
+
+            else:
+                # Less than 100% completion -> List rolled over goals in the current sprint
+                rolled_goals = execute(
+                    conn,
+                    """
+                    SELECT title, target, progress FROM goals 
+                    WHERE user_id = %s AND sprint_year = %s AND sprint_number = %s 
+                      AND rolled_from_goal_id IS NOT NULL
+                    """,
+                    (user_id, current_year, current_sprint)
+                ).fetchall()
+
+                if rolled_goals:
+                    rolled_list_html = "".join([
+                        f"<li style='margin-bottom: 12px; font-size: 15px; color: #eef0e9; list-style: none; display: flex; align-items: center;'><span style='color: #c9f36a; margin-right: 10px;'>▪</span> <span><strong>{row['title']}</strong> (Progress: {row['progress']}/{row['target']})</li>"
+                        for row in rolled_goals
+                    ])
+                    subject = f"🔄 Rollover Agenda: Sprint #{prev_sprint} Wrap-up & New Targets"
+                    html_body = f"""
+                    <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 24px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                        <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">🔄 SPRINT WRAP-UP AGENDA</p>
+                        <h1 style="font-size: 26px; font-weight: 600; color: #f6f5f1; letter-spacing: -0.04em; line-height: 1.25; margin: 0 0 20px;">
+                            Sprint #{prev_sprint} Wrapped: Goals Rolled Over
+                        </h1>
+                        <p style="font-size: 15px; line-height: 1.6; color: #a5a79e; margin: 0 0 20px;">
+                            Hi {user_name}, Sprint #{prev_sprint} has officially ended. You successfully finished <strong>{completed_count} of {total_count}</strong> goals.
+                        </p>
+                        <p style="font-size: 15px; line-height: 1.6; color: #a5a79e; margin: 0 0 20px;">
+                            To keep your momentum, your remaining incomplete goals have been automatically transferred to your active <strong>Sprint #{current_sprint}</strong>:
+                        </p>
+                        <div style="background: #1c1d1a; border: 1px solid #2b2c28; border-radius: 8px; padding: 20px 20px 8px; margin-bottom: 28px;">
+                            <ul style="padding-left: 0; list-style-type: none; margin: 0;">
+                                {rolled_list_html}
+                            </ul>
+                        </div>
+                        <p style="font-size: 15px; line-height: 1.6; color: #a5a79e; margin-bottom: 28px;">
+                            Let's start fresh and check these off early in the next 3.6 days. Keep compounding every single cycle!
+                        </p>
+                        <div style="text-align: center;">
+                            <a href="{FRONTEND_URL}" style="display: inline-block; background: #c9f36a; color: #121411; text-decoration: none; padding: 12px 28px; border-radius: 99px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 15px rgba(201, 243, 106, 0.2);">
+                                Open Sprint Board
+                            </a>
+                        </div>
+                        <div style="border-top: 1px solid #2f322b; margin-top: 40px; padding-top: 20px; font-size: 11px; color: #8c9085; font-family: 'DM Mono', monospace; text-align: center;">
+                            1 SPRINT = 1% OF YEAR · 1 SPRINT = 3.6 DAYS
+                        </div>
+                    </div>
+                    """
+                    success = send_email_via_smtp(user_email, subject, html_body)
+                    if success:
+                        log_sent_reminder(conn, user_id, prev_year, prev_sprint, "sprint_end_rollover")
+                else:
+                    log_sent_reminder(conn, user_id, prev_year, prev_sprint, "sprint_end_skipped")
+
+
+def run_email_scheduler_loop():
+    print("Email reminder background scheduler loop started.")
+    while True:
+        try:
+            check_and_send_sprint_reminders()
+        except Exception as e:
+            print(f"Error in email reminder loop: {e}")
+        time.sleep(300)
