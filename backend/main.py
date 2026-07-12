@@ -36,10 +36,8 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").strip().rstrip
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback").strip()
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
-SMTP_PORT = int(os.getenv("SMTP_PORT", "465").strip())
-SMTP_EMAIL = os.getenv("SMTP_EMAIL", "").strip()
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
+BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "").strip()
 DEMO_USER_ID = 1
 PASSWORD_ITERATIONS = 120_000
 SESSION_DAYS = 30
@@ -1057,61 +1055,61 @@ def get_public_profile(username: str, year: int | None = None):
         }
 
 
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import threading
 import time
 
-def send_email_via_smtp(to_email: str, subject: str, html_body: str) -> bool:
-    if not SMTP_EMAIL or not SMTP_PASSWORD:
-        print("SMTP credentials are not configured. Skipping email send.")
+def send_email_via_brevo(to_email: str, subject: str, html_body: str) -> bool:
+    if not BREVO_API_KEY or not BREVO_SENDER_EMAIL:
+        print("Brevo credentials are not configured. Skipping email send.")
         return False
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"OnePercentGoal <{SMTP_EMAIL}>"
-        msg["To"] = to_email
-        
-        part = MIMEText(html_body, "html")
-        msg.attach(part)
-        
-        # Port 465 uses SSL. Port 587 uses STARTTLS
-        if SMTP_PORT == 465:
-            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=10.0) as server:
-                server.login(SMTP_EMAIL, SMTP_PASSWORD)
-                server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
+        response = httpx.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "api-key": BREVO_API_KEY,
+                "Content-Type": "application/json"
+            },
+            json={
+                "sender": {"name": "OnePercentGoal", "email": BREVO_SENDER_EMAIL},
+                "to": [{"email": to_email}],
+                "subject": subject,
+                "htmlContent": html_body
+            },
+            timeout=10.0
+        )
+        if response.status_code in (200, 201, 202):
+            print(f"Successfully sent email to {to_email} via Brevo HTTP API")
+            return True
         else:
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10.0) as server:
-                server.starttls()
-                server.login(SMTP_EMAIL, SMTP_PASSWORD)
-                server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
-                
-        print(f"Successfully sent email to {to_email} via SMTP")
-        return True
+            print(f"Failed to send email to {to_email} via Brevo: {response.status_code} - {response.text}")
+            return False
     except Exception as e:
-        print(f"Error sending email via SMTP: {e}")
+        print(f"Error calling Brevo API: {e}")
         return False
 
 
 def send_welcome_email(user_email: str, user_name: str):
-    subject = "🚀 Welcome to OnePercentGoal! Let's start compounding."
+    subject = "Welcome to OnePercentGoal! Let's start compounding."
     html_body = f"""
-    <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 20px; max-width: 600px; margin: 0 auto; border: 1px solid #343630; border-radius: 8px;">
-        <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px;">ONEPERCENTGOAL ONBOARDING</p>
+    <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 48px 32px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+        <div style="text-align: center; margin-bottom: 36px;">
+            <img src="https://onepercentgoal.onrender.com/favicon.ico" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
+            <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: #8e9088; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500;">ONEPERCENTGOAL</div>
+        </div>
+        <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">🚀 ONEPERCENTGOAL ONBOARDING</p>
         <h1 style="font-size: 32px; font-weight: 600; color: #f6f5f1; letter-spacing: -0.05em; margin: 0 0 20px; font-family: 'Instrument Serif', serif; font-style: italic;">
             Welcome to OnePercentGoal, {user_name}!
         </h1>
-        <p style="font-size: 15px; line-height: 1.55; color: #a8aaa2; margin-bottom: 18px;">
+        <p style="font-size: 15px; line-height: 1.6; color: #a5a79e; margin-bottom: 18px;">
             We're thrilled to have you here. OnePercentGoal is built around a single, powerful philosophy: 
             <strong>getting 1% better every sprint</strong>.
         </p>
-        <p style="font-size: 15px; line-height: 1.55; color: #a8aaa2; margin-bottom: 24px;">
+        <p style="font-size: 15px; line-height: 1.6; color: #a5a79e; margin-bottom: 24px;">
             A year consists of 100 sprints (each sprint is exactly 3.6 days, representing 1% of the year). By completing your goals consistently, you leverage compounding growth, leading to a massive <strong>37.78x increase</strong> in capability by the end of the year.
         </p>
         
         <h3 style="color: #f6f5f1; font-size: 18px; margin-top: 28px; margin-bottom: 12px; font-weight: 500;">What you can do with the app:</h3>
-        <ul style="padding-left: 20px; color: #a8aaa2; font-size: 15px; line-height: 1.6; margin-bottom: 30px;">
+        <ul style="padding-left: 20px; color: #a5a79e; font-size: 15px; line-height: 1.6; margin-bottom: 30px;">
             <li style="margin-bottom: 10px;">🎯 <strong>Create Sprint Goals</strong>: Set concrete, actionable goals for the current 3.6-day active sprint.</li>
             <li style="margin-bottom: 10px;">⏳ <strong>Track Progress In Real Time</strong>: Watch the compounding counter build up and count down towards the sprint limit.</li>
             <li style="margin-bottom: 10px;">🔄 <strong>Automatic Rollovers</strong>: Any goals left incomplete are automatically rolled over to the next sprint, ensuring nothing gets lost.</li>
@@ -1128,7 +1126,7 @@ def send_welcome_email(user_email: str, user_name: str):
         </div>
     </div>
     """
-    send_email_via_smtp(user_email, subject, html_body)
+    send_email_via_brevo(user_email, subject, html_body)
 
 
 def log_sent_reminder(conn, user_id: int, year: int, sprint: int, rtype: str):
@@ -1196,9 +1194,13 @@ def check_and_send_sprint_reminders():
                     for row in goals_rows
                 ])
                 
-                subject = f"⏳ {int(round(hours_left))} Hours Left! Complete your Sprint #{current_sprint} Goals"
+                subject = f"{int(round(hours_left))} Hours Left! Complete your Sprint #{current_sprint} Goals"
                 html_body = f"""
-                <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 24px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 48px 32px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                    <div style="text-align: center; margin-bottom: 36px;">
+                        <img src="https://onepercentgoal.onrender.com/favicon.ico" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
+                        <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: #8e9088; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500;">ONEPERCENTGOAL</div>
+                    </div>
                     <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">⏳ SPRINT COUNTDOWN ALERT</p>
                     <h1 style="font-size: 26px; font-weight: 600; color: #f6f5f1; letter-spacing: -0.04em; line-height: 1.25; margin: 0 0 20px;">
                         Hi {user_name}, you have {round(hours_left, 1)} hours left!
@@ -1222,7 +1224,7 @@ def check_and_send_sprint_reminders():
                 </div>
                 """
                 
-                success = send_email_via_smtp(user_email, subject, html_body)
+                success = send_email_via_brevo(user_email, subject, html_body)
                 if success:
                     log_sent_reminder(conn, user_id, current_year, current_sprint, reminder_type)
 
@@ -1274,9 +1276,13 @@ def check_and_send_sprint_reminders():
 
             if completed_count == total_count:
                 # 100% completed congrats
-                subject = f"🎉 100% Completion! Congratulations on Sprint #{prev_sprint}!"
+                subject = f"100% Completion! Congratulations on Sprint #{prev_sprint}!"
                 html_body = f"""
-                <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 24px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 48px 32px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                    <div style="text-align: center; margin-bottom: 36px;">
+                        <img src="https://onepercentgoal.onrender.com/favicon.ico" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
+                        <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: #8e9088; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500;">ONEPERCENTGOAL</div>
+                    </div>
                     <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">🎉 SPRINT END REPORT</p>
                     <h1 style="font-size: 32px; font-weight: 600; color: #c9f36a; letter-spacing: -0.05em; margin: 0 0 20px; font-family: 'Instrument Serif', serif; font-style: italic;">
                         Flawless Sprint! 100% Complete.
@@ -1297,7 +1303,7 @@ def check_and_send_sprint_reminders():
                     </div>
                 </div>
                 """
-                success = send_email_via_smtp(user_email, subject, html_body)
+                success = send_email_via_brevo(user_email, subject, html_body)
                 if success:
                     log_sent_reminder(conn, user_id, prev_year, prev_sprint, "sprint_end_congrats")
 
@@ -1318,9 +1324,13 @@ def check_and_send_sprint_reminders():
                         f"<li style='margin-bottom: 12px; font-size: 15px; color: #eef0e9; list-style: none; display: flex; align-items: center;'><span style='color: #c9f36a; margin-right: 10px;'>▪</span> <span><strong>{row['title']}</strong> (Progress: {row['progress']}/{row['target']})</li>"
                         for row in rolled_goals
                     ])
-                    subject = f"🔄 Rollover Agenda: Sprint #{prev_sprint} Wrap-up & New Targets"
+                    subject = f"Rollover Agenda: Sprint #{prev_sprint} Wrap-up & New Targets"
                     html_body = f"""
-                    <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 24px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                    <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 48px 32px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+                        <div style="text-align: center; margin-bottom: 36px;">
+                            <img src="https://onepercentgoal.onrender.com/favicon.ico" alt="OnePercentGoal Logo" style="width: 32px; height: 32px; margin-bottom: 12px; display: inline-block;" />
+                            <div style="font-family: 'DM Mono', monospace; font-size: 10px; color: #8e9088; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500;">ONEPERCENTGOAL</div>
+                        </div>
                         <p style="font-family: 'DM Mono', monospace; font-size: 11px; color: #c9f36a; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; font-weight: 500;">🔄 SPRINT WRAP-UP AGENDA</p>
                         <h1 style="font-size: 26px; font-weight: 600; color: #f6f5f1; letter-spacing: -0.04em; line-height: 1.25; margin: 0 0 20px;">
                             Sprint #{prev_sprint} Wrapped: Goals Rolled Over
@@ -1349,7 +1359,7 @@ def check_and_send_sprint_reminders():
                         </div>
                     </div>
                     """
-                    success = send_email_via_smtp(user_email, subject, html_body)
+                    success = send_email_via_brevo(user_email, subject, html_body)
                     if success:
                         log_sent_reminder(conn, user_id, prev_year, prev_sprint, "sprint_end_rollover")
                 else:
