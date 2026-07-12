@@ -1,0 +1,17 @@
+node_modules/
+.venv/
+dist/
+.vite/
+.env
+.env.local
+.env.*.local
+backend/onepercentgoal.db
+backend/*.db
+*.sqlite
+*.sqlite3
+.DS_Store
+Thumbs.db
+.env.example
+.codex
+.agents
+
