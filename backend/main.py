@@ -1,4 +1,4 @@
-"""OnePercentGoal API — PostgreSQL only."""
+"""OnePercentGoal API — PostgreSQL (production) / SQLite (local dev)."""
 from __future__ import annotations
 
 import base64
@@ -7,6 +7,7 @@ import hmac
 import math
 import os
 import secrets
+import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -14,12 +15,10 @@ from typing import Literal
 from urllib.parse import urlencode
 
 import httpx
-import psycopg
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
-from psycopg.rows import dict_row
 from pydantic import BaseModel, Field
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -30,8 +29,8 @@ load_dotenv(PROJECT_ROOT / ".env")
 load_dotenv(ROOT / ".env")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL environment variable is required (PostgreSQL connection string)")
+USE_POSTGRES = DATABASE_URL.startswith(("postgresql://", "postgres://"))
+SQLITE_DATABASE = ROOT / "onepercentgoal.db"
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").strip().rstrip("/")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
@@ -57,9 +56,20 @@ app.add_middleware(
 )
 
 
+def sql(query: str) -> str:
+    """Convert %s placeholders to ? for SQLite."""
+    return query if USE_POSTGRES else query.replace("%s", "?")
+
+
 @contextmanager
 def db():
-    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    if USE_POSTGRES:
+        import psycopg
+        from psycopg.rows import dict_row
+        conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    else:
+        conn = sqlite3.connect(SQLITE_DATABASE)
+        conn.row_factory = sqlite3.Row
     try:
         yield conn
         conn.commit()
@@ -68,7 +78,7 @@ def db():
 
 
 def execute(conn, query: str, params=()):
-    return conn.execute(query, params)
+    return conn.execute(sql(query), params)
 
 
 def row_dict(row):
@@ -120,14 +130,17 @@ def current_timestamp() -> str:
 
 
 def ensure_column(conn, table: str, column: str, ddl: str) -> None:
-    exists = execute(
-        conn,
-        """
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = %s AND column_name = %s
-        """,
-        (table, column),
-    ).fetchone()
+    if USE_POSTGRES:
+        exists = execute(
+            conn,
+            """
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = %s AND column_name = %s
+            """,
+            (table, column),
+        ).fetchone()
+    else:
+        exists = any(row[1] == column for row in execute(conn, f"PRAGMA table_info({table})").fetchall())
     if not exists:
         execute(conn, ddl)
 
@@ -149,6 +162,7 @@ def user_to_dict(row):
         "last_login_at": as_iso(data.get("last_login_at")) if data.get("last_login_at") else None,
         "needs_profile": not bool(username),
         "profile_photo": data.get("profile_photo") or "",
+        "bio": data.get("bio") or "",
     }
 
 
@@ -262,6 +276,7 @@ class ProfileUpdate(BaseModel):
     username: str = Field(min_length=3, max_length=24)
     display_name: str = Field(min_length=1, max_length=80)
     profile_photo: str | None = None
+    bio: str | None = Field(default="", max_length=160)
 
 
 def goal_dict(row):
@@ -390,7 +405,10 @@ def ensure_sprint_rollover(conn, year: int, sprint_number: int, user_id: int = D
                 source_goal_id,
             ),
         ).fetchone()
-        inserted_id = int(new_goal["id"])
+        if USE_POSTGRES:
+            inserted_id = int(new_goal["id"])
+        else:
+            inserted_id = int(new_goal["id"]) if new_goal and "id" in dict(new_goal) else int(execute(conn, "SELECT last_insert_rowid()").fetchone()[0])
         execute(conn, "UPDATE goals SET source_goal_id = %s WHERE id = %s", (source_goal_id, inserted_id))
 
 
@@ -496,68 +514,67 @@ def auth_payload(conn, user_id: int) -> dict:
 
 def setup_database():
     with db() as conn:
-        execute(
-            conn,
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id BIGSERIAL PRIMARY KEY,
-                name TEXT,
-                email TEXT NOT NULL UNIQUE,
-                username TEXT,
-                display_name TEXT,
-                auth_provider TEXT NOT NULL DEFAULT 'local',
-                password_hash TEXT,
-                password_salt TEXT,
-                google_sub TEXT UNIQUE,
-                created_at TIMESTAMPTZ NOT NULL,
-                last_login_at TIMESTAMPTZ,
-                profile_photo TEXT
-            )
-            """,
-        )
-        execute(
-            conn,
-            """
-            CREATE TABLE IF NOT EXISTS sessions (
-                token_hash TEXT PRIMARY KEY,
-                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                created_at TIMESTAMPTZ NOT NULL,
-                expires_at TIMESTAMPTZ NOT NULL
-            )
-            """,
-        )
-        execute(
-            conn,
-            """
-            CREATE TABLE IF NOT EXISTS oauth_states (
-                state TEXT PRIMARY KEY,
-                provider TEXT NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL
-            )
-            """,
-        )
-        execute(
-            conn,
-            """
-            CREATE TABLE IF NOT EXISTS goals (
-                id BIGSERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                title TEXT NOT NULL,
-                description TEXT NOT NULL DEFAULT '',
-                priority TEXT NOT NULL,
-                target INTEGER NOT NULL DEFAULT 1,
-                progress INTEGER NOT NULL DEFAULT 0,
-                completed INTEGER NOT NULL DEFAULT 0,
-                sprint_year INTEGER NOT NULL,
-                sprint_number INTEGER NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL,
-                progress_percent INTEGER NOT NULL DEFAULT 0,
-                completion_note TEXT NOT NULL DEFAULT '',
-                rolled_from_goal_id BIGINT,
-                source_goal_id BIGINT
-            )
-            """,
-        )
+        if USE_POSTGRES:
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS users (
+                    id BIGSERIAL PRIMARY KEY, name TEXT, email TEXT NOT NULL UNIQUE,
+                    username TEXT, display_name TEXT, auth_provider TEXT NOT NULL DEFAULT 'local',
+                    password_hash TEXT, password_salt TEXT, google_sub TEXT UNIQUE,
+                    created_at TIMESTAMPTZ NOT NULL, last_login_at TIMESTAMPTZ, profile_photo TEXT, bio TEXT
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token_hash TEXT PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    created_at TIMESTAMPTZ NOT NULL, expires_at TIMESTAMPTZ NOT NULL
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS oauth_states (
+                    state TEXT PRIMARY KEY, provider TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS goals (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', priority TEXT NOT NULL,
+                    target INTEGER NOT NULL DEFAULT 1, progress INTEGER NOT NULL DEFAULT 0,
+                    completed INTEGER NOT NULL DEFAULT 0, sprint_year INTEGER NOT NULL,
+                    sprint_number INTEGER NOT NULL, created_at TIMESTAMPTZ NOT NULL,
+                    progress_percent INTEGER NOT NULL DEFAULT 0,
+                    completion_note TEXT NOT NULL DEFAULT '',
+                    rolled_from_goal_id BIGINT, source_goal_id BIGINT
+                )""")
+        else:
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, email TEXT NOT NULL UNIQUE,
+                    username TEXT, display_name TEXT, auth_provider TEXT NOT NULL DEFAULT 'local',
+                    password_hash TEXT, password_salt TEXT, google_sub TEXT UNIQUE,
+                    created_at TEXT NOT NULL, last_login_at TEXT, profile_photo TEXT, bio TEXT
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS oauth_states (
+                    state TEXT PRIMARY KEY, provider TEXT NOT NULL, created_at TEXT NOT NULL
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS goals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL, title TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '', priority TEXT NOT NULL,
+                    target INTEGER NOT NULL DEFAULT 1, progress INTEGER NOT NULL DEFAULT 0,
+                    completed INTEGER NOT NULL DEFAULT 0, sprint_year INTEGER NOT NULL,
+                    sprint_number INTEGER NOT NULL, created_at TEXT NOT NULL,
+                    progress_percent INTEGER NOT NULL DEFAULT 0,
+                    completion_note TEXT NOT NULL DEFAULT '',
+                    rolled_from_goal_id INTEGER, source_goal_id INTEGER,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                )""")
 
         alter_columns = [
             ("users", "username", "ALTER TABLE users ADD COLUMN username TEXT"),
@@ -566,12 +583,13 @@ def setup_database():
             ("users", "password_hash", "ALTER TABLE users ADD COLUMN password_hash TEXT"),
             ("users", "password_salt", "ALTER TABLE users ADD COLUMN password_salt TEXT"),
             ("users", "google_sub", "ALTER TABLE users ADD COLUMN google_sub TEXT"),
-            ("users", "last_login_at", "ALTER TABLE users ADD COLUMN last_login_at TIMESTAMPTZ"),
+            ("users", "last_login_at", "ALTER TABLE users ADD COLUMN last_login_at TIMESTAMPTZ" if USE_POSTGRES else "ALTER TABLE users ADD COLUMN last_login_at TEXT"),
             ("users", "profile_photo", "ALTER TABLE users ADD COLUMN profile_photo TEXT"),
+            ("users", "bio", "ALTER TABLE users ADD COLUMN bio TEXT"),
             ("goals", "progress_percent", "ALTER TABLE goals ADD COLUMN progress_percent INTEGER NOT NULL DEFAULT 0"),
             ("goals", "completion_note", "ALTER TABLE goals ADD COLUMN completion_note TEXT NOT NULL DEFAULT ''"),
-            ("goals", "rolled_from_goal_id", "ALTER TABLE goals ADD COLUMN rolled_from_goal_id BIGINT"),
-            ("goals", "source_goal_id", "ALTER TABLE goals ADD COLUMN source_goal_id BIGINT"),
+            ("goals", "rolled_from_goal_id", "ALTER TABLE goals ADD COLUMN rolled_from_goal_id BIGINT" if USE_POSTGRES else "ALTER TABLE goals ADD COLUMN rolled_from_goal_id INTEGER"),
+            ("goals", "source_goal_id", "ALTER TABLE goals ADD COLUMN source_goal_id BIGINT" if USE_POSTGRES else "ALTER TABLE goals ADD COLUMN source_goal_id INTEGER"),
         ]
         for table, column, ddl in alter_columns:
             ensure_column(conn, table, column, ddl)
@@ -736,6 +754,7 @@ def auth_complete_profile(payload: ProfileUpdate, authorization: str | None = He
         raise HTTPException(status_code=400, detail="Username is too short")
     display_name = payload.display_name.strip()
     profile_photo = payload.profile_photo
+    bio = (payload.bio or "").strip()
     if profile_photo and len(profile_photo) > 2_000_000:
         raise HTTPException(status_code=400, detail="Profile photo is too large (max 1.5MB)")
 
@@ -746,9 +765,9 @@ def auth_complete_profile(payload: ProfileUpdate, authorization: str | None = He
             raise HTTPException(status_code=409, detail="Username already exists")
 
         if profile_photo is not None:
-            execute(conn, "UPDATE users SET username = %s, display_name = %s, name = %s, profile_photo = %s WHERE id = %s", (username, display_name, display_name, profile_photo, user_id))
+            execute(conn, "UPDATE users SET username = %s, display_name = %s, name = %s, profile_photo = %s, bio = %s WHERE id = %s", (username, display_name, display_name, profile_photo, bio, user_id))
         else:
-            execute(conn, "UPDATE users SET username = %s, display_name = %s, name = %s WHERE id = %s", (username, display_name, display_name, user_id))
+            execute(conn, "UPDATE users SET username = %s, display_name = %s, name = %s, bio = %s WHERE id = %s", (username, display_name, display_name, bio, user_id))
 
         return {"user": user_to_dict(execute(conn, "SELECT * FROM users WHERE id = %s", (user_id,)).fetchone())}
 
@@ -928,3 +947,73 @@ def timeline_sprint(sprint_number: int, year: int | None = None, authorization: 
         if selected_year == progress["year"] and sprint_number > progress["sprint_number"]:
             raise HTTPException(status_code=404, detail="Sprint not found")
         return sprint_summary(conn, selected_year, sprint_number, user_id)
+
+
+@app.get("/api/u/{username}")
+def get_public_profile(username: str, year: int | None = None):
+    username = normalize_username(username)
+    with db() as conn:
+        user_row = execute(conn, "SELECT id, name, username, display_name, created_at, profile_photo, bio FROM users WHERE username = %s", (username,)).fetchone()
+        if not user_row:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user_data = row_dict(user_row)
+        user_id = user_data["id"]
+        
+        progress = year_progress()
+        current_year = progress["year"]
+        current_sprint = progress["sprint_number"]
+        
+        # Get active goals
+        goals_rows = execute(
+            conn,
+            "SELECT id, title, target, progress, completed, sprint_year, sprint_number FROM goals WHERE user_id = %s AND sprint_year = %s AND sprint_number = %s ORDER BY id",
+            (user_id, current_year, current_sprint)
+        ).fetchall()
+        
+        goals = []
+        for row in goals_rows:
+            d = row_dict(row)
+            d["completed"] = bool(d["completed"])
+            d["done"] = d["completed"]
+            goals.append(d)
+            
+        # Get stats
+        stats_data = profile_stats(conn, year, user_id)
+        
+        # Get timeline history
+        joined = user_created_at(conn, user_id)
+        selected_year = year or progress["year"]
+        start_sprint = year_progress(joined)["sprint_number"] if selected_year == joined.year else 1
+        end_sprint = progress["sprint_number"] if selected_year == progress["year"] else 100
+        history_items = [sprint_summary(conn, selected_year, sprint_number, user_id) for sprint_number in range(start_sprint, end_sprint + 1)]
+        
+        history = {
+            "year": selected_year,
+            "years": list(range(joined.year, progress["year"] + 1)),
+            "start_sprint": start_sprint,
+            "end_sprint": end_sprint,
+            "sprints": history_items,
+        }
+        
+        # Format active since date details
+        joined_date = user_created_at(conn, user_id)
+        joined_progress = year_progress(joined_date)
+        
+        return {
+            "user": {
+                "username": user_data["username"],
+                "display_name": user_data["display_name"] or user_data["name"] or user_data["username"],
+                "profile_photo": user_data["profile_photo"] or "",
+                "bio": user_data["bio"] or "",
+                "active_since": {
+                    "year": joined_progress["year"],
+                    "sprint_number": joined_progress["sprint_number"]
+                }
+            },
+            "goals": goals,
+            "stats": stats_data["stats"],
+            "history": history,
+            "sprint": current_sprint,
+            "year": current_year
+        }

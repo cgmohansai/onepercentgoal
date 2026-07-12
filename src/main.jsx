@@ -694,12 +694,284 @@ function PageHeader({ label, title, action }) {
 
 function AuthScreen({ mode, setMode, onSubmit, onGoogle, loading, error }) {
   const [form, setForm] = useState({ email: '', password: '', display_name: '' })
-  return <div className="auth-screen"><section className="auth-card card"><p className="eyebrow">ONEPERCENTGOAL</p><h1>Sign in to continue</h1><p className="auth-copy">Use email and password, or continue with Google. If your profile is incomplete, the app will ask for a unique username after sign-in.</p><div className="auth-tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')} type="button">Log in</button><button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')} type="button">Create account</button></div><form className="auth-form" onSubmit={event => { event.preventDefault(); onSubmit(form, mode) }}><label>Email<input type="email" required value={form.email} onChange={event => setForm(value => ({ ...value, email: event.target.value }))} /></label><label>Password<input type="password" required minLength={8} value={form.password} onChange={event => setForm(value => ({ ...value, password: event.target.value }))} /></label>{mode === 'register' && <label>Display name<input type="text" value={form.display_name} onChange={event => setForm(value => ({ ...value, display_name: event.target.value }))} placeholder="Optional for now" /></label>}<button type="submit" disabled={loading}>{loading ? 'Working…' : mode === 'login' ? 'Log in' : 'Create account'}</button></form><div className="auth-divider"><span>or</span></div><button className="google-button" type="button" onClick={onGoogle} disabled={loading}>Continue with Google</button>{error && <p className="auth-error">{error}</p>}</section></div>
+  return (
+    <div className="auth-screen">
+      <div className="auth-aurora-glow"></div>
+      <section className="auth-card card premium-auth-card">
+        <div className="auth-header-wrapper">
+          <p className="eyebrow auth-eyebrow">SYSTEM GATEWAY</p>
+          <h1 className="auth-title">
+            <span>{mode === 'login' ? 'Sign in to' : 'Join'}</span> <em>OnePercentGoal</em>
+          </h1>
+          <p className="auth-copy">
+            Every 1% counts. Log in to access your sprint boards, set compounding targets, and view real-time temporal momentum.
+          </p>
+        </div>
+
+        <div className="auth-tabs">
+          <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')} type="button">Log In</button>
+          <button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')} type="button">Create Account</button>
+        </div>
+
+        <form className="auth-form" onSubmit={event => { event.preventDefault(); onSubmit(form, mode) }}>
+          {mode === 'register' && (
+            <label className="auth-field">
+              <span>Display Name</span>
+              <input 
+                type="text" 
+                value={form.display_name} 
+                onChange={event => setForm(value => ({ ...value, display_name: event.target.value }))} 
+                placeholder="How should we address you?" 
+              />
+            </label>
+          )}
+          <label className="auth-field">
+            <span>Email Address</span>
+            <input 
+              type="email" 
+              required 
+              value={form.email} 
+              onChange={event => setForm(value => ({ ...value, email: event.target.value }))} 
+              placeholder="name@example.com"
+            />
+          </label>
+          <label className="auth-field">
+            <span>Secret Password</span>
+            <input 
+              type="password" 
+              required 
+              minLength={8} 
+              value={form.password} 
+              onChange={event => setForm(value => ({ ...value, password: event.target.value }))} 
+              placeholder="••••••••"
+            />
+          </label>
+          
+          <button type="submit" className="auth-submit-btn" disabled={loading}>
+            {loading ? 'Decrypting credentials…' : mode === 'login' ? 'Enter Console' : 'Initialize Account'}
+          </button>
+        </form>
+
+        <div className="auth-divider">
+          <span>OR CONTINUE WITH</span>
+        </div>
+
+        <button className="google-button premium-google-btn" type="button" onClick={onGoogle} disabled={loading}>
+          <svg style={{ width: '18px', height: '18px', marginRight: '10px', verticalAlign: 'middle' }} viewBox="0 0 24 24">
+            <path fill="currentColor" d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.58h3.29c1.92,-1.77 3.02,-4.38 3.02,-7.38c0,-0.6 -0.05,-1.2 -0.15,-1.8z" />
+            <path fill="currentColor" d="M12,20.4c2.54,0 4.67,-0.84 6.23,-2.28l-3.29,-2.58c-0.91,0.61 -2.08,0.98 -2.94,0.98c-2.27,0 -4.2,-1.54 -4.89,-3.6H3.66v2.66c1.55,3.08 4.73,5.18 8.34,5.18z" />
+            <path fill="currentColor" d="M7.11,12.92a5.92,5.92 0 0 1 0,-1.84V8.42H3.66a9.92,9.92 0 0 0 0,7.16l3.45,-2.66z" fillOpacity="0.9" />
+            <path fill="currentColor" d="M12,5.28c1.38,0 2.62,0.47 3.59,1.4l2.69,-2.69C16.66,2.5 14.54,1.8 12,1.8c-3.61,0 -6.79,2.1 -8.34,5.18l3.45,2.66c0.69,-2.06 2.62,-3.6 4.89,-3.6z" />
+          </svg>
+          Google Authentication
+        </button>
+
+        {error && <p className="auth-error premium-auth-error">{error}</p>}
+      </section>
+    </div>
+  )
 }
 
 function ProfileSetupModal({ user, onSubmit, loading, error }) {
   const [form, setForm] = useState({ username: user?.username || '', display_name: user?.display_name || '' })
   return <div className="modal-backdrop" role="presentation"><form className="completion-modal" onSubmit={event => { event.preventDefault(); onSubmit(form) }}><p className="eyebrow">PROFILE SETUP</p><h2>Choose a unique username</h2><p className="auth-copy">This is the public handle other people will see. You can also set the display name used inside the app.</p><label>Username<input autoFocus required minLength={3} maxLength={24} value={form.username} onChange={event => setForm(value => ({ ...value, username: event.target.value }))} /></label><label>Display name<input required maxLength={80} value={form.display_name} onChange={event => setForm(value => ({ ...value, display_name: event.target.value }))} /></label>{error && <p className="auth-error">{error}</p>}<div><button type="submit" disabled={loading}>{loading ? 'Saving…' : 'Continue'}</button></div></form></div>
+}
+
+function EditProfileModal({ isOpen, onClose, user, onSubmit, loading, error }) {
+  const [form, setForm] = useState({
+    username: user?.username || '',
+    display_name: user?.display_name || '',
+    bio: user?.bio || ''
+  })
+
+  useEffect(() => {
+    if (user) {
+      setForm({
+        username: user.username || '',
+        display_name: user.display_name || '',
+        bio: user.bio || ''
+      })
+    }
+  }, [user])
+
+  if (!isOpen) return null
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form 
+        className="completion-modal" 
+        onClick={event => event.stopPropagation()} 
+        onSubmit={event => { 
+          event.preventDefault()
+          onSubmit(form.username, form.display_name, form.bio)
+        }}
+      >
+        <p className="eyebrow" style={{ color: '#c9f36a' }}>EDIT PROFILE</p>
+        <h2>Update your public identity</h2>
+        
+        <label>
+          Username
+          <input 
+            required 
+            minLength={3} 
+            maxLength={24} 
+            value={form.username} 
+            onChange={event => setForm(value => ({ ...value, username: event.target.value }))} 
+          />
+        </label>
+        
+        <label>
+          Display Name
+          <input 
+            required 
+            maxLength={80} 
+            value={form.display_name} 
+            onChange={event => setForm(value => ({ ...value, display_name: event.target.value }))} 
+          />
+        </label>
+
+        <label>
+          Bio
+          <textarea 
+            maxLength={160} 
+            placeholder="A brief bio about your sprint drive, goals, or lifestyle..."
+            value={form.bio} 
+            onChange={event => setForm(value => ({ ...value, bio: event.target.value }))} 
+            style={{
+              width: '100%',
+              minHeight: '80px',
+              background: '#141613',
+              border: '1px solid #343630',
+              borderRadius: '6px',
+              padding: '12px',
+              color: '#eef0e9',
+              fontFamily: 'inherit',
+              fontSize: '13px',
+              resize: 'none',
+              boxSizing: 'border-box',
+              marginTop: '6px'
+            }}
+          />
+        </label>
+
+        {error && <p className="auth-error">{error}</p>}
+        
+        <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
+          <button 
+            type="button" 
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: '1px solid #343630',
+              color: '#8c9085',
+              borderRadius: '8px',
+              padding: '10px 16px',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            disabled={loading}
+            style={{
+              background: '#c9f36a',
+              border: 'none',
+              color: '#121411',
+              borderRadius: '8px',
+              padding: '10px 20px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            {loading ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function AddGoalModal({ isOpen, onClose, onSubmit, loading, deadline }) {
+  const [title, setTitle] = useState('');
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form 
+        className="completion-modal" 
+        onClick={event => event.stopPropagation()} 
+        onSubmit={event => { 
+          event.preventDefault(); 
+          if (!title.trim()) return;
+          onSubmit(title);
+          setTitle('');
+        }}
+      >
+        <p className="eyebrow" style={{ color: '#c9f36a' }}>NEW COMPREHENSIVE TARGET</p>
+        <h2>What do you want to achieve in this sprint?</h2>
+        
+        {deadline && (
+          <p className="goal-deadline" style={{ color: '#ff6b6b', fontFamily: '"DM Mono", monospace', fontSize: '11px', margin: '-12px 0 20px', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '14px', lineHeight: 1 }}>⏳</span> DEADLINE: {deadline.toUpperCase()}
+          </p>
+        )}
+        
+        <p className="auth-copy" style={{ marginBottom: '20px' }}>
+          Define a clear, actionable goal. Small daily progress compounds into 1% achievements.
+        </p>
+        
+        <label>
+          Goal Title
+          <input 
+            autoFocus 
+            required 
+            maxLength={140} 
+            placeholder="e.g. Code for 2 hours daily, read 20 pages" 
+            value={title} 
+            onChange={event => setTitle(event.target.value)} 
+          />
+        </label>
+        
+        <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
+          <button 
+            type="button" 
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: '1px solid #343630',
+              color: '#8c9085',
+              borderRadius: '8px',
+              padding: '10px 16px',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            disabled={loading}
+            style={{
+              background: '#c9f36a',
+              border: 'none',
+              color: '#121411',
+              borderRadius: '8px',
+              padding: '10px 20px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            {loading ? 'Saving…' : 'Add Target'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
 function SprintHistoryModal({ sprint, onClose, onShowGoalDetails }) {
@@ -785,8 +1057,14 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
   const [cropImageSrc, setCropImageSrc] = useState(null)
   const [cropZoom, setCropZoom] = useState(1)
   const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 })
+  const [cropImageDims, setCropImageDims] = useState({ width: 200, height: 200 })
   const [isDragging, setIsDragging] = useState(false)
   const dragStart = useRef({ x: 0, y: 0 })
+
+  // Edit Profile modal state
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [editLoading, setEditLoading] = useState(false)
 
   // Calculate active sprint date range
   const DAY = 24 * 60 * 60 * 1000
@@ -795,46 +1073,120 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
   const dateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
   const dateStr = `${dateFormat.format(sprintStart)} — ${dateFormat.format(sprintEnd)}`
 
-  if (active === 'Goals') return <div className="workspace-page"><PageHeader label={`SPRINT #${String(data.sprint).padStart(2, '0')} (${dateStr})`} title="Your goals" action={<button className="add-button" onClick={onAdd} style={{ marginRight: '24px' }}>+ Add goal</button>} /><p style={{ color: '#8c9085', fontSize: '13px', margin: '-16px 0 24px', fontStyle: 'italic', fontFamily: '"DM Mono", monospace', letterSpacing: '0.04em' }}>All current sprint goals present here, go complete it.</p><section className="all-goals card"><div className="goal-list">{goals.map(goal => <GoalRow goal={goal} onProgress={onProgress} onComplete={onComplete} onShowDetails={onShowGoalDetails} key={goal.id} />)}</div></section></div>
-  if (active === 'Timeline') return <div className="workspace-page"><PageHeader label="THE YEAR IN 100 PARTS" title="Sprint timeline" /><p style={{ color: '#8c9085', fontSize: '12px', margin: '-10px 0 20px', fontStyle: 'italic', fontFamily: '"DM Mono", monospace', letterSpacing: '0.04em' }}>Click on a sprint to view goals & performance details.</p><section className="timeline">{history.sprints.map(summary => { const number = summary.sprint_number; const state = selectedYear < data.year ? 'past' : number < data.sprint ? 'past' : number === data.sprint ? 'current' : ''; const start = new Date(summary.sprint_start); const end = new Date(summary.sprint_end); const tileDateStr = `${dateFormat.format(start)} — ${dateFormat.format(end)}`; return <button className={`sprint-tile ${state}`} key={number} onClick={() => onOpenSprint(number)}><span>SPRINT</span><b>#{String(number).padStart(2, '0')}<span style={{ fontSize: '11px', fontWeight: 'normal', color: 'inherit', marginLeft: '10px', opacity: 0.8, fontFamily: '"DM Mono", monospace', verticalAlign: 'middle', display: 'inline-block', letterSpacing: '0.04em' }}>({tileDateStr})</span></b><small>{summary.completed_count} done</small><strong>{summary.average_progress}% avg</strong>{state === 'current' && selectedYear === data.year && <i>NOW</i>}</button> })}
-  
-  {selectedYear === data.year && (() => {
-    const upcomingTiles = [];
-    const DAY = 24 * 60 * 60 * 1000;
-    const sprintDuration = (data.total * DAY) / 100;
-    const baselineTime = new Date(data.checkpointEnd).getTime();
+  if (active === 'Goals') {
+    return (
+      <div className="workspace-page goals-page-custom">
+        <header className="goals-page-header">
+          <div className="goals-header-left">
+            <span className="goals-sprint-badge">ACTIVE SPRINT CYCLE</span>
+            <h1 className="goals-sprint-title">
+              Sprint <em>#{String(data.sprint).padStart(2, '0')}</em>
+              <span className="goals-sprint-dates">({dateStr})</span>
+            </h1>
+            <p className="goals-subtitle">
+              All current sprint goals present here. Compounding progress is built 1% at a time.
+            </p>
+          </div>
+          <button className="goals-primary-add-btn" onClick={onAdd}>
+            Create Sprint Goal
+          </button>
+        </header>
+        
+        <section className="all-goals card">
+          <div className="goal-list">
+            {goals.map(goal => <GoalRow goal={goal} onProgress={onProgress} onComplete={onComplete} onShowDetails={onShowGoalDetails} key={goal.id} />)}
+          </div>
+        </section>
+      </div>
+    );
+  }
+  if (active === 'Timeline') {
+    return (
+      <div className="workspace-page timeline-page-custom">
+        <header className="timeline-page-header">
+          <div className="timeline-header-left">
+            <span className="timeline-badge">THE YEAR IN 100 PARTS</span>
+            <h1 className="timeline-title">
+              Sprint <em>Timeline</em>
+              <span className="timeline-year-dates">({selectedYear})</span>
+            </h1>
+            <p className="timeline-subtitle">
+              Track your compounding progress across all 100 sprints. Click a sprint tile to inspect detailed history.
+            </p>
+          </div>
+        </header>
 
-    for (let N = data.sprint + 1; N <= 100; N++) {
-      const offset = N - data.sprint;
-      const upcomingStart = new Date(baselineTime + (offset - 1) * sprintDuration);
-      const upcomingEnd = new Date(baselineTime + offset * sprintDuration);
-      const upcomingDateStr = `${dateFormat.format(upcomingStart)} — ${dateFormat.format(upcomingEnd)}`;
-      
-      upcomingTiles.push(
-        <div key={`upcoming-${N}`} className="sprint-tile upcoming" style={{ background: '#161815', border: '1px dashed #343630', borderRadius: '6px', cursor: 'default', opacity: 0.55, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
-          <div>
-            <span style={{ color: '#7f8279', fontFamily: '"DM Mono", monospace', fontSize: '8px', letterSpacing: '.12em', textTransform: 'uppercase', display: 'block' }}>SPRINT</span>
-            <b style={{ display: 'block', marginTop: '9px', color: '#676a62', fontFamily: '"Instrument Serif", serif', fontSize: '30px', fontWeight: '400' }}>
-              #{String(N).padStart(2, '0')}
-              <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'inherit', marginLeft: '10px', opacity: 0.8, fontFamily: '"DM Mono", monospace', verticalAlign: 'middle', display: 'inline-block', letterSpacing: '0.04em' }}>
-                ({upcomingDateStr})
-              </span>
-            </b>
-          </div>
-          <div>
-            <small style={{ display: 'block', marginTop: '18px', color: '#989c92', fontFamily: '"DM Mono", monospace', fontSize: '9px', letterSpacing: '.08em', textTransform: 'uppercase' }}>
-              UPCOMING
-            </small>
-            <strong style={{ display: 'block', marginTop: '6px', color: '#676a62', fontFamily: '"DM Mono", monospace', fontSize: '12px', fontWeight: '500' }}>
-              Not started yet
-            </strong>
-          </div>
+        <section className="timeline">
+          {history.sprints.map(summary => {
+            const number = summary.sprint_number;
+            const state = selectedYear < data.year ? 'past' : number < data.sprint ? 'past' : number === data.sprint ? 'current' : '';
+            const start = new Date(summary.sprint_start);
+            const end = new Date(summary.sprint_end);
+            const tileDateStr = `${dateFormat.format(start)} — ${dateFormat.format(end)}`;
+            return (
+              <button className={`sprint-tile ${state}`} key={number} onClick={() => onOpenSprint(number)}>
+                <span>SPRINT</span>
+                <b>
+                  #{String(number).padStart(2, '0')}
+                  <span className="sprint-tile-dates">({tileDateStr})</span>
+                </b>
+                <small>{summary.completed_count} done</small>
+                <strong>{summary.average_progress}% avg</strong>
+                {state === 'current' && selectedYear === data.year && <i>NOW</i>}
+              </button>
+            );
+          })}
+
+          {selectedYear === data.year && (() => {
+            const upcomingTiles = [];
+            const DAY = 24 * 60 * 60 * 1000;
+            const sprintDuration = (data.total * DAY) / 100;
+            const baselineTime = new Date(data.checkpointEnd).getTime();
+
+            for (let N = data.sprint + 1; N <= 100; N++) {
+              const offset = N - data.sprint;
+              const upcomingStart = new Date(baselineTime + (offset - 1) * sprintDuration);
+              const upcomingEnd = new Date(baselineTime + offset * sprintDuration);
+              const upcomingDateStr = `${dateFormat.format(upcomingStart)} — ${dateFormat.format(upcomingEnd)}`;
+              
+              upcomingTiles.push(
+                <div key={`upcoming-${N}`} className="sprint-tile upcoming" style={{ background: '#161815', border: '1px dashed #343630', borderRadius: '6px', cursor: 'default', opacity: 0.55, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
+                  <div>
+                    <span style={{ color: '#7f8279', fontFamily: '"DM Mono", monospace', fontSize: '8px', letterSpacing: '.12em', textTransform: 'uppercase', display: 'block' }}>SPRINT</span>
+                    <b style={{ display: 'block', marginTop: '9px', color: '#676a62', fontFamily: '"Instrument Serif", serif', fontSize: '30px', fontWeight: '400' }}>
+                      #{String(N).padStart(2, '0')}
+                      <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'inherit', marginLeft: '10px', opacity: 0.8, fontFamily: '"DM Mono", monospace', verticalAlign: 'middle', display: 'inline-block', letterSpacing: '0.04em' }}>
+                        ({upcomingDateStr})
+                      </span>
+                    </b>
+                  </div>
+                  <div>
+                    <small style={{ display: 'block', marginTop: '18px', color: '#989c92', fontFamily: '"DM Mono", monospace', fontSize: '9px', letterSpacing: '.08em', textTransform: 'uppercase' }}>
+                      UPCOMING
+                    </small>
+                    <strong style={{ display: 'block', marginTop: '6px', color: '#676a62', fontFamily: '"DM Mono", monospace', fontSize: '12px', fontWeight: '500' }}>
+                      Not started yet
+                    </strong>
+                  </div>
+                </div>
+              );
+            }
+            return upcomingTiles;
+          })()}
+        </section>
+
+        <div className="timeline-years">
+          {availableYears.map(year => (
+            <button key={year} className={year === selectedYear ? 'timeline-year active' : 'timeline-year'} onClick={() => onSelectYear(year)}>
+              {year}
+            </button>
+          ))}
         </div>
-      );
-    }
-    return upcomingTiles;
-  })()}
-  </section><div className="timeline-years">{availableYears.map(year => <button key={year} className={year === selectedYear ? 'timeline-year active' : 'timeline-year'} onClick={() => onSelectYear(year)}>{year}</button>)}</div>{historyModal && <SprintHistoryModal sprint={historyModal} onClose={onCloseSprint} onShowGoalDetails={onShowGoalDetails} />}</div>
+
+        {historyModal && <SprintHistoryModal sprint={historyModal} onClose={onCloseSprint} onShowGoalDetails={onShowGoalDetails} />}
+      </div>
+    );
+  }
   if (active === 'Profile') {
     const joined = profile?.user?.active_since || { year: data.year, sprint_number: data.sprint }
     const yearProgress = profile?.year || data
@@ -847,97 +1199,179 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
       longest_streak: 0,
     }
 
-    return <div className="workspace-page profile-page">
-      <PageHeader label="ACCOUNT" title="Profile" />
-      <section className="profile-hero card">
-        <div className="profile-hero-top">
-          <div
-            className="profile-avatar large"
-            onClick={() => document.getElementById('avatar-file-input').click()}
-            title="Click to upload profile photo"
-            style={{
-              position: 'relative',
-              cursor: 'pointer',
-              overflow: 'hidden',
-              background: '#2b2e29',
-              border: '2px solid #343630',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '50%',
-            }}
-          >
-            {profileUser.profile_photo ? (
-              <img
-                src={profileUser.profile_photo}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                alt="Profile"
-              />
-            ) : (
-              (profileUser.display_name || profileUser.username || 'U').slice(0, 1).toUpperCase()
-            )}
-            
-            <div
-              className="avatar-upload-overlay"
-              style={{
-                position: 'absolute',
-                inset: 0,
-                background: 'rgba(0,0,0,0.6)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: 0,
-                transition: 'opacity 0.15s ease',
-                fontSize: '10px',
-                fontFamily: '"DM Mono", monospace',
-                color: '#eef0e9',
-              }}
-            >
-              UPLOAD
+    return (
+      <div className="workspace-page profile-page-custom">
+        <header className="profile-page-header">
+          <div className="profile-header-left">
+            <span className="profile-badge">ACCOUNT OVERVIEW</span>
+            <h1 className="profile-title">
+              User <em>Profile</em>
+            </h1>
+            <p className="profile-subtitle">
+              Manage your personal settings, view cumulative statistics, and inspect sprint achievements.
+            </p>
+          </div>
+        </header>
+
+        <section className="profile-hero card">
+          {/* Column 1: User Identity Info */}
+          <div className="profile-col-user">
+            <div className="profile-avatar-container">
+              <div
+                className="profile-avatar large"
+                onClick={() => document.getElementById('avatar-file-input').click()}
+                title="Click to upload profile photo"
+                style={{
+                  position: 'relative',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  background: '#2b2e29',
+                  border: '2px solid #c9f36a',
+                  boxShadow: '0 0 15px rgba(201, 243, 106, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '50%',
+                }}
+              >
+                {profileUser.profile_photo ? (
+                  <img
+                    src={profileUser.profile_photo}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    alt="Profile"
+                  />
+                ) : (
+                  (profileUser.display_name || profileUser.username || 'U').slice(0, 1).toUpperCase()
+                )}
+                
+                <div
+                  className="avatar-upload-overlay"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.6)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: 0,
+                    transition: 'opacity 0.15s ease',
+                    fontSize: '10px',
+                    fontFamily: '"DM Mono", monospace',
+                    color: '#eef0e9',
+                  }}
+                >
+                  UPLOAD
+                </div>
+                
+                <input
+                  type="file"
+                  id="avatar-file-input"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 1500000) {
+                      alert('Image is too large! Please upload an image smaller than 1.5MB.');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      const img = new Image();
+                      img.src = reader.result;
+                      img.onload = () => {
+                        setCropImageDims({ width: img.width, height: img.height });
+                        setCropImageSrc(reader.result);
+                        setCropZoom(1);
+                        setCropOffset({ x: 0, y: 0 });
+                      };
+                    };
+                    reader.readAsDataURL(file);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+              <div className="profile-active-pulse" />
             </div>
             
-            <input
-              type="file"
-              id="avatar-file-input"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                if (file.size > 1500000) {
-                  alert('Image is too large! Please upload an image smaller than 1.5MB.');
-                  return;
-                }
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                  setCropImageSrc(reader.result);
-                  setCropZoom(1);
-                  setCropOffset({ x: 0, y: 0 });
-                };
-                reader.readAsDataURL(file);
-                e.target.value = '';
-              }}
-            />
+            <div className="profile-meta-details">
+              <p className="eyebrow" style={{ color: '#c9f36a' }}>{profileUser.username ? `@${profileUser.username}` : 'ONEPERCENTGOAL USER'}</p>
+              <h3 style={{ margin: '0 0 4px', fontSize: 'clamp(24px, 3vw, 36px)', fontWeight: 600, color: '#f6f5f1', letterSpacing: '-.05em', lineHeight: 1.15 }}>
+                {profileUser.display_name || profileUser.name || 'Sai'}
+              </h3>
+              <p className="profile-meta" style={{ color: '#8c9085', fontSize: '13px', margin: '4px 0 12px' }}>
+                Active since sprint {String(joined.sprint_number).padStart(2, '0')} · {joined.year}
+              </p>
+              
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="profile-edit-btn" onClick={() => setEditModalOpen(true)}>
+                  Edit Profile
+                </button>
+                <button 
+                  className="profile-edit-btn" 
+                  style={{ borderColor: 'rgba(201, 243, 106, 0.35)', color: '#c9f36a' }}
+                  onClick={() => {
+                    const shareUrl = `${window.location.origin}/u/${profileUser.username}`;
+                    navigator.clipboard.writeText(shareUrl).then(() => {
+                      alert('Public profile link copied to clipboard!');
+                    });
+                  }}
+                >
+                  Share Profile
+                </button>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="eyebrow">{profileUser.username ? `@${profileUser.username}` : 'ONEPERCENTGOAL USER'}</p>
-            <h3>{profileUser.display_name || profileUser.name || 'Sai'}</h3>
-            <p className="profile-meta">Active since sprint {String(joined.sprint_number).padStart(2, '0')} · {joined.year}</p>
+          
+          {/* Column 2: Bio details */}
+          <div className="profile-col-bio">
+            {profileUser.bio ? (
+              <>
+                <span className="bio-label">BIO</span>
+                <p className="bio-content-text">{profileUser.bio}</p>
+              </>
+            ) : (
+              <p className="bio-empty-text" style={{ color: '#676a62', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
+                No focus directive registered yet.
+              </p>
+            )}
           </div>
-        </div>
-        <div className="profile-progress">
-          <span>{yearProgress.percentage.toFixed(2)}%</span>
-          <small>of '{String(yearProgress.year).slice(-2)}</small>
-        </div>
-      </section>
-      <div className="profile-stats">
-        <div className="metric card"><small>GOALS COMPLETED</small><b>{stats.goals_completed}</b><span>out of {stats.total_goals} unique</span></div>
-        <div className="metric card"><small>COMPLETION RATE</small><b>{stats.completion_rate}%</b><span>overall performance</span></div>
-        <div className="metric card"><small>CURRENT STREAK</small><b>{stats.current_streak}</b><span>successful sprints</span></div>
-        <div className="metric card"><small>LONGEST STREAK</small><b>{stats.longest_streak}</b><span>sprints record</span></div>
-      </div>
+          
+          {/* Column 3: Year progress percentage */}
+          <div className="profile-col-progress">
+            <span>{yearProgress.percentage.toFixed(2)}%</span>
+            <small>of '{String(yearProgress.year).slice(-2)}</small>
+          </div>
+        </section>
 
-      {historyModal && <SprintHistoryModal sprint={historyModal} onClose={onCloseSprint} onShowGoalDetails={onShowGoalDetails} />}
+        <div className="profile-stats">
+          <div className="metric card"><small>GOALS COMPLETED</small><b>{stats.goals_completed}</b><span>out of {stats.total_goals} unique</span></div>
+          <div className="metric card"><small>COMPLETION RATE</small><b>{stats.completion_rate}%</b><span>overall performance</span></div>
+          <div className="metric card"><small>CURRENT STREAK</small><b>{stats.current_streak}</b><span>successful sprints</span></div>
+          <div className="metric card"><small>LONGEST STREAK</small><b>{stats.longest_streak}</b><span>sprints record</span></div>
+        </div>
+
+        {historyModal && <SprintHistoryModal sprint={historyModal} onClose={onCloseSprint} onShowGoalDetails={onShowGoalDetails} />}
+        
+        <EditProfileModal
+          isOpen={editModalOpen}
+          onClose={() => setEditModalOpen(false)}
+          user={profileUser}
+          onSubmit={async (username, displayName, bio) => {
+            setEditLoading(true)
+            setEditError('')
+            try {
+              await onUpdateProfile(username, displayName, null, bio)
+              setEditModalOpen(false)
+            } catch (err) {
+              setEditError(err.message || 'Failed to save changes')
+            } finally {
+              setEditLoading(false)
+            }
+          }}
+          loading={editLoading}
+          error={editError}
+        />
       
       {cropImageSrc && (
         <div style={{
@@ -966,55 +1400,65 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
             <h3 style={{ margin: '0 0 16px', color: '#eef0e9', fontSize: '18px', fontWeight: 500 }}>Crop Profile Photo</h3>
             
             {/* Viewport Mask */}
-            <div style={{
-              width: '200px',
-              height: '200px',
-              borderRadius: '50%',
-              overflow: 'hidden',
-              position: 'relative',
-              background: '#141613',
-              border: '2px solid #c9f36a',
-              boxShadow: '0 0 20px rgba(201, 243, 106, 0.25)',
-              touchAction: 'none'
-            }}
-              onMouseDown={(e) => {
-                setIsDragging(true);
-                dragStart.current = { x: e.clientX - cropOffset.x, y: e.clientY - cropOffset.y };
-              }}
-              onMouseMove={(e) => {
-                if (!isDragging) return;
-                setCropOffset({ x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y });
-              }}
-              onMouseUp={() => setIsDragging(false)}
-              onMouseLeave={() => setIsDragging(false)}
+            {(() => {
+              const baseScale = Math.max(200 / cropImageDims.width, 200 / cropImageDims.height);
+              const imgWidth = cropImageDims.width * baseScale;
+              const imgHeight = cropImageDims.height * baseScale;
               
-              onTouchStart={(e) => {
-                setIsDragging(true);
-                const touch = e.touches[0];
-                dragStart.current = { x: touch.clientX - cropOffset.x, y: touch.clientY - cropOffset.y };
-              }}
-              onTouchMove={(e) => {
-                if (!isDragging) return;
-                const touch = e.touches[0];
-                setCropOffset({ x: touch.clientX - dragStart.current.x, y: touch.clientY - dragStart.current.y });
-              }}
-              onTouchEnd={() => setIsDragging(false)}
-            >
-              <img
-                src={cropImageSrc}
-                draggable="false"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  transform: `translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})`,
-                  transformOrigin: 'center center',
-                  cursor: 'move',
-                  userSelect: 'none',
-                  pointerEvents: 'none'
+              return (
+                <div style={{
+                  width: '200px',
+                  height: '200px',
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  position: 'relative',
+                  background: '#141613',
+                  border: '2px solid #c9f36a',
+                  boxShadow: '0 0 20px rgba(201, 243, 106, 0.25)',
+                  touchAction: 'none'
                 }}
-              />
-            </div>
+                  onMouseDown={(e) => {
+                    setIsDragging(true);
+                    dragStart.current = { x: e.clientX - cropOffset.x, y: e.clientY - cropOffset.y };
+                  }}
+                  onMouseMove={(e) => {
+                    if (!isDragging) return;
+                    setCropOffset({ x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y });
+                  }}
+                  onMouseUp={() => setIsDragging(false)}
+                  onMouseLeave={() => setIsDragging(false)}
+                  
+                  onTouchStart={(e) => {
+                    setIsDragging(true);
+                    const touch = e.touches[0];
+                    dragStart.current = { x: touch.clientX - cropOffset.x, y: touch.clientY - cropOffset.y };
+                  }}
+                  onTouchMove={(e) => {
+                    if (!isDragging) return;
+                    const touch = e.touches[0];
+                    setCropOffset({ x: touch.clientX - dragStart.current.x, y: touch.clientY - dragStart.current.y });
+                  }}
+                  onTouchEnd={() => setIsDragging(false)}
+                >
+                  <img
+                    src={cropImageSrc}
+                    draggable="false"
+                    style={{
+                      position: 'absolute',
+                      left: '50%',
+                      top: '50%',
+                      width: `${imgWidth}px`,
+                      height: `${imgHeight}px`,
+                      transform: `translate(-50%, -50%) translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})`,
+                      transformOrigin: 'center center',
+                      cursor: 'move',
+                      userSelect: 'none',
+                      pointerEvents: 'none'
+                    }}
+                  />
+                </div>
+              );
+            })()}
             
             {/* Zoom Slider */}
             <div style={{ width: '100%', margin: '20px 0 24px' }}>
@@ -1077,9 +1521,9 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
                     ctx.fillStyle = '#1d1f1c';
                     ctx.fillRect(0, 0, 200, 200);
                     
-                    const minScale = Math.max(200 / img.width, 200 / img.height);
-                    const drawWidth = img.width * minScale * cropZoom;
-                    const drawHeight = img.height * minScale * cropZoom;
+                    const baseScale = Math.max(200 / img.width, 200 / img.height);
+                    const drawWidth = img.width * baseScale * cropZoom;
+                    const drawHeight = img.height * baseScale * cropZoom;
                     const dx = 100 - drawWidth / 2 + cropOffset.x;
                     const dy = 100 - drawHeight / 2 + cropOffset.y;
                     
@@ -1116,7 +1560,8 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
           </div>
         </div>
       )}
-    </div>
+      </div>
+    );
   }
 }
 
@@ -1153,13 +1598,87 @@ function App() {
     </svg>
   `)
   const [active, setActive] = useState('Overview')
+  const [quoteIndices, setQuoteIndices] = useState([0, 1])
+  const [headerHidden, setHeaderHidden] = useState(false)
+
+  useEffect(() => {
+    let lastScrollY = window.scrollY
+    let scrollTimeout = null
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY
+      if (currentScrollY < lastScrollY) {
+        setHeaderHidden(false)
+      } else if (currentScrollY > lastScrollY && currentScrollY > 50) {
+        setHeaderHidden(true)
+      }
+
+      if (scrollTimeout) clearTimeout(scrollTimeout)
+      scrollTimeout = setTimeout(() => {
+        setHeaderHidden(false)
+      }, 250)
+
+      lastScrollY = currentScrollY
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      if (scrollTimeout) clearTimeout(scrollTimeout)
+    }
+  }, [])
+  useEffect(() => {
+    if (active === 'Overview') {
+      const len = MOTIVATIONAL_QUOTES.length
+      if (len > 1) {
+        const i1 = Math.floor(Math.random() * len)
+        let i2 = Math.floor(Math.random() * len)
+        while (i2 === i1) {
+          i2 = Math.floor(Math.random() * len)
+        }
+        setQuoteIndices([i1, i2])
+      }
+    }
+  }, [active])
   const [goals, setGoals] = useState([])
+  const [addGoalModalOpen, setAddGoalModalOpen] = useState(false)
+  const [addGoalLoading, setAddGoalLoading] = useState(false)
   const [timelineHistory, setTimelineHistory] = useState({ year: new Date().getFullYear(), years: [], sprints: [] })
   const [selectedTimelineYear, setSelectedTimelineYear] = useState(new Date().getFullYear())
   const [profile, setProfile] = useState(null)
   const [historyModal, setHistoryModal] = useState(null)
   const [completionFlow, setCompletionFlow] = useState(null)
   const [selectedGoalDetails, setSelectedGoalDetails] = useState(null)
+
+  const shareMatch = window.location.pathname.match(/^\/u\/([a-zA-Z0-9_-]+)/)
+  const shareUsername = shareMatch ? shareMatch[1] : null
+  const [publicData, setPublicData] = useState(null)
+  const [publicLoading, setPublicLoading] = useState(false)
+  const [publicError, setPublicError] = useState('')
+  const [publicYear, setPublicYear] = useState(new Date().getFullYear())
+
+  useEffect(() => {
+    if (shareUsername) {
+      const fetchPublic = async () => {
+        setPublicLoading(true)
+        setPublicError('')
+        try {
+          const response = await apiFetch(`/api/u/${shareUsername}?year=${publicYear}`)
+          if (!response.ok) {
+            const err = await response.json()
+            throw new Error(err.detail || 'User profile not found')
+          }
+          const result = await response.json()
+          setPublicData(result)
+        } catch (err) {
+          setPublicError(err.message || 'Failed to load public profile')
+        } finally {
+          setPublicLoading(false)
+        }
+      }
+      fetchPublic()
+    }
+  }, [shareUsername, publicYear])
   const showGoalDetails = goal => {
     setSelectedGoalDetails({
       title: goal.title,
@@ -1209,6 +1728,11 @@ function App() {
   }, [])
 
   const data = useMemo(() => getYearData(now), [now])
+  const deadlineStr = useMemo(() => {
+    if (!data?.checkpointEnd) return ''
+    const deadlineFormat = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    return deadlineFormat.format(data.checkpointEnd)
+  }, [data])
   const day = Math.floor(data.elapsed / DAY) + 1
   const start = new Date(data.checkpointEnd.getTime() - (data.total * DAY / 100))
   const dateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
@@ -1389,16 +1913,18 @@ function App() {
     setCompletionFlow(null)
   }
 
-  const addGoal = async () => {
-    const title = window.prompt('What do you want to achieve in this sprint?')
+  const addGoal = async (title) => {
     if (!title?.trim()) return
+    setAddGoalLoading(true)
     try {
       const response = await apiFetch('/api/goals', { method: 'POST', headers: buildHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ title: title.trim() }) })
       if (!response.ok) throw new Error('Unable to add goal')
       const saved = presentGoal(await response.json())
       setGoals(items => [...items, saved])
       await refreshProfile()
+      setAddGoalModalOpen(false)
     } catch { window.alert('The goal could not be saved.') }
+    finally { setAddGoalLoading(false) }
   }
 
   const openSprintHistory = async sprintNumber => {
@@ -1413,7 +1939,7 @@ function App() {
     } catch {}
   }
 
-  const handleUpdateProfile = async (username, displayName, profilePhoto = null) => {
+  const handleUpdateProfile = async (username, displayName, profilePhoto = null, bio = null) => {
     try {
       const response = await apiFetch('/api/auth/profile', {
         method: 'POST',
@@ -1424,7 +1950,8 @@ function App() {
         body: JSON.stringify({
           username,
           display_name: displayName,
-          profile_photo: profilePhoto
+          profile_photo: profilePhoto,
+          bio: bio !== null ? bio : currentUser?.bio || ""
         })
       })
       if (!response.ok) {
@@ -1457,14 +1984,208 @@ function App() {
     return <main className="app-shell"><div className="auth-screen"><section className="auth-card card"><p className="eyebrow">ONEPERCENTGOAL</p><h1>Loading…</h1></section></div></main>
   }
 
+  if (shareUsername) {
+    return (
+      <main className="app-shell">
+        <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
+          <div className="shell-pill">
+            <button className="shell-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })} aria-label="OnePercentGoal home" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <img src="/favicon.ico" alt="Logo" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
+              <span>onepercentgoal</span>
+            </button>
+            <button className="shell-nav-item" onClick={() => window.location.href = '/'} style={{ background: 'transparent', border: '1px solid #3c4037', color: '#c9f36a', padding: '6px 14px', borderRadius: '24px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: '"DM Mono", monospace', letterSpacing: '0.04em' }}>
+              JOIN ONEPERCENTGOAL
+            </button>
+          </div>
+        </header>
+
+        <section className="content" style={{ marginTop: '90px', paddingBottom: '60px' }}>
+          {publicLoading && <p style={{ color: '#8c9085', textAlign: 'center', fontFamily: '"DM Mono", monospace' }}>Loading profile...</p>}
+          {publicError && (
+            <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+              <h2 style={{ color: '#ff6b6b', fontWeight: 500 }}>Profile Not Found</h2>
+              <p style={{ color: '#8c9085', margin: '12px 0 24px' }}>{publicError}</p>
+              <button className="profile-edit-btn" onClick={() => window.location.href = '/'}>Go Home</button>
+            </div>
+          )}
+          
+          {publicData && (
+            <div className="workspace-page" style={{ animation: 'fadeIn 0.3s ease' }}>
+              <header className="profile-page-header">
+                <div className="profile-header-left">
+                  <span className="profile-badge">PUBLIC SPRINT PROFILE</span>
+                  <h1 className="profile-title">
+                    @{publicData.user.username}<em>'s dashboard</em>
+                  </h1>
+                </div>
+              </header>
+
+              {/* 3-Column Profile Summary Card */}
+              <section className="profile-hero card" style={{ marginBottom: '24px' }}>
+                <div className="profile-col-user">
+                  <div className="profile-avatar-container">
+                    <div
+                      className="profile-avatar large"
+                      style={{
+                        position: 'relative',
+                        overflow: 'hidden',
+                        background: '#2b2e29',
+                        border: '2px solid #c9f36a',
+                        boxShadow: '0 0 15px rgba(201, 243, 106, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '50%',
+                      }}
+                    >
+                      {publicData.user.profile_photo ? (
+                        <img src={publicData.user.profile_photo} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Profile" />
+                      ) : (
+                        (publicData.user.display_name || publicData.user.username || 'U').slice(0, 1).toUpperCase()
+                      )}
+                    </div>
+                    <div className="profile-active-pulse" />
+                  </div>
+                  
+                  <div className="profile-meta-details">
+                    <p className="eyebrow" style={{ color: '#c9f36a', margin: 0 }}>@{publicData.user.username}</p>
+                    <h3 style={{ margin: '4px 0', fontSize: 'clamp(24px, 3vw, 36px)', fontWeight: 600, color: '#f6f5f1', letterSpacing: '-.05em', lineHeight: 1.15 }}>
+                      {publicData.user.display_name}
+                    </h3>
+                    <p className="profile-meta" style={{ color: '#8c9085', fontSize: '13px', margin: 0 }}>
+                      Active since sprint {String(publicData.user.active_since.sprint_number).padStart(2, '0')} · {publicData.user.active_since.year}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="profile-col-bio">
+                  {publicData.user.bio ? (
+                    <>
+                      <span className="bio-label">BIO</span>
+                      <p className="bio-content-text">{publicData.user.bio}</p>
+                    </>
+                  ) : (
+                    <p className="bio-empty-text" style={{ color: '#676a62', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
+                      No focus directive registered.
+                    </p>
+                  )}
+                </div>
+
+                <div className="profile-col-progress">
+                  <span>{publicData.stats.completion_rate}%</span>
+                  <small>Completion Rate</small>
+                </div>
+              </section>
+
+              {/* Active Sprint Goals Section */}
+              <h2 style={{ fontSize: '20px', fontWeight: 500, margin: '32px 0 16px', letterSpacing: '-0.02em', color: '#eef0e9' }}>
+                Active Sprint Goals <span style={{ color: '#8c9085', fontSize: '13px', fontWeight: 'normal', marginLeft: '8px' }}>(Sprint #{publicData.sprint})</span>
+              </h2>
+              <section className="all-goals card" style={{ marginBottom: '32px' }}>
+                {publicData.goals.length === 0 ? (
+                  <p style={{ color: '#8c9085', margin: 0, fontStyle: 'italic', padding: '16px' }}>No active goals for this sprint.</p>
+                ) : (
+                  <div className="goal-list">
+                    {publicData.goals.map(goal => (
+                      <div className="goal" key={goal.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px' }}>
+                        <div className="goal-content" style={{ flex: 1 }}>
+                          <span style={{ fontSize: '15px', color: goal.completed ? '#8c9085' : '#eef0e9', textDecoration: goal.completed ? 'line-through' : 'none' }}>
+                            {goal.title}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#676a62', fontFamily: '"DM Mono", monospace' }}>
+                            PROGRESS: {goal.progress} / {goal.target}
+                          </span>
+                        </div>
+                        <span style={{
+                          color: goal.completed ? '#c9f36a' : '#8c9085',
+                          fontSize: '12px',
+                          fontFamily: '"DM Mono", monospace',
+                          fontWeight: 600,
+                          border: `1px solid ${goal.completed ? 'rgba(201, 243, 106, 0.3)' : '#343630'}`,
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          background: goal.completed ? 'rgba(201, 243, 106, 0.05)' : 'transparent'
+                        }}>
+                          {goal.completed ? 'DONE' : 'ACTIVE'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Cumulative stats */}
+              <h2 style={{ fontSize: '20px', fontWeight: 500, margin: '0 0 16px', letterSpacing: '-0.02em', color: '#eef0e9' }}>Performance Stats</h2>
+              <div className="profile-stats" style={{ marginBottom: '32px' }}>
+                <div className="metric card"><small>GOALS COMPLETED</small><b>{publicData.stats.goals_completed}</b><span>out of {publicData.stats.total_goals} unique</span></div>
+                <div className="metric card"><small>COMPLETION RATE</small><b>{publicData.stats.completion_rate}%</b><span>overall performance</span></div>
+                <div className="metric card"><small>CURRENT STREAK</small><b>{publicData.stats.current_streak}</b><span>successful sprints</span></div>
+                <div className="metric card"><small>LONGEST STREAK</small><b>{publicData.stats.longest_streak}</b><span>sprints record</span></div>
+              </div>
+
+              {/* Timeline heat grid */}
+              <h2 style={{ fontSize: '20px', fontWeight: 500, margin: '0 0 16px', letterSpacing: '-0.02em', color: '#eef0e9' }}>Sprint History</h2>
+              <section className="timeline" style={{ marginBottom: '32px' }}>
+                {publicData.history.sprints.map(summary => {
+                  const number = summary.sprint_number;
+                  const state = number < publicData.sprint ? 'past' : number === publicData.sprint ? 'current' : '';
+                  const start = new Date(summary.sprint_start);
+                  const end = new Date(summary.sprint_end);
+                  const dateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+                  const tileDateStr = `${dateFormat.format(start)} — ${dateFormat.format(end)}`;
+                  return (
+                    <div className={`sprint-tile ${state}`} key={number} style={{ cursor: 'default' }}>
+                      <span>SPRINT</span>
+                      <b>
+                        #{String(number).padStart(2, '0')}
+                        <span className="sprint-tile-dates">({tileDateStr})</span>
+                      </b>
+                      <small>{summary.completed_count} done</small>
+                      <strong>{summary.average_progress}% avg</strong>
+                      {state === 'current' && <i>NOW</i>}
+                    </div>
+                  );
+                })}
+              </section>
+
+              {/* Timeline Years */}
+              <div className="timeline-years">
+                {publicData.history.years.map(yr => (
+                  <button key={yr} className={yr === publicYear ? 'timeline-year active' : 'timeline-year'} onClick={() => setPublicYear(yr)}>
+                    {yr}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
+    );
+  }
+
   if (!currentUser) {
-    return <main className="app-shell"><header className="shell-header"><div className="shell-pill"><a className="shell-brand" href="#top" aria-label="OnePercentGoal home">onepercentgoal</a></div></header><section className="content" id="top"><AuthScreen mode={authMode} setMode={setAuthMode} onSubmit={handleAuth} onGoogle={handleGoogle} loading={authLoading} error={authError} /></section></main>
+    return <main className="app-shell">
+      <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
+        <div className="shell-pill">
+          <button className="shell-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })} aria-label="OnePercentGoal home" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <img src="/favicon.ico" alt="Logo" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
+            <span>onepercentgoal</span>
+          </button>
+        </div>
+      </header>
+      <section className="content" style={{ marginTop: '90px' }}>
+        <AuthScreen mode={authMode} setMode={setAuthMode} onSubmit={handleAuth} onGoogle={handleGoogle} loading={authLoading} error={authError} />
+      </section>
+    </main>
   }
 
   return <main className="app-shell">
-    <header className="shell-header">
+    <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
       <div className="shell-pill">
-        <button className="shell-brand" onClick={() => { setActive('Overview'); window.scrollTo({ top: 0, behavior: 'instant' }); }} aria-label="OnePercentGoal home">onepercentgoal</button>
+        <button className="shell-brand" onClick={() => { setActive('Overview'); window.scrollTo({ top: 0, behavior: 'instant' }); }} aria-label="OnePercentGoal home" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <img src="/favicon.ico" alt="Logo" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
+          <span>onepercentgoal</span>
+        </button>
         <nav className="shell-nav" aria-label="Primary">
           {['Overview', 'Goals', 'Timeline', 'Profile'].map(item => <button key={item} onClick={() => { setActive(item); window.scrollTo({ top: 0, behavior: 'instant' }); }} className={active === item ? 'shell-nav-item active' : 'shell-nav-item'}>{item}</button>)}
         </nav>
@@ -1473,7 +2194,7 @@ function App() {
     </header>
 
     <section className="content" id="top">
-      {active !== 'Overview' ? <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onAdd={addGoal} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} /> : <>
+      {active !== 'Overview' ? <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onAdd={() => setAddGoalModalOpen(true)} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} /> : <>
       <section className="aurora-hero-wrapper">
         <div className="aurora-hero-bg"></div>
 
@@ -1539,6 +2260,34 @@ function App() {
             <feDisplacementMap scale=".08" xChannelSelector="R" yChannelSelector="G" in="SourceGraphic" in2="bar_smoothness" result="displacement_0" />
           </filter>
         </svg>
+      </section>
+
+      {/* Visual Compounding Banner */}
+      <section className="compounding-banner-visual card">
+        <div className="compounding-watermark">COMPOUNDING</div>
+        <div className="compounding-glow"></div>
+        <div className="compounding-banner-inner">
+          <div className="compounding-visuals-left">
+            <div className="compounding-eq-row">
+              <span className="eq-term font-instrument-italic">1 Sprint</span>
+              <span className="eq-operator">=</span>
+              <span className="eq-result color-lime">1% of Year</span>
+            </div>
+            <div className="compounding-eq-row">
+              <span className="eq-term font-instrument-italic">1 Sprint</span>
+              <span className="eq-operator">=</span>
+              <span className="eq-result color-lime">3.6 Days</span>
+            </div>
+          </div>
+          <div className="compounding-actions-right">
+            <p className="compounding-cta-text">
+              Complete your mini goals in that 3.6 days in here
+            </p>
+            <button className="compounding-create-btn" onClick={() => setAddGoalModalOpen(true)}>
+              Create Sprint Goal
+            </button>
+          </div>
+        </div>
       </section>
 
       {/* High-Tech Temporal Urgency Console */}
@@ -1665,10 +2414,8 @@ function App() {
           <p className="eyebrow" style={{ marginBottom: '4px' }}>MOTIVATIONAL DRIVE</p>
           
           {(() => {
-            const idx1 = ((data.sprint + day) * 2) % MOTIVATIONAL_QUOTES.length;
-            const idx2 = (((data.sprint + day) * 2) + 1) % MOTIVATIONAL_QUOTES.length;
-            const q1 = MOTIVATIONAL_QUOTES[idx1];
-            const q2 = MOTIVATIONAL_QUOTES[idx2];
+            const q1 = MOTIVATIONAL_QUOTES[quoteIndices[0] ?? 0];
+            const q2 = MOTIVATIONAL_QUOTES[quoteIndices[1] ?? 1];
             
             return (
               <>
@@ -1729,6 +2476,7 @@ function App() {
       <footer><span>ONEPERCENTGOAL / {data.year}</span><span>Life changes 1% at a time.</span></footer>
       </>}
       {needsProfile && <ProfileSetupModal user={currentUser} onSubmit={completeProfile} loading={profileLoading} error={profileError} />}
+      <AddGoalModal isOpen={addGoalModalOpen} onClose={() => setAddGoalModalOpen(false)} onSubmit={addGoal} loading={addGoalLoading} deadline={deadlineStr} />
       {completionFlow && completionFlow.step === 'note' && <div className="modal-backdrop" role="presentation"><form className="completion-modal" onSubmit={event => { event.preventDefault(); continueCompletion() }}><p className="eyebrow">MARK AS COMPLETED</p><h2>{completionFlow.goal.title}</h2><label className="reflection-label">How did you complete it? <span className="req-tag">Required</span><span className="desc-tag">This note will appear in the shareable image.</span></label><textarea autoFocus required value={completionFlow.note} onChange={event => setCompletionFlow(flow => flow ? { ...flow, note: event.target.value } : flow)} placeholder="Write a reflection before finishing this goal…" /><div><button type="button" onClick={() => setCompletionFlow(null)}>Cancel</button><button type="submit">Continue</button></div></form></div>}
       {completionFlow && completionFlow.step === 'confirm' && (
         <div className="modal-backdrop" role="presentation">
