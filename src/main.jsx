@@ -610,7 +610,7 @@ const MorphText = React.memo(function MorphText({
 })
 
 
-function GoalRow({ goal, onProgress, onComplete, onShowDetails }) {
+function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails }) {
   const rowRef = useRef(null)
   const [draft, setDraft] = useState(goal.value)
   const [hovered, setHovered] = useState(false)
@@ -666,7 +666,17 @@ function GoalRow({ goal, onProgress, onComplete, onShowDetails }) {
             <span className="goal-inline-actions">
               {hasChanged && <button className="ghost" onClick={commitProgress}>Save</button>}
               {hasChanged && <button className="ghost" onClick={resetDraft}>Cancel</button>}
-              {!hasChanged && hovered && <button className="ghost" onClick={() => onComplete(goal)}>Complete</button>}
+              {!hasChanged && hovered && (
+                <>
+                  <button className="ghost" onClick={() => onComplete(goal)}>Complete</button>
+                  <button className="ghost btn-delete" onClick={(e) => { e.stopPropagation(); onDelete(goal); }}>Delete</button>
+                </>
+              )}
+            </span>
+          )}
+          {goal.done && hovered && (
+            <span className="goal-inline-actions">
+              <button className="ghost btn-delete" onClick={(e) => { e.stopPropagation(); onDelete(goal); }}>Delete</button>
             </span>
           )}
         </span>
@@ -692,79 +702,32 @@ function PageHeader({ label, title, action }) {
   return <header className="page-header">{label && <p className="eyebrow">{label}</p>}<div><h1>{title}</h1>{action}</div></header>
 }
 
-function AuthScreen({ mode, setMode, onSubmit, onGoogle, loading, error }) {
-  const [form, setForm] = useState({ email: '', password: '', display_name: '' })
+function AuthScreen({ onGoogle, loading, error }) {
   return (
-    <div className="auth-screen">
+    <div className="auth-screen google-only-auth">
       <div className="auth-aurora-glow"></div>
       <section className="auth-card card premium-auth-card">
         <div className="auth-header-wrapper">
-          <p className="eyebrow auth-eyebrow">SYSTEM GATEWAY</p>
+          <p className="eyebrow auth-eyebrow">SECURE GATEWAY</p>
           <h1 className="auth-title">
-            <span>{mode === 'login' ? 'Sign in to' : 'Join'}</span> <em>OnePercentGoal</em>
+            <span>Sign in to</span> <em>OnePercentGoal</em>
           </h1>
           <p className="auth-copy">
-            Every 1% counts. Log in to access your sprint boards, set compounding targets, and view real-time temporal momentum.
+            Every 1% counts. Sign in securely with Google to access your active sprint boards, track compounding targets, and view real-time temporal momentum.
           </p>
         </div>
 
-        <div className="auth-tabs">
-          <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')} type="button">Log In</button>
-          <button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')} type="button">Create Account</button>
-        </div>
-
-        <form className="auth-form" onSubmit={event => { event.preventDefault(); onSubmit(form, mode) }}>
-          {mode === 'register' && (
-            <label className="auth-field">
-              <span>Display Name</span>
-              <input 
-                type="text" 
-                value={form.display_name} 
-                onChange={event => setForm(value => ({ ...value, display_name: event.target.value }))} 
-                placeholder="How should we address you?" 
-              />
-            </label>
-          )}
-          <label className="auth-field">
-            <span>Email Address</span>
-            <input 
-              type="email" 
-              required 
-              value={form.email} 
-              onChange={event => setForm(value => ({ ...value, email: event.target.value }))} 
-              placeholder="name@example.com"
-            />
-          </label>
-          <label className="auth-field">
-            <span>Secret Password</span>
-            <input 
-              type="password" 
-              required 
-              minLength={8} 
-              value={form.password} 
-              onChange={event => setForm(value => ({ ...value, password: event.target.value }))} 
-              placeholder="••••••••"
-            />
-          </label>
-          
-          <button type="submit" className="auth-submit-btn" disabled={loading}>
-            {loading ? 'Decrypting credentials…' : mode === 'login' ? 'Enter Console' : 'Initialize Account'}
+        <div className="google-auth-container" style={{ margin: '24px 0 12px', width: '100%' }}>
+          <button className="google-button premium-google-btn large-google-btn" type="button" onClick={onGoogle} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 20px', borderRadius: '12px', fontSize: '15px', fontWeight: '600' }}>
+            <svg style={{ width: '20px', height: '20px', marginRight: '12px', verticalAlign: 'middle' }} viewBox="0 0 24 24">
+              <path fill="currentColor" d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.58h3.29c1.92,-1.77 3.02,-4.38 3.02,-7.38c0,-0.6 -0.05,-1.2 -0.15,-1.8z" />
+              <path fill="currentColor" d="M12,20.4c2.54,0 4.67,-0.84 6.23,-2.28l-3.29,-2.58c-0.91,0.61 -2.08,0.98 -2.94,0.98c-2.27,0 -4.2,-1.54 -4.89,-3.6H3.66v2.66c1.55,3.08 4.73,5.18 8.34,5.18z" />
+              <path fill="currentColor" d="M7.11,12.92a5.92,5.92 0 0 1 0,-1.84V8.42H3.66a9.92,9.92 0 0 0 0,7.16l3.45,-2.66z" fillOpacity="0.9" />
+              <path fill="currentColor" d="M12,5.28c1.38,0 2.62,0.47 3.59,1.4l2.69,-2.69C16.66,2.5 14.54,1.8 12,1.8c-3.61,0 -6.79,2.1 -8.34,5.18l3.45,2.66c0.69,-2.06 2.62,-3.6 4.89,-3.6z" />
+            </svg>
+            {loading ? 'Initializing Console...' : 'Continue with Google'}
           </button>
-        </form>
-
-        <div className="auth-divider">
-          <span>OR CONTINUE WITH</span>
         </div>
-
-        <button className="google-button premium-google-btn" type="button" onClick={onGoogle} disabled={loading}>
-          <svg style={{ width: '18px', height: '18px', marginRight: '10px', verticalAlign: 'middle' }} viewBox="0 0 24 24">
-            <path fill="currentColor" d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.58h3.29c1.92,-1.77 3.02,-4.38 3.02,-7.38c0,-0.6 -0.05,-1.2 -0.15,-1.8z" />
-            <path fill="currentColor" d="M12,20.4c2.54,0 4.67,-0.84 6.23,-2.28l-3.29,-2.58c-0.91,0.61 -2.08,0.98 -2.94,0.98c-2.27,0 -4.2,-1.54 -4.89,-3.6H3.66v2.66c1.55,3.08 4.73,5.18 8.34,5.18z" />
-            <path fill="currentColor" d="M7.11,12.92a5.92,5.92 0 0 1 0,-1.84V8.42H3.66a9.92,9.92 0 0 0 0,7.16l3.45,-2.66z" fillOpacity="0.9" />
-            <path fill="currentColor" d="M12,5.28c1.38,0 2.62,0.47 3.59,1.4l2.69,-2.69C16.66,2.5 14.54,1.8 12,1.8c-3.61,0 -6.79,2.1 -8.34,5.18l3.45,2.66c0.69,-2.06 2.62,-3.6 4.89,-3.6z" />
-          </svg>
-          Google Authentication
-        </button>
 
         {error && <p className="auth-error premium-auth-error">{error}</p>}
       </section>
@@ -1050,7 +1013,7 @@ const MOTIVATIONAL_QUOTES = [
   { quote: "The secret of getting ahead is getting started.", author: "Mark Twain" }
 ]
 
-function WorkspacePage({ active, data, user, goals, profile, history, historyModal, selectedYear, availableYears, onSelectYear, onOpenSprint, onCloseSprint, onProgress, onComplete, onAdd, onShowGoalDetails, onUpdateProfile }) {
+function WorkspacePage({ active, data, user, goals, profile, history, historyModal, selectedYear, availableYears, onSelectYear, onOpenSprint, onCloseSprint, onProgress, onComplete, onDelete, onAdd, onShowGoalDetails, onUpdateProfile }) {
   const completed = goals.filter(goal => goal.done).length
 
   // Profile image cropping state
@@ -1094,7 +1057,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
         
         <section className="all-goals card">
           <div className="goal-list">
-            {goals.map(goal => <GoalRow goal={goal} onProgress={onProgress} onComplete={onComplete} onShowDetails={onShowGoalDetails} key={goal.id} />)}
+            {goals.map(goal => <GoalRow goal={goal} onProgress={onProgress} onComplete={onComplete} onDelete={onDelete} onShowDetails={onShowGoalDetails} key={goal.id} />)}
           </div>
         </section>
       </div>
@@ -1565,6 +1528,248 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
   }
 }
 
+const filterImageHref = "data:image/svg+xml," + encodeURIComponent(`
+  <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1' color-interpolation-filters='sRGB'>
+    <g>
+      <rect width='1' height='1' fill='black' />
+      <rect width='1' height='1' fill='url(#red)' style='mix-blend-mode:screen' />
+      <rect width='1' height='1' fill='url(#green)' style='mix-blend-mode:screen' />
+      <rect width='1' height='1' fill='url(#yellow)' style='mix-blend-mode:screen' />
+    </g>
+    <defs>
+      <radialGradient id='yellow' cx='0' cy='0' r='1' >
+        <stop stop-color='yellow' />
+        <stop stop-color='yellow' offset='1' stop-opacity='0' />
+      </radialGradient>
+      <radialGradient id='green' cx='1' cy='0' r='1' >
+        <stop stop-color='green' />
+        <stop stop-color='green' offset='1' stop-opacity='0' />
+      </radialGradient>
+      <radialGradient id='red' cx='0' cy='1' r='1' >
+        <stop stop-color='red' />
+        <stop stop-color='red' offset='1' stop-opacity='0' />
+      </radialGradient>
+    </defs>
+  </svg>
+`)
+
+function LandingPage({ onGetStarted, onSignIn }) {
+  const [mockNow, setMockNow] = useState(getISTDate())
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setMockNow(getISTDate())
+    }, 50)
+    return () => clearInterval(timer)
+  }, [])
+
+  const yearData = getYearData(mockNow)
+  const day = Math.floor(yearData.elapsed / DAY) + 1
+  const start = new Date(yearData.checkpointEnd.getTime() - (yearData.total * DAY / 100))
+  const sprintEnd = yearData.checkpointEnd
+  const nextSprintMs = Math.max(0, sprintEnd.getTime() - mockNow.getTime())
+  const secondsLeft = Math.floor(nextSprintMs / 1000)
+  const daysLeft = Math.floor(secondsLeft / 86400)
+  const hoursLeft = Math.floor((secondsLeft % 86400) / 3600)
+  const minutesLeft = Math.floor((secondsLeft % 3600) / 60)
+  const secsLeft = secondsLeft % 60
+
+  return (
+    <div className="landing-page">
+      {/* Hero Card */}
+      <section className="aurora-hero-wrapper landing-hero">
+        <div className="aurora-hero-bg"></div>
+        <div className="aurora-content">
+          <div className="aurora-text-group">
+            <p className="eyebrow motivational-eyebrow" style={{ color: '#fff', textShadow: '0 0 8px rgba(255,255,255,0.45)', margin: '0 0 16px' }}>
+              COMPOUND YOUR POTENTIAL
+            </p>
+            <h1 className="h1-scalingSize">
+              <span>Make this</span>
+              <MorphText />
+              <span>count.</span>
+            </h1>
+            <p className="billboard-subtitle" style={{ color: '#fff', opacity: 0.82, margin: '16px 0 0', maxWidth: '640px', fontSize: '16px', lineHeight: 1.55 }}>
+              One percent progress every single day compounding over the year. Build consistency, define short sprint targets, and witness a massive 37.78x increase in capability.
+            </p>
+          </div>
+          
+          <div className="aurora-action-group" style={{ flexShrink: 0 }}>
+            <LiquidMetalButton size="lg" onClick={onGetStarted}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '20px', fontSize: '20px', fontWeight: '600' }}>
+                Start Your First Sprint
+                <span style={{
+                  borderRadius: '9999px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: '#242721',
+                  width: '40px',
+                  height: '40px',
+                  color: '#c9f36a',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)',
+                  fontSize: '22px',
+                  lineHeight: 1
+                }}>→</span>
+              </span>
+            </LiquidMetalButton>
+          </div>
+        </div>
+
+        <svg
+          version="1.1"
+          xmlns="http://www.w3.org/2000/svg"
+          xmlnsXlink="http://www.w3.org/1999/xlink"
+          colorInterpolationFilters="sRGB"
+          style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none" }}
+          aria-hidden="true"
+          focusable="false"
+        >
+          <filter id="fluted" primitiveUnits="objectBoundingBox">
+            <feImage
+              x="0"
+              y="0"
+              result="image_0"
+              crossOrigin="anonymous"
+              href={filterImageHref}
+              preserveAspectRatio="none meet"
+              width=".03"
+              height="1"
+            />
+            <feTile in="image_0" result="tile_0" />
+            <feGaussianBlur stdDeviation=".0001" edgeMode="none" in="tile_0" result="bar_smoothness" x="0" y="0" />
+            <feDisplacementMap scale=".08" xChannelSelector="R" yChannelSelector="G" in="SourceGraphic" in2="bar_smoothness" result="displacement_0" />
+          </filter>
+        </svg>
+      </section>
+
+      {/* Compounding Visual Banner */}
+      <section className="compounding-banner-visual card landing-compounding-banner">
+        <div className="compounding-watermark">COMPOUNDING</div>
+        <div className="compounding-glow"></div>
+        <div className="compounding-banner-inner">
+          <div className="compounding-visuals-left">
+            <div className="compounding-eq-row">
+              <span className="eq-term font-instrument-italic">1 Sprint</span>
+              <span className="eq-operator">=</span>
+              <span className="eq-result color-lime">1% of Year</span>
+            </div>
+            <div className="compounding-eq-row">
+              <span className="eq-term font-instrument-italic">1 Sprint</span>
+              <span className="eq-operator">=</span>
+              <span className="eq-result color-lime">3.6 Days</span>
+            </div>
+            <div className="compounding-eq-row math-compounding-rule">
+              <span className="eq-term font-instrument-italic" style={{ textTransform: 'none' }}>1.01<sup>365</sup></span>
+              <span className="eq-operator">≈</span>
+              <span className="eq-result color-lime">37.78x Yield</span>
+            </div>
+          </div>
+          <div className="compounding-actions-right">
+            <p className="compounding-cta-text">
+              Break your annual goals down into bite-sized 3.6-day active sprint directives. Track progress, rollover leftovers, and build unstoppable momentum.
+            </p>
+            <button className="compounding-create-btn" onClick={onGetStarted}>
+              Join the System
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Temporal Urgency Console Mockup */}
+      <section className="urgency-console landing-urgency-mock">
+        <div className="urgency-header">
+          <span className="urgency-system-status">SYS.MOCK // SPRINT #{String(yearData.sprint).padStart(2, '0')}</span>
+        </div>
+        
+        <div className="urgency-main">
+          <div className="urgency-live-percentage">
+            <div className="live-num">{yearData.percentage.toFixed(6)}<em>%</em></div>
+            <div className="live-label">OF {yearData.year} COMPLETED</div>
+          </div>
+          
+          <div className="landing-countdown-container">
+            <div style={{ fontFamily: '"DM Mono", monospace', fontSize: '14px', color: '#8c9085', letterSpacing: '0.12em', marginBottom: '8px', textTransform: 'uppercase' }}>
+              Next sprint begins in
+            </div>
+            <div className="urgency-countdown-grid">
+              <div className="time-block">
+                <span className="time-val">{String(daysLeft).padStart(2, '0')}</span>
+                <span className="time-lbl">DAYS</span>
+              </div>
+              <i className="time-sep">:</i>
+              <div className="time-block">
+                <span className="time-val">{String(hoursLeft).padStart(2, '0')}</span>
+                <span className="time-lbl">HOURS</span>
+              </div>
+              <i className="time-sep">:</i>
+              <div className="time-block">
+                <span className="time-val">{String(minutesLeft).padStart(2, '0')}</span>
+                <span className="time-lbl">MINUTES</span>
+              </div>
+              <i className="time-sep">:</i>
+              <div className="time-block">
+                <span className="time-val">{String(secsLeft).padStart(2, '0')}</span>
+                <span className="time-lbl">SECONDS</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="urgency-track-wrap">
+          <div className="urgency-track-labels">
+            <span />
+            <span>YEAR REMAINING: {(100 - yearData.percentage).toFixed(6)}% · DAY {day} OF {yearData.total}</span>
+          </div>
+          <div className="urgency-progress-track main-highlighted-track">
+            <div className="urgency-progress-bar" style={{ width: `${yearData.percentage}%` }} />
+            <div className="urgency-progress-glow" style={{ left: `${yearData.percentage}%` }} />
+          </div>
+          <div className="urgency-progress-scale" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', color: '#8c9085', fontFamily: '"DM Mono", monospace', fontSize: '13px', letterSpacing: '.08em' }}>
+            <span>{yearData.year}</span>
+            <span>25%</span>
+            <span>50%</span>
+            <span>75%</span>
+            <span>{yearData.year + 1}</span>
+          </div>
+        </div>
+
+        <div className="urgency-footer-warning">
+          <span className="warning-icon">✦</span>
+          <p className="warning-text">Time is slipping away. Every second counts. <b>Will you complete your goals, or let another day burn out?</b></p>
+        </div>
+      </section>
+
+      {/* Landing Page Features Grid (Visualizing the experience) */}
+      <section className="landing-features-grid">
+        <article className="card landing-feature-card">
+          <p className="eyebrow">01 // TARGET DRIVEN</p>
+          <h3>3.6-Day Sprints</h3>
+          <p className="feature-desc">Stop looking at overwhelming annual resolutions. Focus purely on what you can achieve in the next 86 hours. Repeat 100 times.</p>
+        </article>
+        
+        <article className="card landing-feature-card">
+          <p className="eyebrow">02 // NO WASTE</p>
+          <h3>Automatic Rollovers</h3>
+          <p className="feature-desc">Any incomplete directives automatically rollover to the next sprint boundary. Keep your record clear, learn, and adapt dynamically.</p>
+        </article>
+
+        <article className="card landing-feature-card">
+          <p className="eyebrow">03 // PROVE CONSISTENCY</p>
+          <h3>Compounding Analytics</h3>
+          <p className="feature-desc">Visualize your progress with live sub-second counters, historical timelines, and customizable profiles to showcase your consistency.</p>
+        </article>
+      </section>
+
+      {/* Call to action footer */}
+      <footer className="landing-footer">
+        <p className="landing-footer-slogan">1 SPRINT = 1% OF YEAR · 1 SPRINT = 3.6 DAYS</p>
+        <button className="landing-footer-btn" onClick={onGetStarted}>Initialize Your Console</button>
+      </footer>
+    </div>
+  )
+}
+
 const getISTDate = () => {
   const d = new Date()
   const utc = d.getTime() + (d.getTimezoneOffset() * 60000)
@@ -1573,30 +1778,6 @@ const getISTDate = () => {
 
 function App() {
   const [now, setNow] = useState(getISTDate())
-  const filterImageHref = "data:image/svg+xml," + encodeURIComponent(`
-    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1' color-interpolation-filters='sRGB'>
-      <g>
-        <rect width='1' height='1' fill='black' />
-        <rect width='1' height='1' fill='url(#red)' style='mix-blend-mode:screen' />
-        <rect width='1' height='1' fill='url(#green)' style='mix-blend-mode:screen' />
-        <rect width='1' height='1' fill='url(#yellow)' style='mix-blend-mode:screen' />
-      </g>
-      <defs>
-        <radialGradient id='yellow' cx='0' cy='0' r='1' >
-          <stop stop-color='yellow' />
-          <stop stop-color='yellow' offset='1' stop-opacity='0' />
-        </radialGradient>
-        <radialGradient id='green' cx='1' cy='0' r='1' >
-          <stop stop-color='green' />
-          <stop stop-color='green' offset='1' stop-opacity='0' />
-        </radialGradient>
-        <radialGradient id='red' cx='0' cy='1' r='1' >
-          <stop stop-color='red' />
-          <stop stop-color='red' offset='1' stop-opacity='0' />
-        </radialGradient>
-      </defs>
-    </svg>
-  `)
   const [active, setActive] = useState('Overview')
   const [quoteIndices, setQuoteIndices] = useState([0, 1])
   const [headerHidden, setHeaderHidden] = useState(false)
@@ -1688,9 +1869,9 @@ function App() {
   const [sessionToken, setSessionToken] = useState(() => localStorage.getItem('onepercentgoal.token') || '')
   const [currentUser, setCurrentUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
-  const [authMode, setAuthMode] = useState('login')
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState('')
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState('')
 
@@ -1754,6 +1935,11 @@ function App() {
       const response = await apiFetch(`/api/profile?year=${yr}`, { headers: { Authorization: `Bearer ${activeToken}` } })
       if (!response.ok) throw new Error('Unable to load profile')
       setProfile(await response.json())
+      
+      const timelineRes = await apiFetch(`/api/timeline?year=${yr}`, { headers: { Authorization: `Bearer ${activeToken}` } })
+      if (timelineRes.ok) {
+        setTimelineHistory(await timelineRes.json())
+      }
     } catch {
       setProfile(null)
     }
@@ -1800,37 +1986,6 @@ function App() {
     if (!currentUser || !sessionToken) return
     refreshProfile(sessionToken, selectedTimelineYear)
   }, [data.year, selectedTimelineYear, currentUser, sessionToken])
-
-  const handleAuth = async (form, mode) => {
-    setAuthLoading(true)
-    setAuthError('')
-    try {
-      const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register'
-      const payload = mode === 'login'
-        ? { email: form.email, password: form.password }
-        : { email: form.email, password: form.password, display_name: form.display_name }
-      const response = await apiFetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.detail || 'Authentication failed')
-      localStorage.setItem('onepercentgoal.token', result.token)
-      setSessionToken(result.token)
-      setCurrentUser(result.user)
-      setActive('Overview')
-      setProfile(null)
-      setGoals([])
-      await loadDashboard(result.token)
-      await refreshProfile(result.token)
-      setAuthReady(true)
-    } catch (error) {
-      setAuthError(error.message || 'Authentication failed')
-    } finally {
-      setAuthLoading(false)
-    }
-  }
 
   const handleGoogle = () => {
     window.location.href = apiUrl('/api/auth/google/start')
@@ -1911,6 +2066,22 @@ function App() {
     }
     await refreshProfile()
     setCompletionFlow(null)
+  }
+
+  const deleteGoal = async (goal) => {
+    if (!window.confirm(`Are you sure you want to delete the goal "${goal.title}"? This action cannot be undone.`)) return
+    try {
+      const response = await apiFetch(`/api/goals/${goal.id}`, {
+        method: 'DELETE',
+        headers: buildHeaders()
+      })
+      if (!response.ok) throw new Error('Unable to delete goal')
+      setGoals(items => items.filter(item => item.id !== goal.id))
+      await refreshProfile()
+    } catch (err) {
+      console.error(err)
+      window.alert('The goal could not be deleted.')
+    }
   }
 
   const addGoal = async (title) => {
@@ -2164,19 +2335,34 @@ function App() {
   }
 
   if (!currentUser) {
-    return <main className="app-shell">
-      <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
-        <div className="shell-pill">
-          <button className="shell-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })} aria-label="OnePercentGoal home" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <img src="/favicon.ico" alt="Logo" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
-            <span>onepercentgoal</span>
-          </button>
-        </div>
-      </header>
-      <section className="content">
-        <AuthScreen mode={authMode} setMode={setAuthMode} onSubmit={handleAuth} onGoogle={handleGoogle} loading={authLoading} error={authError} />
-      </section>
-    </main>
+    return (
+      <main className="app-shell logged-out">
+        <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
+          <div className="shell-pill">
+            <button className="shell-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })} aria-label="OnePercentGoal home" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <img src="/favicon.ico" alt="Logo" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
+              <span>onepercentgoal</span>
+            </button>
+            <div className="shell-nav" aria-label="Auth" style={{ marginLeft: 'auto' }}>
+              <button className="shell-nav-item active" onClick={() => setShowAuthModal(true)}>Access Console</button>
+            </div>
+          </div>
+        </header>
+        
+        <section className="content">
+          <LandingPage onGetStarted={() => setShowAuthModal(true)} onSignIn={() => setShowAuthModal(true)} />
+        </section>
+
+        {showAuthModal && (
+          <div className="modal-backdrop" onClick={() => setShowAuthModal(false)}>
+            <div className="auth-modal-content" onClick={e => e.stopPropagation()}>
+              <button className="modal-close-btn" onClick={() => setShowAuthModal(false)} aria-label="Close modal">×</button>
+              <AuthScreen onGoogle={handleGoogle} loading={authLoading} error={authError} />
+            </div>
+          </div>
+        )}
+      </main>
+    );
   }
 
   return <main className="app-shell">
@@ -2194,7 +2380,7 @@ function App() {
     </header>
 
     <section className="content" id="top">
-      {active !== 'Overview' ? <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onAdd={() => setAddGoalModalOpen(true)} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} /> : <>
+      {active !== 'Overview' ? <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onDelete={deleteGoal} onAdd={() => setAddGoalModalOpen(true)} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} /> : <>
       <section className="aurora-hero-wrapper">
         <div className="aurora-hero-bg"></div>
 

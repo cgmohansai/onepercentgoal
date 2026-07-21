@@ -1932,3 +1932,133 @@
   }
 }
 
+/* Delete Button Highlight */
+.goal-inline-actions button.btn-delete:hover {
+  border-color: #ff6b6b;
+  color: #ff8787;
+}
+
+/* Landing Page Styles */
+.landing-page {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+.landing-hero {
+  border-radius: 16px;
+}
+.landing-compounding-banner {
+  margin-top: 0 !important;
+}
+.landing-urgency-mock {
+  margin-top: 0 !important;
+}
+.landing-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+.landing-feature-card {
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.landing-feature-card h3 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  color: #f6f5f1;
+}
+.landing-feature-card .feature-desc {
+  margin: 0;
+  font-size: 14px;
+  color: #a5a79e;
+  line-height: 1.6;
+}
+.math-compounding-rule {
+  margin-top: 10px;
+}
+.landing-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 24px;
+  border-top: 1px solid #232521;
+  text-align: center;
+}
+.landing-footer-slogan {
+  margin: 0;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: #8c9085;
+  letter-spacing: 0.14em;
+}
+.landing-footer-btn {
+  background: #c9f36a;
+  color: #121411;
+  border: none;
+  border-radius: 99px;
+  padding: 12px 28px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(201, 243, 106, 0.2);
+  transition: all 0.2s ease;
+}
+.landing-footer-btn:hover {
+  background: #d4f682;
+  transform: translateY(-1px);
+}
+.landing-countdown-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+@media (max-width: 768px) {
+  .landing-countdown-container {
+    align-items: center;
+    width: 100%;
+    margin-top: 20px;
+  }
+}
+
+/* Auth Modal Content Styles */
+.auth-modal-content {
+  position: relative;
+  width: min(440px, 100%);
+  background: #141513;
+  border: 1px solid #2b2c28;
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  padding: 12px;
+}
+.auth-modal-content .auth-screen {
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+.auth-modal-content .auth-aurora-glow {
+  display: none;
+}
+.modal-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: #8e9088;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 12;
+  transition: color 0.15s ease;
+}
+.modal-close-btn:hover {
+  color: #c9f36a;
+}
+
+
