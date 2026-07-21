@@ -1872,6 +1872,7 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState('')
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [deleteConfirmFlow, setDeleteConfirmFlow] = useState(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState('')
 
@@ -2068,8 +2069,11 @@ function App() {
     setCompletionFlow(null)
   }
 
-  const deleteGoal = async (goal) => {
-    if (!window.confirm(`Are you sure you want to delete the goal "${goal.title}"? This action cannot be undone.`)) return
+  const deleteGoal = (goal) => {
+    setDeleteConfirmFlow(goal)
+  }
+
+  const confirmDeleteGoal = async (goal) => {
     try {
       const response = await apiFetch(`/api/goals/${goal.id}`, {
         method: 'DELETE',
@@ -2702,6 +2706,48 @@ function App() {
             
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <button className="add-button" type="button" onClick={() => setSelectedGoalDetails(null)} style={{ minWidth: '120px' }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteConfirmFlow && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setDeleteConfirmFlow(null)}>
+          <div className="completion-modal confirm-modal" onClick={event => event.stopPropagation()} style={{ maxWidth: '440px', padding: '28px' }}>
+            <p className="eyebrow" style={{ color: '#ff6b6b' }}>DESTRUCTIVE ACTION</p>
+            <h2 style={{ fontSize: '24px', marginBottom: '16px', fontWeight: '500', letterSpacing: '-.035em' }}>Delete Sprint Goal?</h2>
+            
+            <div className="confirm-summary-simple" style={{ display: 'block', width: '100%', boxSizing: 'border-box', background: '#171916', border: '1px solid #32352f', padding: '20px 24px', borderRadius: '6px', marginBottom: '24px', textAlign: 'center', wordBreak: 'break-word' }}>
+              <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '6px' }}>Goal to be deleted</span>
+              <strong style={{ display: 'block', color: '#eef0e9', fontSize: '20px', fontWeight: '500', letterSpacing: '-.025em', lineHeight: '1.4' }}>{deleteConfirmFlow.title}</strong>
+            </div>
+
+            <p style={{ color: '#a5a79e', fontSize: '14px', lineHeight: 1.5, margin: '0 0 24px', textAlign: 'center' }}>
+              This will permanently erase the goal and its compounding lineage from this active sprint and any rolled over cycles. This action cannot be undone.
+            </p>
+            
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+              <button type="button" onClick={() => setDeleteConfirmFlow(null)} style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
+              <button
+                type="button"
+                className="add-button"
+                onClick={async () => {
+                  const target = deleteConfirmFlow
+                  setDeleteConfirmFlow(null)
+                  await confirmDeleteGoal(target)
+                }}
+                style={{
+                  background: '#ff6b6b',
+                  color: '#141513',
+                  border: 'none',
+                  borderRadius: '24px',
+                  padding: '10px 24px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Delete Goal
+              </button>
             </div>
           </div>
         </div>

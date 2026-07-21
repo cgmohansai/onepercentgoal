@@ -16,8 +16,8 @@
 
 /* Progress and secondary views */
 .progress-card { margin:22px 0 65px; padding:20px 23px 16px; background:#1d1f1c; border:1px solid #343630; }.progress-card .progress-row { margin:0 0 18px; justify-content:space-between; }.progress-row strong { display:block; font-size:17px; font-weight:500; letter-spacing:-.035em; }.progress-row strong span { color:#969990; font-size:12px; font-family:'DM Mono'; font-weight:400; letter-spacing:0; }.progress-row > span { color:#a9aca3; font-family:'DM Mono'; font-size:10px; }.progress-card .year-track { height:8px; border-radius:100px; position:relative; overflow:visible; background:#2b2e29; }.progress-card .year-track i { border-radius:100px; box-shadow:0 0 16px rgba(201,243,106,.32); }.progress-card .year-track b { position:absolute; top:50%; width:14px; height:14px; background:#c9f36a; border:3px solid #1d1f1c; border-radius:50%; transform:translate(-50%, -50%); box-shadow:0 0 0 1px #c9f36a; }.progress-scale { display:flex; justify-content:space-between; margin-top:10px; color:#777a72; font-family:'DM Mono'; font-size:8px; letter-spacing:.07em; }
-.workspace-page { min-height:calc(100vh - 100px); width:100%; }.page-header { margin-bottom:34px; }.page-header > div { display:flex; justify-content:space-between; align-items:center; }.page-header h1 { margin:0; font-size:clamp(32px, 4vw, 48px); font-weight:500; letter-spacing:-.06em; }.all-goals { width:100%; max-width:none; padding:8px 28px; }.all-goals .goal { padding:20px 24px; }.timeline { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:16px; background:transparent; max-width:none; }.sprint-tile { min-height:126px; padding:16px; background:#1d1f1c; border:1px solid #2d3029; border-radius:6px; position:relative; width:100%; color:inherit; text-align:left; cursor:pointer; transition:background .18s ease, transform .18s ease, border-color .18s ease; }.sprint-tile:hover { background:#232622; transform:translateY(-2px); border-color:#44483e; }.sprint-tile span,.sprint-tile small,.sprint-tile strong { display:block; }.sprint-tile span { color:#7f8279; font-family:'DM Mono'; font-size:8px; letter-spacing:.12em; }.sprint-tile b { display:block; margin-top:9px; color:#676a62; font-family:'Instrument Serif'; font-size:30px; font-weight:400; }.sprint-tile small { margin-top:18px; color:#989c92; font-family:'DM Mono'; font-size:9px; letter-spacing:.08em; }.sprint-tile strong { margin-top:6px; color:#d9ddd2; font-family:'DM Mono'; font-size:12px; font-weight:500; }.sprint-tile.past b { color:#c1c4ba; }.sprint-tile.current { background:#293021; border-color:#4b583c; }.sprint-tile.current b,.sprint-tile.current strong { color:#c9f36a; }.sprint-tile i { position:absolute; right:13px; top:15px; color:#c9f36a; font-family:'DM Mono'; font-size:8px; font-style:normal; }.metrics { display:grid; grid-template-columns:repeat(4, 1fr); gap:15px; margin-bottom:20px; }.metric { padding:22px; }.metric small,.metric span { display:block; font-family:'DM Mono'; }.metric small { color:#8b8e85; font-size:9px; letter-spacing:.11em; }.metric b { display:block; font-size:37px; font-weight:500; letter-spacing:-.06em; margin:22px 0 6px; }.metric span { color:#a1a49b; font-size:10px; }.profile-page { max-width:1240px; }.profile-hero { padding:26px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:flex-start; gap:24px; }.profile-hero-top { display:flex; align-items:center; gap:24px; min-width:0; }.profile-avatar.large { width:100px; height:100px; font-size:38px; }.profile-hero .eyebrow { font-size:14px; margin-bottom:2px; }.profile-hero h3 { margin:0; font-size:42px; font-weight:600; letter-spacing:-.05em; line-height:1.15; }.profile-meta { margin:10px 0 0; color:#a6a99f; font-family:'DM Mono'; font-size:14px; }.profile-progress { text-align:right; padding:18px 20px; min-width:182px; border-radius:24px; background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.06); box-shadow:0 24px 60px rgba(0,0,0,.16); }.profile-progress span { display:block; color:#eef0e9; font-family:'Instrument Serif'; font-size:clamp(56px, 6vw, 86px); letter-spacing:-.08em; line-height:.88; }.profile-progress small { display:block; margin-top:8px; color:#a6a99f; font-family:'DM Mono'; font-size:11px; letter-spacing:.12em; text-transform:uppercase; }.profile-stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:15px; }.profile-stats .metric { margin:0; }.heatmap-card { padding:25px; }.heatmap-card h3 { margin:0 0 25px; font-weight:500; letter-spacing:-.03em; }.heatmap { display:grid; }.sprint-heatmap-grid { display:grid; grid-template-rows:repeat(7, 12px); grid-auto-flow:column; grid-auto-columns:12px; gap:3px; height:102px; }.heatmap-cell, .legend-cell { width:12px; height:12px; border-radius:2px; border:none; padding:0; outline:none; display:block; }.heatmap-cell { transition:transform 0.12s ease, filter 0.12s ease; }.heatmap-cell:not(.empty) { cursor:pointer; }.heatmap-cell:not(.empty):hover { transform:scale(1.3); filter:brightness(1.2); z-index:2; }.heatmap-cell.empty { background:#181917; opacity:0.3; cursor:default; pointer-events:none; }.level-0 { background:#222420; }.level-1 { background:#4d4615; }.level-2 { background:#94821a; }.level-3 { background:#d9b81e; }.level-4 { background:#facc15; }
-.heatmap i { display:block; width:15px; height:15px; background:#2b2e29; border-radius:2px; }.heatmap i.low { background:#526735; }.heatmap i.medium { background:#8cad4a; }.heatmap i.high { background:#c9f36a; }
+.workspace-page { min-height:calc(100vh - 100px); width:100%; }.page-header { margin-bottom:34px; }.page-header > div { display:flex; justify-content:space-between; align-items:center; }.page-header h1 { margin:0; font-size:clamp(32px, 4vw, 48px); font-weight:500; letter-spacing:-.06em; }.all-goals { width:100%; max-width:none; padding:8px 28px; }.all-goals .goal { padding:20px 24px; }.timeline { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:16px; background:transparent; max-width:none; }.sprint-tile { min-height:126px; padding:16px; background:#1d1f1c; border:1px solid #2d3029; border-radius:6px; position:relative; width:100%; color:inherit; text-align:left; cursor:pointer; transition:background .18s ease, transform .18s ease, border-color .18s ease; }.sprint-tile:hover { background:#232622; transform:translateY(-2px); border-color:#44483e; }.sprint-tile span,.sprint-tile small,.sprint-tile strong { display:block; }.sprint-tile span { color:#7f8279; font-family:'DM Mono'; font-size:8px; letter-spacing:.12em; }.sprint-tile b { display:block; margin-top:9px; color:#676a62; font-family:'Instrument Serif'; font-size:30px; font-weight:400; }.sprint-tile small { margin-top:18px; color:#989c92; font-family:'DM Mono'; font-size:9px; letter-spacing:.08em; }.sprint-tile strong { margin-top:6px; color:#d9ddd2; font-family:'DM Mono'; font-size:12px; font-weight:500; }.sprint-tile.past b { color:#c1c4ba; }.sprint-tile.current { background:#293021; border-color:#4b583c; }.sprint-tile.current b,.sprint-tile.current strong { color:#c9f36a; }.sprint-tile i { position:absolute; right:13px; top:15px; color:#c9f36a; font-family:'DM Mono'; font-size:8px; font-style:normal; }.metrics { display:grid; grid-template-columns:repeat(4, 1fr); gap:15px; margin-bottom:20px; }.metric { padding:22px; }.metric small,.metric span { display:block; font-family:'DM Mono'; }.metric small { color:#8b8e85; font-size:9px; letter-spacing:.11em; }.metric b { display:block; font-size:37px; font-weight:500; letter-spacing:-.06em; margin:22px 0 6px; }.metric span { color:#a1a49b; font-size:10px; }.profile-page { max-width:1240px; }.profile-hero { padding:26px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:flex-start; gap:24px; }.profile-hero-top { display:flex; align-items:center; gap:24px; min-width:0; }.profile-avatar.large { width:100px; height:100px; font-size:38px; }.profile-hero .eyebrow { font-size:14px; margin-bottom:2px; }.profile-hero h3 { margin:0; font-size:42px; font-weight:600; letter-spacing:-.05em; line-height:1.15; }.profile-meta { margin:10px 0 0; color:#a6a99f; font-family:'DM Mono'; font-size:14px; }.profile-progress { text-align:right; padding:18px 20px; min-width:182px; border-radius:24px; background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.06); box-shadow:0 24px 60px rgba(0,0,0,.16); }.profile-progress span { display:block; color:#eef0e9; font-family:'Instrument Serif'; font-size:clamp(56px, 6vw, 86px); letter-spacing:-.08em; line-height:.88; }.profile-progress small { display:block; margin-top:8px; color:#a6a99f; font-family:'DM Mono'; font-size:11px; letter-spacing:.12em; text-transform:uppercase; }.profile-stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:15px; }.profile-stats .metric { margin:0; }
+
 
 
 /* Overview motion and sprint summary */
@@ -353,7 +353,7 @@
 /* Profile alignment overrides */
 .profile-hero-top { align-items: flex-start; }
 .profile-avatar.large { align-self: flex-start; }
-.heatmap-card { margin-top:18px; padding:28px 25px 25px; }
+
 
 
 /* Auth screens */
@@ -1311,11 +1311,6 @@
     text-align: center;
   }
 
-  /* --- Heatmap --- */
-  .heatmap-card {
-    margin-top: 14px;
-    padding: 20px 16px;
-  }
 }
 
 /* ── Small phone  (≤ 400px) ── */
@@ -2060,5 +2055,314 @@
 .modal-close-btn:hover {
   color: #c9f36a;
 }
+
+/* --- Redesigned Mobile Experience (< 768px) --- */
+@media (max-width: 768px) {
+  /* 1. Global shell margin & width optimizations */
+  .app-shell {
+    padding: 0 8px !important;
+  }
+  .content {
+    width: 100% !important;
+    margin-top: 16px !important;
+    padding-bottom: 24px !important;
+  }
+
+  /* 2. Scrollable Header Navigation instead of wrapping */
+  .shell-header {
+    top: 6px !important;
+  }
+  .shell-pill {
+    max-width: 100% !important;
+    width: 100% !important;
+    flex-wrap: nowrap !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    padding: 8px 12px !important;
+    border-radius: 99px !important;
+    gap: 8px !important;
+  }
+  .shell-brand {
+    font-size: 13px !important;
+    gap: 4px !important;
+    flex-shrink: 0;
+  }
+  .shell-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 auto 0 8px !important;
+    padding: 0 !important;
+    scrollbar-width: none !important; /* Firefox */
+  }
+  .shell-nav::-webkit-scrollbar {
+    display: none !important; /* Safari and Chrome */
+  }
+  .shell-nav-item {
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0;
+  }
+  .logged-out .shell-nav {
+    margin: 0 !important;
+  }
+
+  /* 3. Hero Section naturally expands without squashing */
+  .aurora-hero-wrapper {
+    height: auto !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    border-radius: 12px !important;
+    margin-bottom: 24px !important;
+  }
+  .aurora-hero-bg {
+    position: absolute !important;
+    height: 100% !important;
+    width: 100% !important;
+    inset: 0 !important;
+  }
+  .aurora-content {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    padding: 32px 20px !important;
+    gap: 24px !important;
+  }
+  .aurora-text-group {
+    align-items: center !important;
+    text-align: center !important;
+    max-width: 100% !important;
+  }
+  
+  /* 4. Elegant Mobile Heading sizing - distinct, large, and premium */
+  .h1-scalingSize {
+    font-size: clamp(34px, 8.5vw, 42px) !important;
+    line-height: 1.15 !important;
+    margin: 10px 0 !important;
+    flex-wrap: wrap;
+    justify-content: center !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.04em !important;
+  }
+  .billboard-subtitle {
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    margin-top: 14px !important;
+    opacity: 0.78 !important;
+    text-align: center !important;
+  }
+  .motivational-eyebrow {
+    font-size: 10px !important;
+    letter-spacing: 0.14em !important;
+    margin-bottom: 10px !important;
+  }
+
+  /* --- Every Main Heading in Every Component (Responsive Alignment & Sizing) --- */
+  .page-header h1 {
+    font-size: clamp(24px, 7vw, 30px) !important;
+    line-height: 1.25 !important;
+    letter-spacing: -0.04em !important;
+    text-align: left !important;
+    margin: 0 !important;
+  }
+  .page-header > div {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    width: 100% !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+  .profile-hero h3 {
+    font-size: clamp(26px, 8vw, 32px) !important;
+    line-height: 1.2 !important;
+    text-align: center !important;
+    width: 100% !important;
+  }
+  .sprint-summary-header h2 {
+    font-size: 20px !important;
+    line-height: 1.25 !important;
+    text-align: left !important;
+  }
+  .completion-modal h2 {
+    font-size: 20px !important;
+    line-height: 1.3 !important;
+    text-align: center !important;
+    margin-bottom: 18px !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.02em !important;
+  }
+  .auth-title {
+    font-size: 24px !important;
+    line-height: 1.2 !important;
+    text-align: center !important;
+  }
+  .section-title h2 {
+    font-size: clamp(18px, 5vw, 20px) !important;
+    text-align: left !important;
+    font-weight: 500 !important;
+    letter-spacing: -0.03em !important;
+  }
+  .metric b {
+    font-size: clamp(28px, 8vw, 34px) !important;
+    line-height: 1.15 !important;
+  }
+
+  /* 5. Liquid Metal Button scaling */
+  .liquid-metal-btn-trigger {
+    transform: scale(0.95) !important;
+  }
+
+  /* 6. Overview cards */
+  .overview-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .sprint-summary, .quote-card, .stats-card {
+    padding: 24px 20px !important;
+  }
+  .sprint-progress-big-number {
+    font-size: 52px !important;
+  }
+  
+  /* 7. Compounding visual banner scaling */
+  .landing-compounding-banner {
+    padding: 32px 24px !important;
+  }
+  .compounding-banner-inner {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 28px !important;
+  }
+  .compounding-visuals-left {
+    align-items: center !important;
+    text-align: center !important;
+    width: 100% !important;
+    gap: 20px !important;
+  }
+  .compounding-eq-row {
+    font-size: clamp(26px, 7.5vw, 34px) !important; /* Maximized equation font size! */
+    gap: 12px !important;
+    justify-content: center !important;
+  }
+  .compounding-cta-text {
+    font-size: 13px !important; /* Smaller in comparison to the math formulas! */
+    line-height: 1.6 !important;
+    margin-bottom: 20px !important;
+    font-weight: 400 !important;
+    color: #a5a79e !important;
+    text-align: center !important;
+  }
+  .compounding-create-btn {
+    width: 100% !important;
+    padding: 14px !important;
+    font-size: 14px !important;
+  }
+
+  /* 8. Urgency console mockup scaling */
+  .landing-urgency-mock {
+    padding: 24px 20px !important;
+  }
+  .urgency-main {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 28px !important;
+  }
+  .urgency-live-percentage {
+    text-align: center !important;
+    width: 100% !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+  .urgency-live-percentage .live-num {
+    font-size: clamp(48px, 12vw, 64px) !important; /* Maximized percentage! */
+    line-height: 1 !important;
+  }
+  .urgency-live-percentage .live-label {
+    font-size: 11px !important;
+    letter-spacing: 0.15em !important;
+    margin-top: 8px !important;
+  }
+  .landing-countdown-container {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    width: 100% !important;
+    margin-top: 12px !important;
+  }
+  .urgency-countdown-grid {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 6px !important;
+    justify-content: center !important;
+    margin-top: 14px !important;
+    width: 100% !important;
+  }
+  .time-sep {
+    display: inline-block !important;
+    font-size: 20px !important;
+    padding-bottom: 8px !important;
+    color: #8c9085 !important;
+  }
+  .time-block {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    min-width: 44px !important;
+    width: auto !important;
+  }
+  .time-val {
+    font-size: clamp(22px, 6vw, 28px) !important;
+    line-height: 1 !important;
+  }
+  .time-lbl {
+    font-size: 8px !important;
+    letter-spacing: 0.12em !important;
+    margin-top: 3px !important;
+  }
+
+  /* 9. Features grid and cards */
+  .landing-features-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+  .landing-feature-card {
+    padding: 24px !important;
+    gap: 10px !important;
+  }
+  .landing-feature-card h3 {
+    font-size: 20px !important;
+  }
+  .landing-feature-card .feature-desc {
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+  }
+
+  /* 10. Profile Setup & Edit Profile Modals padding */
+  .completion-modal {
+    padding: 24px 20px !important;
+    width: calc(100% - 16px) !important;
+  }
+  .confirm-summary-simple {
+    padding: 20px !important;
+  }
+}
+
 
 

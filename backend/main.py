@@ -920,9 +920,11 @@ def update_goal(goal_id: int, payload: GoalUpdate, authorization: str | None = H
 def delete_goal(goal_id: int, authorization: str | None = Header(default=None)):
     with db() as conn:
         user_id = current_user_id(conn, authorization)
-        cursor = execute(conn, "DELETE FROM goals WHERE id = %s AND user_id = %s", (goal_id, user_id))
-        if not cursor.rowcount:
+        goal = execute(conn, "SELECT * FROM goals WHERE id = %s AND user_id = %s", (goal_id, user_id)).fetchone()
+        if not goal:
             raise HTTPException(status_code=404, detail="Goal not found")
+        source_id = resolve_source_goal_id(conn, goal)
+        execute(conn, "DELETE FROM goals WHERE (id = %s OR source_goal_id = %s) AND user_id = %s", (source_id, source_id, user_id))
 
 
 @app.get("/api/stats")
