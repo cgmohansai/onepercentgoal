@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { animate } from 'framer-motion'
 import './styles.css'
 
 if ('serviceWorker' in navigator) {
@@ -2253,6 +2254,168 @@ function LandingPage({ onGetStarted, onSignIn }) {
   )
 }
 
+function SpotlightNavbar({
+  items = [
+    { label: "Overview", href: "#overview" },
+    { label: "Goals", href: "#goals" },
+    { label: "Rote", href: "#rote" },
+    { label: "Timeline", href: "#timeline" },
+    { label: "Profile", href: "#profile" },
+    { label: "Logout", href: "#logout" }
+  ],
+  className = "",
+  onItemClick,
+  active,
+  setActive,
+  onLogout
+}) {
+  const navRef = useRef(null);
+  const [hoverX, setHoverX] = useState(null);
+
+  const normalizedItems = items.map(item =>
+    typeof item === 'string' ? { label: item, href: `#${item.toLowerCase()}` } : item
+  );
+
+  const activeIndex = normalizedItems.findIndex(it => it.label === active) >= 0
+    ? normalizedItems.findIndex(it => it.label === active)
+    : 0;
+
+  // Refs for the "light" positions so we can animate them imperatively with framer-motion
+  const spotlightX = useRef(0);
+  const ambienceX = useRef(0);
+
+  useEffect(() => {
+    if (!navRef.current) return;
+    const nav = navRef.current;
+
+    const handleMouseMove = (e) => {
+      const rect = nav.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      setHoverX(x);
+      spotlightX.current = x;
+      nav.style.setProperty("--spotlight-x", `${x}px`);
+    };
+
+    const handleMouseLeave = () => {
+      setHoverX(null);
+      const activeItem = nav.querySelector(`[data-index="${activeIndex}"]`);
+      if (activeItem) {
+        const navRect = nav.getBoundingClientRect();
+        const itemRect = activeItem.getBoundingClientRect();
+        const targetX = itemRect.left - navRect.left + itemRect.width / 2;
+
+        animate(spotlightX.current, targetX, {
+          type: "spring",
+          stiffness: 200,
+          damping: 20,
+          onUpdate: (v) => {
+            spotlightX.current = v;
+            nav.style.setProperty("--spotlight-x", `${v}px`);
+          }
+        });
+      }
+    };
+
+    nav.addEventListener("mousemove", handleMouseMove);
+    nav.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      nav.removeEventListener("mousemove", handleMouseMove);
+      nav.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, [activeIndex]);
+
+  // Handle the "Ambience" (Active Item) Movement
+  useEffect(() => {
+    if (!navRef.current) return;
+    const nav = navRef.current;
+    const activeItem = nav.querySelector(`[data-index="${activeIndex}"]`);
+
+    if (activeItem) {
+      const navRect = nav.getBoundingClientRect();
+      const itemRect = activeItem.getBoundingClientRect();
+      const targetX = itemRect.left - navRect.left + itemRect.width / 2;
+
+      animate(ambienceX.current, targetX, {
+        type: "spring",
+        stiffness: 200,
+        damping: 20,
+        onUpdate: (v) => {
+          ambienceX.current = v;
+          nav.style.setProperty("--ambience-x", `${v}px`);
+        },
+      });
+    }
+  }, [activeIndex]);
+
+  return (
+    <div className={`spotlight-nav-wrapper ${className}`}>
+      <nav ref={navRef} className="spotlight-nav">
+        {/* Brand Logo inside single unified pill */}
+        <button
+          className="spotlight-brand-inside"
+          onClick={() => {
+            if (setActive) setActive('Overview');
+            window.scrollTo({ top: 0, behavior: 'instant' });
+          }}
+          aria-label="OnePercentGoal home"
+        >
+          <img src="/favicon.ico" alt="Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+          <span>onepercentgoal</span>
+        </button>
+
+        <ul className="spotlight-nav-ul">
+          {normalizedItems.map((item, idx) => {
+            const isLogout = item.label === 'Logout';
+            return (
+              <li key={idx} className="spotlight-nav-li">
+                <a
+                  href={item.href}
+                  data-index={idx}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (isLogout) {
+                      if (onLogout) onLogout();
+                      return;
+                    }
+                    if (item.onClick) {
+                      item.onClick();
+                      return;
+                    }
+                    if (setActive) setActive(item.label);
+                    onItemClick?.(item, idx);
+                    window.scrollTo({ top: 0, behavior: 'instant' });
+                  }}
+                  className={`spotlight-nav-link ${isLogout ? 'logout-link' : activeIndex === idx ? 'active' : ''}`}
+                >
+                  {item.label}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* 1. Moving Spotlight Layer (Follows Mouse) */}
+        <div
+          className="spotlight-glow-layer"
+          style={{
+            opacity: hoverX !== null ? 1 : 0,
+            background: `radial-gradient(120px circle at var(--spotlight-x, 50%) 100%, var(--spotlight-color, rgba(201, 243, 106, 0.22)) 0%, transparent 60%)`
+          }}
+        />
+
+        {/* 2. Active State Ambience Line (Stays on Active Item) */}
+        <div
+          className="spotlight-ambience-layer"
+          style={{
+            background: `radial-gradient(70px circle at var(--ambience-x, 50%) 0%, var(--ambience-color, rgba(201, 243, 106, 1)) 0%, transparent 100%)`
+          }}
+        />
+      </nav>
+    </div>
+  );
+}
+
 function App() {
   const [now, setNow] = useState(getISTDate())
   const [active, setActive] = useState('Overview')
@@ -2656,15 +2819,9 @@ function App() {
     return (
       <main className="app-shell">
         <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
-          <div className="shell-pill">
-            <button className="shell-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })} aria-label="OnePercentGoal home" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <img src="/favicon.ico" alt="Logo" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
-              <span>onepercentgoal</span>
-            </button>
-            <button className="shell-nav-item" onClick={() => window.location.href = '/'} style={{ background: 'transparent', border: '1px solid #3c4037', color: '#c9f36a', padding: '6px 14px', borderRadius: '24px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: '"DM Mono", monospace', letterSpacing: '0.04em' }}>
-              JOIN ONEPERCENTGOAL
-            </button>
-          </div>
+          <SpotlightNavbar
+            items={[{ label: 'Join OnePercentGoal', href: '#join', onClick: () => window.location.href = '/' }]}
+          />
         </header>
 
         <section className="content" style={{ paddingBottom: '60px' }}>
@@ -2834,15 +2991,9 @@ function App() {
     return (
       <main className="app-shell logged-out">
         <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
-          <div className="shell-pill">
-            <button className="shell-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })} aria-label="OnePercentGoal home" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <img src="/favicon.ico" alt="Logo" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
-              <span>onepercentgoal</span>
-            </button>
-            <div className="shell-nav" aria-label="Auth" style={{ marginLeft: 'auto' }}>
-              <button className="shell-nav-item active" onClick={() => setShowAuthModal(true)}>Access Console</button>
-            </div>
-          </div>
+          <SpotlightNavbar
+            items={[{ label: 'Access Console', href: '#auth', onClick: () => setShowAuthModal(true) }]}
+          />
         </header>
         
         <section className="content">
@@ -2864,16 +3015,12 @@ function App() {
   return (
     <main className="app-shell">
     <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
-      <div className="shell-pill">
-        <button className="shell-brand" onClick={() => { setActive('Overview'); window.scrollTo({ top: 0, behavior: 'instant' }); }} aria-label="OnePercentGoal home" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <img src="/favicon.ico" alt="Logo" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
-          <span>onepercentgoal</span>
-        </button>
-        <nav className="shell-nav" aria-label="Primary">
-          {['Overview', 'Goals', 'Rote', 'Timeline', 'Profile'].map(item => <button key={item} onClick={() => { setActive(item); window.scrollTo({ top: 0, behavior: 'instant' }); }} className={active === item ? 'shell-nav-item active' : 'shell-nav-item'}>{item}</button>)}
-        </nav>
-        <button className="shell-nav-item" type="button" onClick={logout}>Logout</button>
-      </div>
+      <SpotlightNavbar
+        active={active}
+        setActive={setActive}
+        items={['Overview', 'Goals', 'Rote', 'Timeline', 'Profile', 'Logout']}
+        onLogout={logout}
+      />
     </header>
 
     <section className="content" id="top">
