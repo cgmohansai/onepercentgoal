@@ -19,6 +19,23 @@ function getYearData(date = new Date()) {
   return { year, total, elapsed, percentage, sprint, checkpointEnd }
 }
 
+function getISTDate() {
+  const d = new Date()
+  const utc = d.getTime() + (d.getTimezoneOffset() * 60000)
+  return new Date(utc + (3600000 * 5.5))
+}
+
+function formatDateWithTime(dateObj) {
+  if (!dateObj) return ''
+  const d = new Date(dateObj)
+  if (isNaN(d.getTime())) return ''
+  const month = d.toLocaleString('en-US', { month: 'short' })
+  const day = d.getDate()
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  return `${month} ${day}, ${hours}:${minutes}`
+}
+
 function formatDuration(ms) {
   const seconds = Math.max(0, Math.floor(ms / 1000))
   return {
@@ -102,7 +119,8 @@ async function createCompletionCard(goal, note) {
   const panel = '#1b1d1a'
   const text = '#f5f5ef'
   const muted = '#a4a89b'
-  const displayDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const now = new Date()
+  const displayDate = `${now.toLocaleString('en-US', { month: 'short' })} ${now.getDate()}, ${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
   // Fill background
   const bg = ctx.createLinearGradient(0, 0, 1200, canvasHeight)
@@ -952,7 +970,7 @@ function SprintHistoryModal({ sprint, onClose, onShowGoalDetails }) {
           <p className="eyebrow">SPRINT HISTORY</p>
           <h2 style={{ fontSize: '26px', marginBottom: '4px', fontWeight: '500', letterSpacing: '-.035em' }}>Sprint #{String(sprint.sprint_number).padStart(2, '0')}</h2>
           <p className="sprint-modal-dates" style={{ color: '#8c9085', fontFamily: '"DM Mono", monospace', fontSize: '13px', margin: '0 0 20px' }}>
-            {dateFormat.format(start)} - {dateFormat.format(end)}
+            {formatDateWithTime(start)} — {formatDateWithTime(end)}
           </p>
           
           <div className="confirm-summary-simple" style={{ display: 'block', width: '100%', boxSizing: 'border-box', background: '#171916', border: '1px solid #32352f', padding: '20px 24px', borderRadius: '6px', textAlign: 'center' }}>
@@ -1013,6 +1031,419 @@ const MOTIVATIONAL_QUOTES = [
   { quote: "The secret of getting ahead is getting started.", author: "Mark Twain" }
 ]
 
+function AddRoteModal({ isOpen, onClose, onSubmit }) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+
+  if (!isOpen) return null
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form 
+        className="completion-modal" 
+        onClick={event => event.stopPropagation()} 
+        onSubmit={event => { 
+          event.preventDefault(); 
+          if (!title.trim()) return;
+          onSubmit(title, description);
+          setTitle('');
+          setDescription('');
+        }}
+      >
+        <p className="eyebrow" style={{ color: '#c9f36a' }}>AUTOMATED ROUTINE HABIT</p>
+        <h2>Create a New Routine Rote</h2>
+        <p className="auth-copy" style={{ marginBottom: '20px' }}>
+          Define daily habits done by memory without thinking. Daily list tracking without percentage scores.
+        </p>
+        
+        <label style={{ display: 'block', marginBottom: '16px' }}>
+          Routine Title
+          <input 
+            autoFocus 
+            required 
+            maxLength={140} 
+            placeholder="e.g. Drink 2L Water, Morning Stretch 15m, Evening Journal" 
+            value={title} 
+            onChange={event => setTitle(event.target.value)} 
+          />
+        </label>
+
+        <label style={{ display: 'block', marginBottom: '24px' }}>
+          Description (Optional)
+          <input 
+            maxLength={255} 
+            placeholder="e.g. Keep hydrated throughout the day" 
+            value={description} 
+            onChange={event => setDescription(event.target.value)} 
+          />
+        </label>
+
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+          <button type="button" className="ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="add-button">Create Routine</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function RotePage({ user }) {
+  const getTodayStr = () => {
+    const d = new Date()
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const todayStr = getTodayStr()
+  const [selectedDate, setSelectedDate] = useState(todayStr)
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear())
+  const [viewMonth, setViewMonth] = useState(() => new Date().getMonth())
+  
+  const cacheRef = useRef({})
+  const [loadedDates, setLoadedDates] = useState({})
+  
+  const [rotesData, setRotesData] = useState({ date: todayStr, user_joined_date: todayStr, rotes: [], completed_dates: [], stats: { total_rotes: 0, completed_rotes: 0 } })
+  const [addModalOpen, setAddModalOpen] = useState(false)
+
+  const fetchRotes = async (dateStr) => {
+    if (cacheRef.current[dateStr]) {
+      setRotesData(cacheRef.current[dateStr])
+      setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+      return
+    }
+
+    try {
+      const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
+      const res = await apiFetch(`/api/rotes?date=${dateStr}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        cacheRef.current[dateStr] = data
+        setRotesData(data)
+        setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+      }
+    } catch (err) {
+      console.error('Failed to fetch rotes:', err)
+      setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+    }
+  }
+
+  useEffect(() => {
+    fetchRotes(selectedDate)
+  }, [selectedDate])
+
+  const toggleRote = async (roteId) => {
+    setRotesData(prev => {
+      const updated = prev.rotes.map(r => r.id === roteId ? { ...r, completed: !r.completed } : r)
+      const doneCount = updated.filter(r => r.completed).length
+      const nextState = {
+        ...prev,
+        rotes: updated,
+        stats: { ...prev.stats, completed_rotes: doneCount }
+      }
+      cacheRef.current[selectedDate] = nextState
+      return nextState
+    })
+
+    try {
+      const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
+      await apiFetch(`/api/rotes/${roteId}/toggle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ date: selectedDate })
+      })
+    } catch (err) {
+      console.error('Failed to toggle rote:', err)
+      delete cacheRef.current[selectedDate]
+      fetchRotes(selectedDate)
+    }
+  }
+
+  const deleteRote = async (roteId) => {
+    setRotesData(prev => {
+      const updated = prev.rotes.filter(r => r.id !== roteId)
+      const doneCount = updated.filter(r => r.completed).length
+      const nextState = {
+        ...prev,
+        rotes: updated,
+        stats: { total_rotes: updated.length, completed_rotes: doneCount }
+      }
+      cacheRef.current[selectedDate] = nextState
+      return nextState
+    })
+
+    try {
+      const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
+      await apiFetch(`/api/rotes/${roteId}`, {
+        method: 'DELETE',
+        headers: { Authorization: token ? `Bearer ${token}` : '' }
+      })
+    } catch (err) {
+      console.error('Failed to delete rote:', err)
+      delete cacheRef.current[selectedDate]
+      fetchRotes(selectedDate)
+    }
+  }
+
+  const createRote = async (title, description) => {
+    setAddModalOpen(false)
+
+    const tempId = 'temp-' + Date.now()
+    const tempItem = {
+      id: tempId,
+      title: title.trim(),
+      description: (description || '').trim(),
+      created_at: new Date().toISOString(),
+      rote_date: todayStr,
+      completed: false,
+      completed_at: null
+    }
+
+    setRotesData(prev => {
+      const updated = [...prev.rotes, tempItem]
+      const nextState = {
+        ...prev,
+        rotes: updated,
+        stats: { total_rotes: updated.length, completed_rotes: prev.stats.completed_rotes }
+      }
+      cacheRef.current[todayStr] = nextState
+      return nextState
+    })
+
+    try {
+      const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
+      const res = await apiFetch('/api/rotes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ title, description, date: todayStr })
+      })
+      if (res.ok) {
+        const newItem = await res.json()
+        setRotesData(prev => {
+          const updated = prev.rotes.map(r => r.id === tempId ? { ...r, id: newItem.id } : r)
+          const nextState = { ...prev, rotes: updated }
+          cacheRef.current[todayStr] = nextState
+          return nextState
+        })
+      }
+    } catch (err) {
+      console.error('Failed to create rote:', err)
+      delete cacheRef.current[todayStr]
+      fetchRotes(todayStr)
+    }
+  }
+
+  const joinedDateStr = rotesData.user_joined_date || todayStr
+  const joinedDateParts = joinedDateStr.split('-')
+  const joinedYear = Number(joinedDateParts[0]) || 2026
+  const joinedMonth = (Number(joinedDateParts[1]) || 1) - 1
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const firstDayIndex = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7
+
+  const canGoPrev = viewYear > joinedYear || (viewYear === joinedYear && viewMonth > joinedMonth)
+  const todayDateObj = new Date()
+  const canGoNext = viewYear < todayDateObj.getFullYear() || (viewYear === todayDateObj.getFullYear() && viewMonth < todayDateObj.getMonth())
+
+  const handlePrevMonth = () => {
+    if (!canGoPrev) return
+    if (viewMonth === 0) {
+      setViewMonth(11)
+      setViewYear(y => y - 1)
+    } else {
+      setViewMonth(m => m - 1)
+    }
+  }
+
+  const handleNextMonth = () => {
+    if (!canGoNext) return
+    if (viewMonth === 11) {
+      setViewMonth(0)
+      setViewYear(y => y + 1)
+    } else {
+      setViewMonth(m => m + 1)
+    }
+  }
+
+  const isSelectedDate = (dateString) => dateString === selectedDate
+  const isToday = (dateString) => dateString === todayStr
+  const isCompletedDate = (dateString) => (rotesData.completed_dates || []).includes(dateString)
+
+  const isDateDisabled = (year, month, day) => {
+    const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    if (dStr < joinedDateStr) return true
+    if (dStr > todayStr) return true
+    return false
+  }
+
+  const formatDateDisplay = (dateString) => {
+    if (!dateString) return ''
+    const parts = dateString.split('-')
+    if (parts.length !== 3) return dateString
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
+    const mName = d.toLocaleString('en-US', { month: 'long' })
+    return `${mName} ${d.getDate()}, ${d.getFullYear()}`
+  }
+
+  const completedCount = rotesData.stats?.completed_rotes || 0
+  const totalCount = rotesData.stats?.total_rotes || 0
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
+  const isCurrentDateLoaded = Boolean(loadedDates[selectedDate])
+
+  return (
+    <div className="workspace-page rote-page-custom">
+      <header className="goals-page-header">
+        <div className="goals-header-left">
+          <span className="goals-sprint-badge">AUTOMATED HABITS // DAY-WISE</span>
+          <h1 className="goals-sprint-title">
+            Rote <em>Routines</em>
+          </h1>
+          <p className="goals-subtitle">
+            Done by memory without thinking. Personal development belongs in Goals; Rote tracks your routine daily habits day-by-day.
+          </p>
+        </div>
+        {selectedDate === todayStr && (
+          <button className="goals-primary-add-btn" onClick={() => setAddModalOpen(true)}>
+            + Add Routine Rote
+          </button>
+        )}
+      </header>
+
+      <div className="rote-layout-grid">
+        <div className="rote-calendar-card card">
+          <div className="rote-calendar-header">
+            <button className="calendar-nav-btn" onClick={handlePrevMonth} disabled={!canGoPrev} aria-label="Previous month">‹</button>
+            <div className="calendar-month-title">
+              <span>{monthNames[viewMonth]} {viewYear}</span>
+              {selectedDate !== todayStr && (
+                <button className="calendar-today-link" onClick={() => {
+                  setSelectedDate(todayStr);
+                  setViewYear(new Date().getFullYear());
+                  setViewMonth(new Date().getMonth());
+                }}>
+                  Jump to Today
+                </button>
+              )}
+            </div>
+            <button className="calendar-nav-btn" onClick={handleNextMonth} disabled={!canGoNext} aria-label="Next month">›</button>
+          </div>
+
+          <div className="rote-calendar-weekdays">
+            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+          </div>
+
+          <div className="rote-calendar-days-grid">
+            {Array.from({ length: firstDayIndex }).map((_, idx) => (
+              <div key={`blank-${idx}`} className="calendar-day-cell blank" />
+            ))}
+            {Array.from({ length: daysInMonth }).map((_, idx) => {
+              const dayNum = idx + 1
+              const dateString = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
+              const disabled = isDateDisabled(viewYear, viewMonth, dayNum)
+              const selected = isSelectedDate(dateString)
+              const today = isToday(dateString)
+              const completed = isCompletedDate(dateString)
+
+              return (
+                <button
+                  key={dayNum}
+                  disabled={disabled}
+                  className={`calendar-day-cell ${selected ? 'selected' : ''} ${today ? 'today' : ''} ${disabled ? 'disabled' : ''}`}
+                  onClick={() => setSelectedDate(dateString)}
+                >
+                  <span className="day-number">{dayNum}</span>
+                  {completed && <span className="completed-dot" />}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="rote-calendar-footer">
+            <small>Active since {joinedDateStr}</small>
+          </div>
+        </div>
+
+        <div className="rote-checklist-card card">
+          <div className="rote-day-header">
+            <div>
+              <span className="rote-day-label">
+                {selectedDate === todayStr ? 'TODAY\'S ROUTINES' : 'HISTORICAL DAY CHECKLIST'}
+              </span>
+              <h2>{formatDateDisplay(selectedDate)}</h2>
+            </div>
+            <div className="rote-day-counter">
+              <b>{completedCount} / {totalCount}</b>
+              <span>Done</span>
+            </div>
+          </div>
+
+          {totalCount > 0 && (
+            <div className="rote-day-progress-bar-wrap">
+              <div className="rote-day-progress-bar" style={{ width: `${progressPercent}%` }} />
+            </div>
+          )}
+
+          <div className="rote-list">
+            {!isCurrentDateLoaded ? (
+              <div className="rote-skeleton-wrap">
+                <div className="rote-skeleton-row" />
+                <div className="rote-skeleton-row" />
+              </div>
+            ) : rotesData.rotes && rotesData.rotes.length > 0 ? (
+              rotesData.rotes.map(rote => (
+                <div key={rote.id} className={`rote-row ${rote.completed ? 'completed' : ''}`}>
+                  <button 
+                    className="rote-checkbox" 
+                    onClick={() => toggleRote(rote.id)}
+                    aria-label={rote.completed ? 'Mark pending' : 'Mark done'}
+                  >
+                    {rote.completed ? '✓' : ''}
+                  </button>
+                  <div className="rote-info" onClick={() => toggleRote(rote.id)}>
+                    <span className="rote-title">{rote.title}</span>
+                    {rote.description && <span className="rote-desc">{rote.description}</span>}
+                  </div>
+                  <div className="rote-meta">
+                    <span className={`rote-status-tag ${rote.completed ? 'done' : 'pending'}`}>
+                      {rote.completed ? 'DONE' : 'PENDING'}
+                    </span>
+                    <button className="rote-delete-btn" onClick={(e) => { e.stopPropagation(); deleteRote(rote.id); }}>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rote-empty-state">
+                <p>{selectedDate === todayStr ? 'No routine rotes configured for today.' : 'No routine rotes were logged for this day.'}</p>
+                {selectedDate === todayStr && (
+                  <button className="add-button" style={{ marginTop: '12px', display: 'inline-block' }} onClick={() => setAddModalOpen(true)}>+ Add Routine Rote</button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <AddRoteModal 
+        isOpen={addModalOpen} 
+        onClose={() => setAddModalOpen(false)} 
+        onSubmit={createRote} 
+      />
+    </div>
+  )
+}
+
 function WorkspacePage({ active, data, user, goals, profile, history, historyModal, selectedYear, availableYears, onSelectYear, onOpenSprint, onCloseSprint, onProgress, onComplete, onDelete, onAdd, onShowGoalDetails, onUpdateProfile }) {
   const completed = goals.filter(goal => goal.done).length
 
@@ -1033,8 +1464,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
   const DAY = 24 * 60 * 60 * 1000
   const sprintStart = new Date(new Date(data.year, 0, 1).getTime() + (Math.min(data.sprint - 1, 99) * data.total * DAY / 100))
   const sprintEnd = new Date(data.checkpointEnd)
-  const dateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
-  const dateStr = `${dateFormat.format(sprintStart)} — ${dateFormat.format(sprintEnd)}`
+  const dateStr = `${formatDateWithTime(sprintStart)} — ${formatDateWithTime(sprintEnd)}`
 
   if (active === 'Goals') {
     return (
@@ -1063,6 +1493,9 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
       </div>
     );
   }
+  if (active === 'Rote') {
+    return <RotePage user={user} />;
+  }
   if (active === 'Timeline') {
     return (
       <div className="workspace-page timeline-page-custom">
@@ -1085,7 +1518,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
             const state = selectedYear < data.year ? 'past' : number < data.sprint ? 'past' : number === data.sprint ? 'current' : '';
             const start = new Date(summary.sprint_start);
             const end = new Date(summary.sprint_end);
-            const tileDateStr = `${dateFormat.format(start)} — ${dateFormat.format(end)}`;
+            const tileDateStr = `${formatDateWithTime(start)} — ${formatDateWithTime(end)}`;
             return (
               <button className={`sprint-tile ${state}`} key={number} onClick={() => onOpenSprint(number)}>
                 <span>SPRINT</span>
@@ -1110,7 +1543,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
               const offset = N - data.sprint;
               const upcomingStart = new Date(baselineTime + (offset - 1) * sprintDuration);
               const upcomingEnd = new Date(baselineTime + offset * sprintDuration);
-              const upcomingDateStr = `${dateFormat.format(upcomingStart)} — ${dateFormat.format(upcomingEnd)}`;
+              const upcomingDateStr = `${formatDateWithTime(upcomingStart)} — ${formatDateWithTime(upcomingEnd)}`;
               
               upcomingTiles.push(
                 <div key={`upcoming-${N}`} className="sprint-tile upcoming" style={{ background: '#161815', border: '1px dashed #343630', borderRadius: '6px', cursor: 'default', opacity: 0.55, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
@@ -1118,7 +1551,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
                     <span style={{ color: '#7f8279', fontFamily: '"DM Mono", monospace', fontSize: '8px', letterSpacing: '.12em', textTransform: 'uppercase', display: 'block' }}>SPRINT</span>
                     <b style={{ display: 'block', marginTop: '9px', color: '#676a62', fontFamily: '"Instrument Serif", serif', fontSize: '30px', fontWeight: '400' }}>
                       #{String(N).padStart(2, '0')}
-                      <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'inherit', marginLeft: '10px', opacity: 0.8, fontFamily: '"DM Mono", monospace', verticalAlign: 'middle', display: 'inline-block', letterSpacing: '0.04em' }}>
+                      <span className="sprint-tile-dates">
                         ({upcomingDateStr})
                       </span>
                     </b>
@@ -1770,12 +2203,6 @@ function LandingPage({ onGetStarted, onSignIn }) {
   )
 }
 
-const getISTDate = () => {
-  const d = new Date()
-  const utc = d.getTime() + (d.getTimezoneOffset() * 60000)
-  return new Date(utc + (3600000 * 5.5))
-}
-
 function App() {
   const [now, setNow] = useState(getISTDate())
   const [active, setActive] = useState('Overview')
@@ -1912,12 +2339,16 @@ function App() {
   const data = useMemo(() => getYearData(now), [now])
   const deadlineStr = useMemo(() => {
     if (!data?.checkpointEnd) return ''
-    const deadlineFormat = new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-    return deadlineFormat.format(data.checkpointEnd)
+    const d = new Date(data.checkpointEnd)
+    const month = d.toLocaleString('en-US', { month: 'long' })
+    const day = d.getDate()
+    const year = d.getFullYear()
+    const hours = String(d.getHours()).padStart(2, '0')
+    const minutes = String(d.getMinutes()).padStart(2, '0')
+    return `${month} ${day}, ${year}, ${hours}:${minutes}`
   }, [data])
   const day = Math.floor(data.elapsed / DAY) + 1
   const start = new Date(data.checkpointEnd.getTime() - (data.total * DAY / 100))
-  const dateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
   const hr = now.getHours()
   const greeting = hr < 4 ? 'Good night' : hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : hr < 22 ? 'Good evening' : 'Good night'
   const nextSprintMs = Math.max(0, data.checkpointEnd.getTime() - now.getTime())
@@ -2306,8 +2737,7 @@ function App() {
                   const state = number < publicData.sprint ? 'past' : number === publicData.sprint ? 'current' : '';
                   const start = new Date(summary.sprint_start);
                   const end = new Date(summary.sprint_end);
-                  const dateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
-                  const tileDateStr = `${dateFormat.format(start)} — ${dateFormat.format(end)}`;
+                  const tileDateStr = `${formatDateWithTime(start)} — ${formatDateWithTime(end)}`;
                   return (
                     <div className={`sprint-tile ${state}`} key={number} style={{ cursor: 'default' }}>
                       <span>SPRINT</span>
@@ -2377,7 +2807,7 @@ function App() {
           <span>onepercentgoal</span>
         </button>
         <nav className="shell-nav" aria-label="Primary">
-          {['Overview', 'Goals', 'Timeline', 'Profile'].map(item => <button key={item} onClick={() => { setActive(item); window.scrollTo({ top: 0, behavior: 'instant' }); }} className={active === item ? 'shell-nav-item active' : 'shell-nav-item'}>{item}</button>)}
+          {['Overview', 'Goals', 'Rote', 'Timeline', 'Profile'].map(item => <button key={item} onClick={() => { setActive(item); window.scrollTo({ top: 0, behavior: 'instant' }); }} className={active === item ? 'shell-nav-item active' : 'shell-nav-item'}>{item}</button>)}
         </nav>
         <button className="shell-nav-item" type="button" onClick={logout}>Logout</button>
       </div>
@@ -2556,7 +2986,7 @@ function App() {
             <h2>
               Sprint #{String(data.sprint).padStart(2, '0')}{' '}
               <span style={{ fontSize: '15px', fontWeight: 'normal', color: 'inherit', marginLeft: '14px', letterSpacing: '0.06em', opacity: 0.85 }}>
-                ({dateFormat.format(start)} — {dateFormat.format(data.checkpointEnd)})
+                ({formatDateWithTime(start)} — {formatDateWithTime(data.checkpointEnd)})
               </span>
             </h2>
           </div>

@@ -1691,11 +1691,10 @@
   font-size: 10px;
   font-weight: normal;
   color: inherit;
-  margin-left: 8px;
-  opacity: 0.7;
+  margin-top: 4px;
+  opacity: 0.75;
   font-family: 'DM Mono', monospace;
-  vertical-align: middle;
-  display: inline-block;
+  display: block;
   letter-spacing: 0.04em;
 }
 
@@ -2362,6 +2361,420 @@
   .confirm-summary-simple {
     padding: 20px !important;
   }
+}
+
+/* --- Rote Component & Embedded Calendar Styles --- */
+.rote-page-custom {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.rote-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 32px;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.rote-header-left {
+  max-width: 680px;
+}
+.rote-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: #c9f36a;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: block;
+}
+.rote-title {
+  font-size: clamp(32px, 5vw, 44px);
+  font-weight: 500;
+  margin: 0 0 10px;
+  letter-spacing: -0.04em;
+  color: #f6f5f1;
+  line-height: 1.15;
+}
+.rote-title em {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-weight: normal;
+  color: #c9f36a;
+}
+.rote-subtitle {
+  font-size: 16px;
+  color: #a1a49a;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.rote-layout-grid {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .rote-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rote-calendar-card {
+  padding: 24px;
+  background: #171916;
+  border: 1px solid #2b2d28;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+.rote-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.calendar-nav-btn {
+  background: #232520;
+  border: 1px solid #343730;
+  color: #eef0e9;
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.calendar-nav-btn:hover:not(:disabled) {
+  background: #32352f;
+  color: #c9f36a;
+  border-color: #c9f36a;
+}
+.calendar-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.calendar-month-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.calendar-month-title span {
+  font-family: 'DM Mono', monospace;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #eef0e9;
+  text-transform: uppercase;
+}
+.calendar-today-link {
+  background: none;
+  border: none;
+  color: #c9f36a;
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 4px;
+  text-decoration: underline;
+  transition: color 0.15s ease;
+}
+.calendar-today-link:hover {
+  color: #d4f87c;
+}
+
+.rote-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: #8c9085;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.rote-calendar-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.calendar-day-cell {
+  background: #1c1e1a;
+  border: 1px solid #2d302a;
+  border-radius: 8px;
+  height: 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #d8dad3;
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.calendar-day-cell:hover:not(:disabled) {
+  background: #272a24;
+  border-color: #55584e;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+.calendar-day-cell.selected {
+  background: rgba(201, 243, 106, 0.15);
+  border-color: #c9f36a;
+  color: #c9f36a;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(201, 243, 106, 0.25);
+}
+.calendar-day-cell.today {
+  border-color: #727668;
+  font-weight: bold;
+}
+.calendar-day-cell.disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+  background: #141513;
+  border-color: transparent;
+}
+.calendar-day-cell.blank {
+  background: transparent;
+  border: none;
+  cursor: default;
+}
+.completed-dot {
+  width: 5px;
+  height: 5px;
+  background: #c9f36a;
+  border-radius: 50%;
+  position: absolute;
+  bottom: 4px;
+  box-shadow: 0 0 5px #c9f36a;
+}
+
+.rote-calendar-footer {
+  margin-top: 18px;
+  text-align: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: #8c9085;
+}
+
+.rote-checklist-card {
+  padding: 32px;
+  background: #171916;
+  border: 1px solid #2b2d28;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+.rote-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.rote-day-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: #c9f36a;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 6px;
+}
+.rote-day-header h2 {
+  font-size: 26px;
+  font-weight: 500;
+  margin: 0;
+  letter-spacing: -0.03em;
+  color: #f6f5f1;
+}
+.rote-day-counter {
+  text-align: right;
+}
+.rote-day-counter b {
+  font-size: 32px;
+  font-family: 'Instrument Serif', serif;
+  font-weight: normal;
+  color: #c9f36a;
+  display: block;
+  line-height: 1;
+}
+.rote-day-counter span {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #8c9085;
+  text-transform: uppercase;
+}
+
+.rote-day-progress-bar-wrap {
+  height: 6px;
+  background: #252822;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+.rote-day-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #9ec73d 0%, #c9f36a 100%);
+  border-radius: 3px;
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rote-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.rote-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 22px;
+  background: #1c1e1a;
+  border: 1px solid #2b2d27;
+  border-radius: 10px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.rote-row:hover {
+  border-color: #40443a;
+  background: #22251f;
+  transform: translateX(2px);
+}
+.rote-row.completed {
+  border-color: rgba(201, 243, 106, 0.3);
+  background: rgba(201, 243, 106, 0.04);
+}
+
+.rote-checkbox {
+  width: 28px;
+  height: 28px;
+  border: 2px solid #5a5e54;
+  border-radius: 8px;
+  background: transparent;
+  color: #121411;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+.rote-checkbox:hover {
+  border-color: #c9f36a;
+}
+.rote-row.completed .rote-checkbox {
+  background: #c9f36a;
+  border-color: #c9f36a;
+  color: #121411;
+  box-shadow: 0 0 10px rgba(201, 243, 106, 0.3);
+}
+
+.rote-info {
+  flex: 1;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rote-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: #f6f5f1;
+  letter-spacing: -0.01em;
+}
+.rote-row.completed .rote-title {
+  text-decoration: line-through;
+  color: #8c9085;
+}
+.rote-desc {
+  font-size: 14px;
+  color: #9ea297;
+  line-height: 1.45;
+}
+
+.rote-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.rote-status-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.rote-status-tag.done {
+  background: rgba(201, 243, 106, 0.15);
+  color: #c9f36a;
+  border: 1px solid rgba(201, 243, 106, 0.35);
+}
+.rote-status-tag.pending {
+  background: #252822;
+  color: #8c9085;
+  border: 1px solid #343730;
+}
+
+.rote-empty-state {
+  text-align: center;
+  padding: 50px 20px;
+  color: #8c9085;
+  font-size: 15px;
+}
+.rote-delete-btn {
+  background: rgba(255, 107, 107, 0.08);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: #ff8787;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.rote-delete-btn:hover {
+  background: rgba(255, 107, 107, 0.2);
+  border-color: #ff6b6b;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.25);
+}
+.rote-delete-btn:active {
+  transform: translateY(0);
+}
+
+.rote-skeleton-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.rote-skeleton-row {
+  height: 64px;
+  background: linear-gradient(90deg, #1c1e1a 25%, #252822 50%, #1c1e1a 75%);
+  background-size: 200% 100%;
+  animation: roteSkeletonShimmer 1.5s infinite;
+  border-radius: 10px;
+  border: 1px solid #2b2d27;
+}
+@keyframes roteSkeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 

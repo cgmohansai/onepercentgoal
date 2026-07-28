@@ -290,6 +290,17 @@ class ProfileUpdate(BaseModel):
     bio: str | None = Field(default="", max_length=160)
 
 
+class RoteCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=140)
+    description: str | None = Field(default="", max_length=255)
+    date: str | None = None
+
+
+class RoteToggle(BaseModel):
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    completed: bool | None = None
+
+
 def goal_dict(row):
     data = row_dict(row)
     data["completed"] = bool(data["completed"])
@@ -565,6 +576,24 @@ def setup_database():
                     sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     UNIQUE (user_id, sprint_year, sprint_number, reminder_type)
                 )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS rotes (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    created_at TIMESTAMPTZ NOT NULL
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS rote_logs (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    rote_id BIGINT NOT NULL REFERENCES rotes(id) ON DELETE CASCADE,
+                    log_date TEXT NOT NULL,
+                    completed INTEGER NOT NULL DEFAULT 0,
+                    completed_at TIMESTAMPTZ,
+                    UNIQUE (user_id, rote_id, log_date)
+                )""")
         else:
             execute(conn, """
                 CREATE TABLE IF NOT EXISTS users (
@@ -607,6 +636,27 @@ def setup_database():
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
                     UNIQUE (user_id, sprint_year, sprint_number, reminder_type)
                 )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS rotes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS rote_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    rote_id INTEGER NOT NULL,
+                    log_date TEXT NOT NULL,
+                    completed INTEGER NOT NULL DEFAULT 0,
+                    completed_at TEXT,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    FOREIGN KEY(rote_id) REFERENCES rotes(id) ON DELETE CASCADE,
+                    UNIQUE (user_id, rote_id, log_date)
+                )""")
 
         alter_columns = [
             ("users", "username", "ALTER TABLE users ADD COLUMN username TEXT"),
@@ -622,6 +672,7 @@ def setup_database():
             ("goals", "completion_note", "ALTER TABLE goals ADD COLUMN completion_note TEXT NOT NULL DEFAULT ''"),
             ("goals", "rolled_from_goal_id", "ALTER TABLE goals ADD COLUMN rolled_from_goal_id BIGINT" if USE_POSTGRES else "ALTER TABLE goals ADD COLUMN rolled_from_goal_id INTEGER"),
             ("goals", "source_goal_id", "ALTER TABLE goals ADD COLUMN source_goal_id BIGINT" if USE_POSTGRES else "ALTER TABLE goals ADD COLUMN source_goal_id INTEGER"),
+            ("rotes", "rote_date", "ALTER TABLE rotes ADD COLUMN rote_date TEXT NOT NULL DEFAULT ''"),
         ]
         for table, column, ddl in alter_columns:
             ensure_column(conn, table, column, ddl)
@@ -925,6 +976,136 @@ def delete_goal(goal_id: int, authorization: str | None = Header(default=None)):
             raise HTTPException(status_code=404, detail="Goal not found")
         source_id = resolve_source_goal_id(conn, goal)
         execute(conn, "DELETE FROM goals WHERE (id = %s OR source_goal_id = %s) AND user_id = %s", (source_id, source_id, user_id))
+
+
+@app.get("/api/rotes")
+def get_rotes(date: str | None = None, authorization: str | None = Header(default=None)):
+    target_date = date or datetime.now(IST).strftime("%Y-%m-%d")
+    with db() as conn:
+        user_id = current_user_id(conn, authorization)
+        joined_dt = user_created_at(conn, user_id)
+        joined_date = joined_dt.strftime("%Y-%m-%d")
+        
+        rotes_rows = execute(
+            conn,
+            "SELECT * FROM rotes WHERE user_id = %s AND (rote_date = %s OR rote_date = '' OR rote_date IS NULL) ORDER BY id ASC",
+            (user_id, target_date)
+        ).fetchall()
+        
+        logs_rows = execute(
+            conn,
+            "SELECT * FROM rote_logs WHERE user_id = %s AND log_date = %s",
+            (user_id, target_date)
+        ).fetchall()
+        logs_map = {row["rote_id"]: bool(row["completed"]) for row in logs_rows}
+        logs_time_map = {row["rote_id"]: row.get("completed_at") for row in logs_rows}
+
+        rotes_list = []
+        completed_count = 0
+        for r in rotes_rows:
+            r_dict = row_dict(r)
+            r_id = r_dict["id"]
+            is_completed = logs_map.get(r_id, False)
+            if is_completed:
+                completed_count += 1
+            rotes_list.append({
+                "id": r_id,
+                "title": r_dict["title"],
+                "description": r_dict.get("description", ""),
+                "created_at": r_dict["created_at"],
+                "rote_date": r_dict.get("rote_date", target_date),
+                "completed": is_completed,
+                "completed_at": logs_time_map.get(r_id),
+            })
+            
+        completed_dates_rows = execute(
+            conn,
+            "SELECT DISTINCT log_date FROM rote_logs WHERE user_id = %s AND completed = 1",
+            (user_id,)
+        ).fetchall()
+        completed_dates = [row["log_date"] for row in completed_dates_rows]
+
+        return {
+            "date": target_date,
+            "user_joined_date": joined_date,
+            "rotes": rotes_list,
+            "completed_dates": completed_dates,
+            "stats": {
+                "total_rotes": len(rotes_list),
+                "completed_rotes": completed_count,
+            }
+        }
+
+
+@app.post("/api/rotes")
+def create_rote(payload: RoteCreate, authorization: str | None = Header(default=None)):
+    with db() as conn:
+        user_id = current_user_id(conn, authorization)
+        rote_date = payload.date or datetime.now(IST).strftime("%Y-%m-%d")
+        now_iso = current_timestamp()
+        row = execute(
+            conn,
+            """
+            INSERT INTO rotes (user_id, title, description, rote_date, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (user_id, payload.title.strip(), (payload.description or "").strip(), rote_date, now_iso)
+        ).fetchone()
+        rote_id = int(row["id"])
+        rote = execute(conn, "SELECT * FROM rotes WHERE id = %s", (rote_id,)).fetchone()
+        r_dict = row_dict(rote)
+        r_dict["completed"] = False
+        return r_dict
+
+
+@app.post("/api/rotes/{rote_id}/toggle")
+def toggle_rote(rote_id: int, payload: RoteToggle, authorization: str | None = Header(default=None)):
+    with db() as conn:
+        user_id = current_user_id(conn, authorization)
+        rote = execute(conn, "SELECT * FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id)).fetchone()
+        if not rote:
+            raise HTTPException(status_code=404, detail="Rote not found")
+
+        log = execute(
+            conn,
+            "SELECT * FROM rote_logs WHERE user_id = %s AND rote_id = %s AND log_date = %s",
+            (user_id, rote_id, payload.date)
+        ).fetchone()
+
+        if log:
+            current_status = bool(log["completed"])
+            new_status = not current_status if payload.completed is None else bool(payload.completed)
+            now_iso = current_timestamp() if new_status else None
+            execute(
+                conn,
+                "UPDATE rote_logs SET completed = %s, completed_at = %s WHERE id = %s",
+                (int(new_status), now_iso, log["id"])
+            )
+        else:
+            new_status = True if payload.completed is None else bool(payload.completed)
+            now_iso = current_timestamp() if new_status else None
+            execute(
+                conn,
+                """
+                INSERT INTO rote_logs (user_id, rote_id, log_date, completed, completed_at)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (user_id, rote_id, payload.date, int(new_status), now_iso)
+            )
+
+        return {"rote_id": rote_id, "date": payload.date, "completed": new_status}
+
+
+@app.delete("/api/rotes/{rote_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_rote(rote_id: int, authorization: str | None = Header(default=None)):
+    with db() as conn:
+        user_id = current_user_id(conn, authorization)
+        rote = execute(conn, "SELECT * FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id)).fetchone()
+        if not rote:
+            raise HTTPException(status_code=404, detail="Rote not found")
+        execute(conn, "DELETE FROM rote_logs WHERE rote_id = %s AND user_id = %s", (rote_id, user_id))
+        execute(conn, "DELETE FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id))
 
 
 @app.get("/api/stats")
