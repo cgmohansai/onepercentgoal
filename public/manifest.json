@@ -1,0 +1,24 @@
+{
+  "name": "OnePercentGoal — 1% Daily Compounding Progress",
+  "short_name": "OnePercent",
+  "description": "Divide your year into 100 focused 3.6-day sprints. Track daily automated habits and compound 1% daily progress.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#141513",
+  "theme_color": "#141513",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
