@@ -7,6 +7,15 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || ''
 const apiUrl = path => `${API_BASE}${path}`
 const apiFetch = (path, options) => fetch(apiUrl(path), options)
 
+function getSprintBoundary(year, N) {
+  const start = new Date(year, 0, 1)
+  const nextYear = new Date(year + 1, 0, 1)
+  const daysInYear = Math.round((nextYear - start) / DAY)
+  const totalHalfHours = daysInYear * 48
+  const halfHours = Math.round(N * (totalHalfHours / 100.0))
+  return new Date(start.getTime() + halfHours * 30 * 60 * 1000)
+}
+
 function getYearData(date = new Date()) {
   const year = date.getFullYear()
   const start = new Date(year, 0, 1)
@@ -14,8 +23,16 @@ function getYearData(date = new Date()) {
   const total = Math.round((nextYear - start) / DAY)
   const elapsed = date - start
   const percentage = Math.min(100, Math.max(0, (elapsed / (total * DAY)) * 100))
-  const sprint = Math.min(100, Math.floor(percentage) + 1)
-  const checkpointEnd = new Date(start.getTime() + Math.min(sprint, 100) * total * DAY / 100)
+
+  let sprint = 100
+  for (let s = 1; s <= 100; s++) {
+    if (date.getTime() < getSprintBoundary(year, s).getTime()) {
+      sprint = s
+      break
+    }
+  }
+
+  const checkpointEnd = getSprintBoundary(year, sprint)
   return { year, total, elapsed, percentage, sprint, checkpointEnd }
 }
 
@@ -27,13 +44,43 @@ function getISTDate() {
 
 function formatDateWithTime(dateObj) {
   if (!dateObj) return ''
+  let d = new Date(dateObj)
+  if (isNaN(d.getTime())) return ''
+
+  let hours = d.getHours()
+  let minutes = d.getMinutes()
+
+  // Round to nearest 30-minute block (:00 or :30)
+  if (minutes >= 45) {
+    hours += 1
+    minutes = 0
+  } else if (minutes >= 15) {
+    minutes = 30
+  } else {
+    minutes = 0
+  }
+
+  if (hours >= 24) {
+    d = new Date(d.getTime() + 86400000)
+    hours = 0
+  }
+
+  const month = d.toLocaleString('en-US', { month: 'short' })
+  const day = d.getDate()
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12
+  const minStr = String(minutes).padStart(2, '0')
+
+  return `${month} ${day}, ${hour12}:${minStr} ${period}`
+}
+
+function formatDateOnly(dateObj) {
+  if (!dateObj) return ''
   const d = new Date(dateObj)
   if (isNaN(d.getTime())) return ''
   const month = d.toLocaleString('en-US', { month: 'short' })
   const day = d.getDate()
-  const hours = String(d.getHours()).padStart(2, '0')
-  const minutes = String(d.getMinutes()).padStart(2, '0')
-  return `${month} ${day}, ${hours}:${minutes}`
+  return `${month} ${day}`
 }
 
 function formatDuration(ms) {
@@ -1304,12 +1351,12 @@ function RotePage({ user }) {
     <div className="workspace-page rote-page-custom">
       <header className="goals-page-header">
         <div className="goals-header-left">
-          <span className="goals-sprint-badge">AUTOMATED HABITS // DAY-WISE</span>
+          <span className="goals-sprint-badge">DAY-WISE</span>
           <h1 className="goals-sprint-title">
             Rote <em>Routines</em>
           </h1>
           <p className="goals-subtitle">
-            Done by memory without thinking. Personal development belongs in Goals; Rote tracks your routine daily habits day-by-day.
+            Doing something automatically from memory and habit, without really thinking about it or meaning it.
           </p>
         </div>
         {selectedDate === todayStr && (
@@ -1325,15 +1372,6 @@ function RotePage({ user }) {
             <button className="calendar-nav-btn" onClick={handlePrevMonth} disabled={!canGoPrev} aria-label="Previous month">‹</button>
             <div className="calendar-month-title">
               <span>{monthNames[viewMonth]} {viewYear}</span>
-              {selectedDate !== todayStr && (
-                <button className="calendar-today-link" onClick={() => {
-                  setSelectedDate(todayStr);
-                  setViewYear(new Date().getFullYear());
-                  setViewMonth(new Date().getMonth());
-                }}>
-                  Jump to Today
-                </button>
-              )}
             </div>
             <button className="calendar-nav-btn" onClick={handleNextMonth} disabled={!canGoNext} aria-label="Next month">›</button>
           </div>
@@ -1362,14 +1400,25 @@ function RotePage({ user }) {
                   onClick={() => setSelectedDate(dateString)}
                 >
                   <span className="day-number">{dayNum}</span>
-                  {completed && <span className="completed-dot" />}
                 </button>
               )
             })}
           </div>
 
           <div className="rote-calendar-footer">
-            <small>Active since {joinedDateStr}</small>
+            <span>Active since {joinedDateStr}</span>
+            {selectedDate !== todayStr && (
+              <>
+                <span className="footer-dot-sep">•</span>
+                <button className="calendar-today-link" onClick={() => {
+                  setSelectedDate(todayStr);
+                  setViewYear(new Date().getFullYear());
+                  setViewMonth(new Date().getMonth());
+                }}>
+                  Today
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -1462,7 +1511,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
 
   // Calculate active sprint date range
   const DAY = 24 * 60 * 60 * 1000
-  const sprintStart = new Date(new Date(data.year, 0, 1).getTime() + (Math.min(data.sprint - 1, 99) * data.total * DAY / 100))
+  const sprintStart = getSprintBoundary(data.year, data.sprint - 1)
   const sprintEnd = new Date(data.checkpointEnd)
   const dateStr = `${formatDateWithTime(sprintStart)} — ${formatDateWithTime(sprintEnd)}`
 
@@ -1487,7 +1536,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
         
         <section className="all-goals card">
           <div className="goal-list">
-            {goals.map(goal => <GoalRow goal={goal} onProgress={onProgress} onComplete={onComplete} onDelete={onDelete} onShowDetails={onShowGoalDetails} key={goal.id} />)}
+            {(goals || []).map(goal => <GoalRow goal={goal} onProgress={onProgress} onComplete={onComplete} onDelete={onDelete} onShowDetails={onShowGoalDetails} key={goal.id} />)}
           </div>
         </section>
       </div>
@@ -1513,12 +1562,12 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
         </header>
 
         <section className="timeline">
-          {history.sprints.map(summary => {
+          {(history?.sprints || []).map(summary => {
             const number = summary.sprint_number;
             const state = selectedYear < data.year ? 'past' : number < data.sprint ? 'past' : number === data.sprint ? 'current' : '';
             const start = new Date(summary.sprint_start);
             const end = new Date(summary.sprint_end);
-            const tileDateStr = `${formatDateWithTime(start)} — ${formatDateWithTime(end)}`;
+            const tileDateStr = `${formatDateOnly(start)} — ${formatDateOnly(end)}`;
             return (
               <button className={`sprint-tile ${state}`} key={number} onClick={() => onOpenSprint(number)}>
                 <span>SPRINT</span>
@@ -1535,15 +1584,10 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
 
           {selectedYear === data.year && (() => {
             const upcomingTiles = [];
-            const DAY = 24 * 60 * 60 * 1000;
-            const sprintDuration = (data.total * DAY) / 100;
-            const baselineTime = new Date(data.checkpointEnd).getTime();
-
             for (let N = data.sprint + 1; N <= 100; N++) {
-              const offset = N - data.sprint;
-              const upcomingStart = new Date(baselineTime + (offset - 1) * sprintDuration);
-              const upcomingEnd = new Date(baselineTime + offset * sprintDuration);
-              const upcomingDateStr = `${formatDateWithTime(upcomingStart)} — ${formatDateWithTime(upcomingEnd)}`;
+              const upcomingStart = getSprintBoundary(selectedYear, N - 1);
+              const upcomingEnd = getSprintBoundary(selectedYear, N);
+              const upcomingDateStr = `${formatDateOnly(upcomingStart)} — ${formatDateOnly(upcomingEnd)}`;
               
               upcomingTiles.push(
                 <div key={`upcoming-${N}`} className="sprint-tile upcoming" style={{ background: '#161815', border: '1px dashed #343630', borderRadius: '6px', cursor: 'default', opacity: 0.55, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
@@ -1572,7 +1616,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
         </section>
 
         <div className="timeline-years">
-          {availableYears.map(year => (
+          {(availableYears || []).map(year => (
             <button key={year} className={year === selectedYear ? 'timeline-year active' : 'timeline-year'} onClick={() => onSelectYear(year)}>
               {year}
             </button>
@@ -2249,6 +2293,24 @@ function App() {
     }
   }, [active])
   const [goals, setGoals] = useState([])
+  const [roteOverviewStats, setRoteOverviewStats] = useState({ total: 0, completed: 0, percentage: 0, rotes: [] })
+
+  useEffect(() => {
+    if (active === 'Overview') {
+      const todayStr = getISTDate().toISOString().split('T')[0]
+      apiFetch(`/api/rotes?date=${todayStr}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && Array.isArray(data.rotes)) {
+            const total = data.rotes.length
+            const completed = data.rotes.filter(r => r.completed).length
+            const percentage = total > 0 ? Math.round((completed / total) * 100) : 0
+            setRoteOverviewStats({ total, completed, percentage, rotes: data.rotes })
+          }
+        })
+        .catch(() => {})
+    }
+  }, [active])
   const [addGoalModalOpen, setAddGoalModalOpen] = useState(false)
   const [addGoalLoading, setAddGoalLoading] = useState(false)
   const [timelineHistory, setTimelineHistory] = useState({ year: new Date().getFullYear(), years: [], sprints: [] })
@@ -2339,16 +2401,10 @@ function App() {
   const data = useMemo(() => getYearData(now), [now])
   const deadlineStr = useMemo(() => {
     if (!data?.checkpointEnd) return ''
-    const d = new Date(data.checkpointEnd)
-    const month = d.toLocaleString('en-US', { month: 'long' })
-    const day = d.getDate()
-    const year = d.getFullYear()
-    const hours = String(d.getHours()).padStart(2, '0')
-    const minutes = String(d.getMinutes()).padStart(2, '0')
-    return `${month} ${day}, ${year}, ${hours}:${minutes}`
+    return formatDateWithTime(data.checkpointEnd)
   }, [data])
   const day = Math.floor(data.elapsed / DAY) + 1
-  const start = new Date(data.checkpointEnd.getTime() - (data.total * DAY / 100))
+  const start = getSprintBoundary(data.year, data.sprint - 1)
   const hr = now.getHours()
   const greeting = hr < 4 ? 'Good night' : hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : hr < 22 ? 'Good evening' : 'Good night'
   const nextSprintMs = Math.max(0, data.checkpointEnd.getTime() - now.getTime())
@@ -2737,7 +2793,7 @@ function App() {
                   const state = number < publicData.sprint ? 'past' : number === publicData.sprint ? 'current' : '';
                   const start = new Date(summary.sprint_start);
                   const end = new Date(summary.sprint_end);
-                  const tileDateStr = `${formatDateWithTime(start)} — ${formatDateWithTime(end)}`;
+                  const tileDateStr = `${formatDateOnly(start)} — ${formatDateOnly(end)}`;
                   return (
                     <div className={`sprint-tile ${state}`} key={number} style={{ cursor: 'default' }}>
                       <span>SPRINT</span>
@@ -2799,7 +2855,8 @@ function App() {
     );
   }
 
-  return <main className="app-shell">
+  return (
+    <main className="app-shell">
     <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
       <div className="shell-pill">
         <button className="shell-brand" onClick={() => { setActive('Overview'); window.scrollTo({ top: 0, behavior: 'instant' }); }} aria-label="OnePercentGoal home" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2814,7 +2871,10 @@ function App() {
     </header>
 
     <section className="content" id="top">
-      {active !== 'Overview' ? <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onDelete={deleteGoal} onAdd={() => setAddGoalModalOpen(true)} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} /> : <>
+      {active !== 'Overview' ? (
+        <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onDelete={deleteGoal} onAdd={() => setAddGoalModalOpen(true)} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} />
+      ) : (
+        <>
       <section className="aurora-hero-wrapper">
         <div className="aurora-hero-bg"></div>
 
@@ -2828,8 +2888,8 @@ function App() {
               <MorphText />
               <span>count.</span>
             </h1>
-            <p className="billboard-subtitle" style={{ color: '#fff', opacity: 0.82, margin: '16px 0 0', maxWidth: '640px', fontSize: '16px', lineHeight: 1.55 }}>
-              One percent progress every single day compounding over the year. The system is active. Are you ready?
+            <p className="billboard-subtitle" style={{ color: '#fff', opacity: 0.88, margin: '16px 0 0', maxWidth: '680px', fontSize: '17px', lineHeight: 1.6 }}>
+              Divide your year into 100 focused 3.6-day sprints. Track daily automated habits, hit crisp deadlines, and watch 1% daily effort compound into 37.78x annual growth.
             </p>
           </div>
           
@@ -2918,7 +2978,12 @@ function App() {
         
         <div className="urgency-main">
           <div className="urgency-live-percentage">
-            <div className="live-num">{data.percentage.toFixed(6)}<em>%</em></div>
+            <div className="live-num">
+              <span style={{ fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum"', display: 'inline-block' }}>
+                {data.percentage.toFixed(6)}
+              </span>
+              <em>%</em>
+            </div>
             <div className="live-label">OF {data.year} COMPLETED</div>
           </div>
           
@@ -2957,7 +3022,9 @@ function App() {
         <div className="urgency-track-wrap">
           <div className="urgency-track-labels">
             <span />
-            <span>YEAR REMAINING: {(100 - data.percentage).toFixed(6)}% · DAY {day} OF {data.total}</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum"' }}>
+              YEAR REMAINING: {(100 - data.percentage).toFixed(6)}% · DAY {day} OF {data.total}
+            </span>
           </div>
           <div className="urgency-progress-track main-highlighted-track">
             <div className="urgency-progress-bar" style={{ width: `${data.percentage}%` }} />
@@ -2978,123 +3045,185 @@ function App() {
         </div>
       </section>
 
-      {/* Grid containing Current Sprint, Quote and Momentum */}
-      <section className="overview-grid">
-        <article className="sprint-summary card">
-          <div className="sprint-summary-header">
-            <p className="eyebrow">ACTIVE SPRINT STATUS</p>
-            <h2>
-              Sprint #{String(data.sprint).padStart(2, '0')}{' '}
-              <span style={{ fontSize: '15px', fontWeight: 'normal', color: 'inherit', marginLeft: '14px', letterSpacing: '0.06em', opacity: 0.85 }}>
-                ({formatDateWithTime(start)} — {formatDateWithTime(data.checkpointEnd)})
-              </span>
-            </h2>
-          </div>
-          
-          {/* Circular dial and stats */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', margin: '15px 0 20px' }}>
-            <div className="sprint-progress-circle-wrap">
-              <div className="sprint-progress-big-number">
-                {goals.length ? Math.round(completeGoals / goals.length * 100) : 0}<em>%</em>
-              </div>
-              <p className="sprint-progress-label">completed</p>
+      {/* Grid containing Current Sprint, Rote Routines, Motivational Wisdom and Speed */}
+      <section className="overview-staggered-grid">
+        {/* Row 1: Active Sprint Status (Left side) */}
+        <div className="staggered-row-1">
+          <article className="sprint-summary card sprint-summary-pos">
+            <div className="sprint-summary-header">
+              <p className="eyebrow">ACTIVE SPRINT STATUS</p>
+              <h2>
+                Sprint #{String(data.sprint).padStart(2, '0')}{' '}
+                <span style={{ fontSize: '15px', fontWeight: 'normal', color: 'inherit', marginLeft: '14px', letterSpacing: '0.06em', opacity: 0.85 }}>
+                  ({formatDateWithTime(start)} — {formatDateWithTime(data.checkpointEnd)})
+                </span>
+              </h2>
             </div>
             
-            <div style={{ flex: 1 }}>
-              <div className="sprint-num-value" style={{ fontSize: '18px' }}>{completeGoals}/{goals.length}</div>
-              <p className="sprint-num-label" style={{ margin: '2px 0 0' }}>GOALS DONE</p>
+            {/* Circular dial and stats */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', margin: '15px 0 20px' }}>
+              <div className="sprint-progress-circle-wrap">
+                <div className="sprint-progress-big-number">
+                  {goals.length ? Math.round(completeGoals / goals.length * 100) : 0}<em>%</em>
+                </div>
+                <p className="sprint-progress-label">completed</p>
+              </div>
+              
+              <div style={{ flex: 1 }}>
+                <div className="sprint-num-value" style={{ fontSize: '18px' }}>{completeGoals}/{goals.length}</div>
+                <p className="sprint-num-label" style={{ margin: '2px 0 0' }}>GOALS DONE</p>
+              </div>
             </div>
-          </div>
 
-          {/* Real-time Sprint Checklist */}
-          <div className="sprint-goals-mini-list" style={{ flex: 1, marginBottom: '15px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
-            {goals.length === 0 ? (
-              <p style={{ margin: '10px 0', fontSize: '12px', color: '#8c9085', fontStyle: 'italic' }}>No goals set for this sprint. Get started!</p>
-            ) : (
-              goals.map(g => (
-                <div key={g.id} className={`mini-goal-item ${g.done ? 'completed' : ''}`} onClick={() => { if (g.done) showGoalDetails(g); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: '1px solid #282a25', fontSize: '12px', cursor: g.done ? 'pointer' : 'default' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                    <span style={{ color: g.done ? '#c9f36a' : '#8c9085', fontWeight: 'bold' }}>{g.done ? '✓' : '•'}</span>
-                    <span style={{ textDecoration: g.done ? 'line-through' : 'none', color: g.done ? '#7f8279' : '#eef0e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.title}</span>
+            {/* Real-time Sprint Checklist */}
+            <div className="sprint-goals-mini-list" style={{ flex: 1, marginBottom: '15px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
+              {goals.length === 0 ? (
+                <p style={{ margin: '10px 0', fontSize: '12px', color: '#8c9085', fontStyle: 'italic' }}>No goals set for this sprint. Get started!</p>
+              ) : (
+                goals.map(g => (
+                  <div key={g.id} className={`mini-goal-item ${g.done ? 'completed' : ''}`} onClick={() => { if (g.done) showGoalDetails(g); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: '1px solid #282a25', fontSize: '12px', cursor: g.done ? 'pointer' : 'default' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                      <span style={{ color: g.done ? '#c9f36a' : '#8c9085', fontWeight: 'bold' }}>{g.done ? '✓' : '•'}</span>
+                      <span style={{ textDecoration: g.done ? 'line-through' : 'none', color: g.done ? '#7f8279' : '#eef0e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.title}</span>
+                    </div>
+                    <span style={{ fontFamily: '"DM Mono", monospace', fontSize: '10px', color: g.done ? '#c9f36a' : '#a1a49b' }}>{g.value}%</span>
                   </div>
-                  <span style={{ fontFamily: '"DM Mono", monospace', fontSize: '10px', color: g.done ? '#c9f36a' : '#a1a49b' }}>{g.value}%</span>
-                </div>
-              ))
-            )}
-          </div>
-          
-          <button className="goals-cta" onClick={() => setActive('Goals')}>
-            <span>Open Sprint Board</span>
-            <b>→</b>
-          </button>
-        </article>
-
-        {/* Temporal Wisdom Card */}
-        <article className="quote-card card" style={{ display: 'flex', flexDirection: 'column', gap: '24px', justifyContent: 'flex-start' }}>
-          <p className="eyebrow" style={{ marginBottom: '4px' }}>MOTIVATIONAL DRIVE</p>
-          
-          {(() => {
-            const q1 = MOTIVATIONAL_QUOTES[quoteIndices[0] ?? 0];
-            const q2 = MOTIVATIONAL_QUOTES[quoteIndices[1] ?? 1];
-            
-            return (
-              <>
-                <div className="quote-item">
-                  <blockquote style={{ margin: '0 0 10px', fontSize: '24px', lineHeight: 1.25 }}>
-                    “{q1.quote}”
-                  </blockquote>
-                  <span className="quote-author" style={{ marginTop: '0', display: 'block' }}>
-                    — {q1.author}
-                  </span>
-                </div>
-
-                <div className="quote-item" style={{ borderTop: '1px solid #282a25', paddingTop: '20px' }}>
-                  <blockquote style={{ margin: '0 0 10px', fontSize: '24px', lineHeight: 1.25 }}>
-                    “{q2.quote}”
-                  </blockquote>
-                  <span className="quote-author" style={{ marginTop: '0', display: 'block' }}>
-                    — {q2.author}
-                  </span>
-                </div>
-              </>
-            );
-          })()}
-
-          <div className="quote-line" style={{ marginTop: 'auto' }} />
-        </article>
-
-        {/* Live stats and momentum */}
-        <article className="stats-card card">
-          <p className="eyebrow">YOUR SPEED & MOMENTUM</p>
-          
-          <div className="stats-showcase">
-            <div className="stat-giant-box" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', justifyContent: 'center', padding: '24px' }}>
-              <div className="sprint-progress-circle-wrap" style={{ margin: '0 0 12px', alignItems: 'center' }}>
-                <div className="sprint-progress-big-number" style={{ fontSize: '64px', lineHeight: 1 }}>
-                  {streak}
-                </div>
-                <p className="sprint-progress-label" style={{ marginTop: '4px', fontSize: '11px' }}>Sprint Streak</p>
-              </div>
-              <div className="stat-giant-badge" style={{ color: '#c9f36a', fontSize: '12px' }}>{streak} Sprint{streak === 1 ? '' : 's'} Constant Progress</div>
+                ))
+              )}
             </div>
             
-            <div className="stat-giant-box" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', justifyContent: 'center', padding: '24px' }}>
-              <div className="sprint-progress-circle-wrap" style={{ margin: '0 0 12px', alignItems: 'center' }}>
-                <div className="sprint-progress-big-number" style={{ fontSize: '64px', lineHeight: 1 }}>
-                  {completionRate}<em>%</em>
-                </div>
-                <p className="sprint-progress-label" style={{ marginTop: '4px', fontSize: '11px' }}>Completion Rate</p>
+            <button className="goals-cta" onClick={() => setActive('Goals')}>
+              <span>Open Sprint Board</span>
+              <b>→</b>
+            </button>
+          </article>
+          <div className="staggered-empty-space" />
+        </div>
+
+        {/* Row 2: Rote Routines Overview Card (Right side) */}
+        <div className="staggered-row-2">
+          <div className="staggered-empty-space" />
+          <article className="sprint-summary card rote-overview-card rote-summary-pos" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+              <div className="sprint-summary-header">
+                <p className="eyebrow">AUTOMATED HABITS</p>
+                <h2>
+                  Rote <em>Routines</em>
+                  <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#c9f36a', marginLeft: '10px', letterSpacing: '0.08em', fontFamily: '"DM Mono", monospace', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '4px', background: 'rgba(201, 243, 106, 0.1)', border: '1px solid rgba(201, 243, 106, 0.2)' }}>
+                    DAY-WISE
+                  </span>
+                </h2>
               </div>
-              <div className="stat-giant-badge" style={{ color: completionRate >= 80 ? '#c9f36a' : completionRate >= 60 ? '#eef0e9' : '#ffb9b9', fontSize: '12px' }}>
-                {completionRate >= 80 ? 'ELITE LEVEL PERFORMANCE' : completionRate >= 60 ? 'STEADY PERFORMANCE' : 'WARNING: FOCUS INTENSIVELY'}
+
+              {/* Circular dial and stats (matches Active Sprint Status 1-to-1) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', margin: '15px 0 20px' }}>
+                <div className="sprint-progress-circle-wrap">
+                  <div className="sprint-progress-big-number">
+                    {roteOverviewStats.percentage}<em>%</em>
+                  </div>
+                  <p className="sprint-progress-label">done today</p>
+                </div>
+                
+                <div style={{ flex: 1 }}>
+                  <div className="sprint-num-value" style={{ fontSize: '18px' }}>{roteOverviewStats.completed}/{roteOverviewStats.total}</div>
+                  <p className="sprint-num-label" style={{ margin: '2px 0 0' }}>ROTES DONE TODAY</p>
+                </div>
+              </div>
+
+              {/* Real-time Rotes Checklist */}
+              <div className="sprint-goals-mini-list" style={{ flex: 1, marginBottom: '15px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
+                {roteOverviewStats.rotes.length === 0 ? (
+                  <p style={{ margin: '10px 0', fontSize: '12px', color: '#8c9085', fontStyle: 'italic' }}>No routine rotes added for today yet.</p>
+                ) : (
+                  roteOverviewStats.rotes.map(r => (
+                    <div key={r.id} className={`mini-goal-item ${r.completed ? 'completed' : ''}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: '1px solid #282a25', fontSize: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                        <span style={{ color: r.completed ? '#c9f36a' : '#8c9085', fontWeight: 'bold' }}>{r.completed ? '✓' : '•'}</span>
+                        <span style={{ textDecoration: r.completed ? 'line-through' : 'none', color: r.completed ? '#7f8279' : '#eef0e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</span>
+                      </div>
+                      <span style={{ fontFamily: '"DM Mono", monospace', fontSize: '10px', color: r.completed ? '#c9f36a' : '#a1a49b' }}>{r.completed ? 'DONE' : 'PENDING'}</span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-          </div>
-        </article>
+
+            <button className="goals-cta" onClick={() => setActive('Rote')}>
+              <span>Open Rote Routines</span>
+              <b>→</b>
+            </button>
+          </article>
+        </div>
+
+        {/* Row 3: Remaining Cards (Motivational Drive & Speed) Combined Together Below */}
+        <div className="staggered-row-3-combined">
+          {/* Temporal Wisdom Card */}
+          <article className="quote-card card">
+            <p className="eyebrow" style={{ marginBottom: '12px' }}>MOTIVATIONAL DRIVE</p>
+            
+            {(() => {
+              const q1 = MOTIVATIONAL_QUOTES[quoteIndices[0] ?? 0];
+              const q2 = MOTIVATIONAL_QUOTES[quoteIndices[1] ?? 1];
+              
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, justifyContent: 'center' }}>
+                  <div className="quote-item">
+                    <blockquote style={{ margin: '0 0 8px', fontStyle: 'italic', fontFamily: '"Instrument Serif", serif' }}>
+                      “{q1.quote}”
+                    </blockquote>
+                    <span className="quote-author" style={{ marginTop: '0', display: 'block', color: '#ffa726', fontFamily: '"DM Mono", monospace', fontSize: '11px', letterSpacing: '0.08em' }}>
+                      — {q1.author}
+                    </span>
+                  </div>
+
+                  <div className="quote-item" style={{ borderTop: '1px solid #3c3224', paddingTop: '16px' }}>
+                    <blockquote style={{ margin: '0 0 8px', fontStyle: 'italic', fontFamily: '"Instrument Serif", serif' }}>
+                      “{q2.quote}”
+                    </blockquote>
+                    <span className="quote-author" style={{ marginTop: '0', display: 'block', color: '#ffa726', fontFamily: '"DM Mono", monospace', fontSize: '11px', letterSpacing: '0.08em' }}>
+                      — {q2.author}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="quote-line" style={{ marginTop: '16px', background: '#ffa726' }} />
+          </article>
+
+          {/* Live stats and momentum */}
+          <article className="stats-card card">
+            <p className="eyebrow">YOUR SPEED & MOMENTUM</p>
+            
+            <div className="stats-showcase">
+              <div className="stat-giant-box" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', justifyContent: 'center', padding: '24px' }}>
+                <div className="sprint-progress-circle-wrap" style={{ margin: '0 0 12px', alignItems: 'center' }}>
+                  <div className="sprint-progress-big-number" style={{ fontSize: '64px', lineHeight: 1 }}>
+                    {streak}
+                  </div>
+                  <p className="sprint-progress-label" style={{ marginTop: '4px', fontSize: '11px' }}>Sprint Streak</p>
+                </div>
+                <div className="stat-giant-badge" style={{ color: '#c9f36a', fontSize: '12px' }}>{streak} Sprint{streak === 1 ? '' : 's'} Constant Progress</div>
+              </div>
+              
+              <div className="stat-giant-box" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', justifyContent: 'center', padding: '24px' }}>
+                <div className="sprint-progress-circle-wrap" style={{ margin: '0 0 12px', alignItems: 'center' }}>
+                  <div className="sprint-progress-big-number" style={{ fontSize: '64px', lineHeight: 1 }}>
+                    {completionRate}<em>%</em>
+                  </div>
+                  <p className="sprint-progress-label" style={{ marginTop: '4px', fontSize: '11px' }}>Completion Rate</p>
+                </div>
+                <div className="stat-giant-badge" style={{ color: completionRate >= 80 ? '#c9f36a' : completionRate >= 60 ? '#eef0e9' : '#ffb9b9', fontSize: '12px' }}>
+                  {completionRate >= 80 ? 'ELITE LEVEL PERFORMANCE' : completionRate >= 60 ? 'STEADY PERFORMANCE' : 'WARNING: FOCUS INTENSIVELY'}
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
       </section>
 
       <footer><span>ONEPERCENTGOAL / {data.year}</span><span>Life changes 1% at a time.</span></footer>
-      </>}
+      </>)}
       {needsProfile && <ProfileSetupModal user={currentUser} onSubmit={completeProfile} loading={profileLoading} error={profileError} />}
       <AddGoalModal isOpen={addGoalModalOpen} onClose={() => setAddGoalModalOpen(false)} onSubmit={addGoal} loading={addGoalLoading} deadline={deadlineStr} />
       {completionFlow && completionFlow.step === 'note' && <div className="modal-backdrop" role="presentation"><form className="completion-modal" onSubmit={event => { event.preventDefault(); continueCompletion() }}><p className="eyebrow">MARK AS COMPLETED</p><h2>{completionFlow.goal.title}</h2><label className="reflection-label">How did you complete it? <span className="req-tag">Required</span><span className="desc-tag">This note will appear in the shareable image.</span></label><textarea autoFocus required value={completionFlow.note} onChange={event => setCompletionFlow(flow => flow ? { ...flow, note: event.target.value } : flow)} placeholder="Write a reflection before finishing this goal…" /><div><button type="button" onClick={() => setCompletionFlow(null)}>Cancel</button><button type="submit">Continue</button></div></form></div>}
@@ -3184,6 +3313,7 @@ function App() {
       )}
     </section>
   </main>
+  )
 }
 
 createRoot(document.getElementById('root')).render(<App />)
