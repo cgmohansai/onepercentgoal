@@ -3,6 +3,62 @@ import { createRoot } from 'react-dom/client'
 import { animate } from 'framer-motion'
 import './styles.css'
 
+const cn = (...classes) => classes.filter(Boolean).join(' ')
+
+function KineticTextLoader({ 
+  className = "", 
+  text = "Loading", 
+  showBrand = true,
+  ...props 
+}) {
+  const letters = text.split("");
+
+  return (
+    <div 
+      className={cn("ktl-wrapper-box", className)} 
+      {...props}
+    >
+      <div className="ktl-inner-box">
+        {/* The moving dot */}
+        <div className="ktl-moving-dot-exact" />
+        
+        <p className="ktl-text-exact" aria-label={text}>
+          {letters.map((char, index) => {
+            if (index === 0 && char.toUpperCase() === 'L') {
+              return (
+                <span key={index} className="ktl-char-l-animated">
+                  {char}
+                </span>
+              );
+            }
+            
+            if (index === 4 && char.toLowerCase() === 'i') {
+              return (
+                <span key={index} className="ktl-char-i-animated">
+                  {char === 'i' ? 'ı' : char}
+                </span>
+              );
+            }
+
+            return (
+              <span key={index} className="ktl-char-base">
+                {char}
+              </span>
+            );
+          })}
+        </p>
+      </div>
+
+      {showBrand && (
+        <div className="ktl-brand-badge">
+          <img src="/favicon.ico" alt="OnePercentGoal" className="ktl-brand-icon" />
+          <span className="ktl-brand-text">ONEPERCENTGOAL</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {})
@@ -965,7 +1021,6 @@ function AddGoalModal({ isOpen, onClose, onSubmit, loading, deadline }) {
             autoFocus 
             required 
             maxLength={140} 
-            placeholder="e.g. Code for 2 hours daily, read 20 pages" 
             value={title} 
             onChange={event => setTitle(event.target.value)} 
           />
@@ -1087,7 +1142,6 @@ const MOTIVATIONAL_QUOTES = [
 
 function AddRoteModal({ isOpen, onClose, onSubmit }) {
   const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
 
   if (!isOpen) return null
 
@@ -1099,42 +1153,30 @@ function AddRoteModal({ isOpen, onClose, onSubmit }) {
         onSubmit={event => { 
           event.preventDefault(); 
           if (!title.trim()) return;
-          onSubmit(title, description);
+          onSubmit(title);
           setTitle('');
-          setDescription('');
         }}
       >
-        <p className="eyebrow" style={{ color: '#c9f36a' }}>AUTOMATED ROUTINE HABIT</p>
+        <p className="eyebrow" style={{ color: '#c9f36a' }}>FORCEFUL TASKS</p>
         <h2>Create a New Routine Rote</h2>
         <p className="auth-copy" style={{ marginBottom: '20px' }}>
-          Define daily habits done by memory without thinking. Daily list tracking without percentage scores.
+          Completing unwanted tasks that you feel don't develop yourself (e.g. record writing, mandatory paperwork).
         </p>
         
-        <label style={{ display: 'block', marginBottom: '16px' }}>
-          Routine Title
+        <label style={{ display: 'block', marginBottom: '24px' }}>
+          Rote Title
           <input 
             autoFocus 
             required 
             maxLength={140} 
-            placeholder="e.g. Drink 2L Water, Morning Stretch 15m, Evening Journal" 
             value={title} 
             onChange={event => setTitle(event.target.value)} 
           />
         </label>
 
-        <label style={{ display: 'block', marginBottom: '24px' }}>
-          Description (Optional)
-          <input 
-            maxLength={255} 
-            placeholder="e.g. Keep hydrated throughout the day" 
-            value={description} 
-            onChange={event => setDescription(event.target.value)} 
-          />
-        </label>
-
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
           <button type="button" className="ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="add-button">Create Routine</button>
+          <button type="submit" className="add-button">Create Rote</button>
         </div>
       </form>
     </div>
@@ -1245,14 +1287,14 @@ function RotePage({ user }) {
     }
   }
 
-  const createRote = async (title, description) => {
+  const createRote = async (title) => {
     setAddModalOpen(false)
 
     const tempId = 'temp-' + Date.now()
     const tempItem = {
       id: tempId,
       title: title.trim(),
-      description: (description || '').trim(),
+      description: '',
       created_at: new Date().toISOString(),
       rote_date: todayStr,
       completed: false,
@@ -1278,7 +1320,7 @@ function RotePage({ user }) {
           'Content-Type': 'application/json',
           Authorization: token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ title, description, date: todayStr })
+        body: JSON.stringify({ title, description: '', date: todayStr })
       })
       if (res.ok) {
         const newItem = await res.json()
@@ -1360,10 +1402,10 @@ function RotePage({ user }) {
         <div className="goals-header-left">
           <span className="goals-sprint-badge">DAY-WISE</span>
           <h1 className="goals-sprint-title">
-            Rote <em>Routines</em>
+            Routine <em>Rote</em>
           </h1>
           <p className="goals-subtitle">
-            Doing something automatically from memory and habit, without really thinking about it or meaning it.
+            Completing unwanted tasks that you feel don't develop yourself — like record writing, mandatory paperwork, or mechanical chores.
           </p>
         </div>
         {selectedDate === todayStr && (
@@ -1467,7 +1509,6 @@ function RotePage({ user }) {
                   </button>
                   <div className="rote-info" onClick={() => toggleRote(rote.id)}>
                     <span className="rote-title">{rote.title}</span>
-                    {rote.description && <span className="rote-desc">{rote.description}</span>}
                   </div>
                   <div className="rote-meta">
                     <span className={`rote-status-tag ${rote.completed ? 'done' : 'pending'}`}>
@@ -1497,6 +1538,44 @@ function RotePage({ user }) {
         onSubmit={createRote} 
       />
     </div>
+  )
+}
+function AppFooter({ year = 2026 }) {
+  return (
+    <footer className="app-main-footer">
+      <div className="footer-left">
+        <span>ONEPERCENTGOAL / {year}</span>
+        <span className="footer-motto">Life changes 1% at a time.</span>
+      </div>
+      
+      <div className="footer-social-icons">
+        <a
+          href="https://github.com/cgmohansai/onepercentgoal"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="GitHub Repository"
+          aria-label="GitHub Repository"
+          className="footer-icon-link"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+        </a>
+
+        <a
+          href="https://linkedin.com/in/cgmohansai"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Connect on LinkedIn"
+          aria-label="Connect on LinkedIn"
+          className="footer-icon-link"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.74a1.6 1.6 0 1 0 1.6 1.6 1.6 1.6 0 0 0-1.6-1.6z"/>
+          </svg>
+        </a>
+      </div>
+    </footer>
   )
 }
 
@@ -1660,143 +1739,126 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
           </div>
         </header>
 
-        <section className="profile-hero card">
-          {/* Column 1: User Identity Info */}
-          <div className="profile-col-user">
-            <div className="profile-avatar-container">
-              <div
-                className="profile-avatar large"
-                onClick={() => document.getElementById('avatar-file-input').click()}
-                title="Click to upload profile photo"
-                style={{
-                  position: 'relative',
-                  cursor: 'pointer',
-                  overflow: 'hidden',
-                  background: '#2b2e29',
-                  border: '2px solid #c9f36a',
-                  boxShadow: '0 0 15px rgba(201, 243, 106, 0.15)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: '50%',
-                }}
-              >
-                {profileUser.profile_photo ? (
-                  <img
-                    src={profileUser.profile_photo}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    alt="Profile"
-                  />
-                ) : (
-                  (profileUser.display_name || profileUser.username || 'U').slice(0, 1).toUpperCase()
-                )}
-                
+        <div className="profile-hero-grid">
+          <section className="profile-hero card compact-hero">
+            {/* Main User Identity & Actions */}
+            <div className="profile-hero-top-row">
+              <div className="profile-user-left">
                 <div
-                  className="avatar-upload-overlay"
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'rgba(0,0,0,0.6)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: 0,
-                    transition: 'opacity 0.15s ease',
-                    fontSize: '10px',
-                    fontFamily: '"DM Mono", monospace',
-                    color: '#eef0e9',
-                  }}
+                  className="profile-avatar compact-avatar"
+                  onClick={() => document.getElementById('avatar-file-input').click()}
+                  title="Click to upload profile photo"
                 >
-                  UPLOAD
-                </div>
-                
-                <input
-                  type="file"
-                  id="avatar-file-input"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    if (file.size > 1500000) {
-                      alert('Image is too large! Please upload an image smaller than 1.5MB.');
-                      return;
-                    }
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      const img = new Image();
-                      img.src = reader.result;
-                      img.onload = () => {
-                        setCropImageDims({ width: img.width, height: img.height });
-                        setCropImageSrc(reader.result);
-                        setCropZoom(1);
-                        setCropOffset({ x: 0, y: 0 });
+                  {profileUser.profile_photo ? (
+                    <img
+                      src={profileUser.profile_photo}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      alt="Profile"
+                    />
+                  ) : (
+                    (profileUser.display_name || profileUser.username || 'U').slice(0, 1).toUpperCase()
+                  )}
+                  
+                  <div className="avatar-upload-overlay">
+                    UPLOAD
+                  </div>
+                  
+                  <input
+                    type="file"
+                    id="avatar-file-input"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 1500000) {
+                        alert('Image is too large! Please upload an image smaller than 1.5MB.');
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        const img = new Image();
+                        img.src = reader.result;
+                        img.onload = () => {
+                          setCropImageDims({ width: img.width, height: img.height });
+                          setCropImageSrc(reader.result);
+                          setCropZoom(1);
+                          setCropOffset({ x: 0, y: 0 });
+                        };
                       };
-                    };
-                    reader.readAsDataURL(file);
-                    e.target.value = '';
-                  }}
-                />
+                      reader.readAsDataURL(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+
+                <div className="profile-meta-compact">
+                  <div className="profile-name-row">
+                    <h3 className="profile-display-name">
+                      {profileUser.display_name || profileUser.name || 'Sai'}
+                    </h3>
+                    <span className="profile-handle">{profileUser.username ? `@${profileUser.username}` : ''}</span>
+                  </div>
+                  <p className="profile-active-meta">
+                    Active since sprint {String(joined.sprint_number).padStart(2, '0')} · {joined.year}
+                  </p>
+                  
+                  <div className="profile-action-btns">
+                    <button className="profile-edit-btn" onClick={() => setEditModalOpen(true)}>
+                      Edit Profile
+                    </button>
+                    <button 
+                      className="profile-edit-btn share-btn" 
+                      onClick={() => {
+                        const shareUrl = `${window.location.origin}/u/${profileUser.username}`;
+                        navigator.clipboard.writeText(shareUrl).then(() => {
+                          alert('Public profile link copied to clipboard!');
+                        });
+                      }}
+                    >
+                      Share Profile
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="profile-active-pulse" />
+
+              {/* Year progress percentage badge */}
+              <div className="profile-col-progress compact-progress">
+                <span>{yearProgress.percentage.toFixed(2)}%</span>
+                <small>of '{String(yearProgress.year).slice(-2)}</small>
+              </div>
             </div>
             
-            <div className="profile-meta-details">
-              <p className="eyebrow" style={{ color: '#c9f36a' }}>{profileUser.username ? `@${profileUser.username}` : 'ONEPERCENTGOAL USER'}</p>
-              <h3 style={{ margin: '0 0 4px', fontSize: 'clamp(24px, 3vw, 36px)', fontWeight: 600, color: '#f6f5f1', letterSpacing: '-.05em', lineHeight: 1.15 }}>
-                {profileUser.display_name || profileUser.name || 'Sai'}
-              </h3>
-              <p className="profile-meta" style={{ color: '#8c9085', fontSize: '13px', margin: '4px 0 12px' }}>
-                Active since sprint {String(joined.sprint_number).padStart(2, '0')} · {joined.year}
-              </p>
-              
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button className="profile-edit-btn" onClick={() => setEditModalOpen(true)}>
-                  Edit Profile
-                </button>
-                <button 
-                  className="profile-edit-btn" 
-                  style={{ borderColor: 'rgba(201, 243, 106, 0.35)', color: '#c9f36a' }}
-                  onClick={() => {
-                    const shareUrl = `${window.location.origin}/u/${profileUser.username}`;
-                    navigator.clipboard.writeText(shareUrl).then(() => {
-                      alert('Public profile link copied to clipboard!');
-                    });
-                  }}
-                >
-                  Share Profile
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          {/* Column 2: Bio details */}
-          <div className="profile-col-bio">
-            {profileUser.bio ? (
-              <>
+            {/* Dynamic Bio details — Only rendered if bio exists */}
+            {profileUser.bio && (
+              <div className="profile-bio-dynamic">
                 <span className="bio-label">BIO</span>
                 <p className="bio-content-text">{profileUser.bio}</p>
-              </>
-            ) : (
-              <p className="bio-empty-text" style={{ color: '#676a62', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
-                No bio-data entered yet.
-              </p>
+              </div>
             )}
-          </div>
-          
-          {/* Column 3: Year progress percentage */}
-          <div className="profile-col-progress">
-            <span>{yearProgress.percentage.toFixed(2)}%</span>
-            <small>of '{String(yearProgress.year).slice(-2)}</small>
-          </div>
-        </section>
+          </section>
 
-        <div className="profile-stats">
-          <div className="metric card"><small>GOALS COMPLETED</small><b>{stats.goals_completed}</b><span>out of {stats.total_goals} unique</span></div>
-          <div className="metric card"><small>COMPLETION RATE</small><b>{stats.completion_rate}%</b><span>overall performance</span></div>
-          <div className="metric card"><small>CURRENT STREAK</small><b>{stats.current_streak}</b><span>successful sprints</span></div>
-          <div className="metric card"><small>LONGEST STREAK</small><b>{stats.longest_streak}</b><span>sprints record</span></div>
+          {/* Right side OnePercentGoal branding card */}
+          <section className="profile-brand-card card">
+            <div className="profile-brand-header-row">
+              <div className="profile-brand-logo-wrap">
+                <img src="/favicon.ico" alt="OnePercentGoal" className="profile-brand-logo-img" />
+              </div>
+              <span className="profile-brand-title">OnePercentGoal</span>
+            </div>
+            <div className="profile-brand-subtitle">100 SPRINTS · 3.6 DAYS EACH · 37.78X ANNUAL YIELD</div>
+            <p className="profile-brand-tagline">Make every 1% count.</p>
+          </section>
         </div>
+
+        <div className="profile-stats compact-stats">
+          <div className="metric card"><small>GOALS COMPLETED</small><b>{stats.goals_completed}</b><span>out of {stats.total_goals} unique</span></div>
+          <div className="metric card"><small>GOAL RATE</small><b>{stats.completion_rate}%</b><span>completion performance</span></div>
+          <div className="metric card"><small>ROTE RATE</small><b>{stats.rote_rate || 0}%</b><span>{stats.rote_completed || 0}/{stats.total_rotes || 0} tasks done</span></div>
+          <div className="metric card"><small>STREAK</small><b>{stats.current_streak} <small className="best-streak-tag">Best: {stats.longest_streak}</small></b><span>sprints streak</span></div>
+        </div>
+
+        <AppFooter year={yearProgress.year} />
 
         {historyModal && <SprintHistoryModal sprint={historyModal} onClose={onCloseSprint} onShowGoalDetails={onShowGoalDetails} />}
         
@@ -2250,6 +2312,7 @@ function LandingPage({ onGetStarted, onSignIn }) {
         <p className="landing-footer-slogan">1 SPRINT = 1% OF YEAR · 1 SPRINT = 3.6 DAYS</p>
         <button className="landing-footer-btn" onClick={onGetStarted}>Initialize Your Console</button>
       </footer>
+      <AppFooter year={2026} />
     </div>
   )
 }
@@ -2812,7 +2875,11 @@ function App() {
   const completionRate = profile?.stats?.completion_rate ?? 0
 
   if (!authReady) {
-    return <main className="app-shell"><div className="auth-screen"><section className="auth-card card"><p className="eyebrow">ONEPERCENTGOAL</p><h1>Loading…</h1></section></div></main>
+    return (
+      <div className="ktl-fullscreen-overlay">
+        <KineticTextLoader text="Loading" />
+      </div>
+    )
   }
 
   if (shareUsername) {
@@ -2825,7 +2892,11 @@ function App() {
         </header>
 
         <section className="content" style={{ paddingBottom: '60px' }}>
-          {publicLoading && <p style={{ color: '#8c9085', textAlign: 'center', fontFamily: '"DM Mono", monospace' }}>Loading profile...</p>}
+          {publicLoading && (
+            <div className="ktl-fullscreen-overlay">
+              <KineticTextLoader text="Loading" />
+            </div>
+          )}
           {publicError && (
             <div style={{ textAlign: 'center', padding: '40px 20px' }}>
               <h2 style={{ color: '#ff6b6b', fontWeight: 500 }}>Profile Not Found</h2>
@@ -2845,62 +2916,65 @@ function App() {
                 </div>
               </header>
 
-              {/* 3-Column Profile Summary Card */}
-              <section className="profile-hero card" style={{ marginBottom: '24px' }}>
-                <div className="profile-col-user">
-                  <div className="profile-avatar-container">
-                    <div
-                      className="profile-avatar large"
-                      style={{
-                        position: 'relative',
-                        overflow: 'hidden',
-                        background: '#2b2e29',
-                        border: '2px solid #c9f36a',
-                        boxShadow: '0 0 15px rgba(201, 243, 106, 0.15)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: '50%',
-                      }}
-                    >
-                      {publicData.user.profile_photo ? (
-                        <img src={publicData.user.profile_photo} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Profile" />
-                      ) : (
-                        (publicData.user.display_name || publicData.user.username || 'U').slice(0, 1).toUpperCase()
-                      )}
+              {/* 3-Column Profile Summary & Branding Grid */}
+              <div className="profile-hero-grid">
+                <section className="profile-hero card compact-hero">
+                  <div className="profile-hero-top-row">
+                    <div className="profile-user-left">
+                      <div className="profile-avatar compact-avatar">
+                        {publicData.user.profile_photo ? (
+                          <img src={publicData.user.profile_photo} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Profile" />
+                        ) : (
+                          (publicData.user.display_name || publicData.user.username || 'U').slice(0, 1).toUpperCase()
+                        )}
+                      </div>
+                      
+                      <div className="profile-meta-compact">
+                        <div className="profile-name-row">
+                          <h3 className="profile-display-name">
+                            {publicData.user.display_name}
+                          </h3>
+                          <span className="profile-handle">@{publicData.user.username}</span>
+                        </div>
+                        <p className="profile-active-meta">
+                          Active since sprint {String(publicData.user.active_since.sprint_number).padStart(2, '0')} · {publicData.user.active_since.year}
+                        </p>
+                      </div>
                     </div>
-                    <div className="profile-active-pulse" />
-                  </div>
-                  
-                  <div className="profile-meta-details">
-                    <p className="eyebrow" style={{ color: '#c9f36a', margin: 0 }}>@{publicData.user.username}</p>
-                    <h3 style={{ margin: '4px 0', fontSize: 'clamp(24px, 3vw, 36px)', fontWeight: 600, color: '#f6f5f1', letterSpacing: '-.05em', lineHeight: 1.15 }}>
-                      {publicData.user.display_name}
-                    </h3>
-                    <p className="profile-meta" style={{ color: '#8c9085', fontSize: '13px', margin: 0 }}>
-                      Active since sprint {String(publicData.user.active_since.sprint_number).padStart(2, '0')} · {publicData.user.active_since.year}
-                    </p>
-                  </div>
-                </div>
 
-                <div className="profile-col-bio">
-                  {publicData.user.bio ? (
-                    <>
+                    <div className="profile-col-progress compact-progress">
+                      <span>{publicData.stats.completion_rate}%</span>
+                      <small>Completion Rate</small>
+                    </div>
+                  </div>
+
+                  {publicData.user.bio && (
+                    <div className="profile-bio-dynamic">
                       <span className="bio-label">BIO</span>
                       <p className="bio-content-text">{publicData.user.bio}</p>
-                    </>
-                  ) : (
-                    <p className="bio-empty-text" style={{ color: '#676a62', fontStyle: 'italic', fontSize: '13px', margin: 0 }}>
-                      No bio-data entered yet.
-                    </p>
+                    </div>
                   )}
-                </div>
+                </section>
 
-                <div className="profile-col-progress">
-                  <span>{publicData.stats.completion_rate}%</span>
-                  <small>Completion Rate</small>
-                </div>
-              </section>
+                {/* Right side OnePercentGoal branding card */}
+                <section className="profile-brand-card card">
+                  <div className="profile-brand-header-row">
+                    <div className="profile-brand-logo-wrap">
+                      <img src="/favicon.ico" alt="OnePercentGoal" className="profile-brand-logo-img" />
+                    </div>
+                    <span className="profile-brand-title">OnePercentGoal</span>
+                  </div>
+                  <div className="profile-brand-subtitle">100 SPRINTS · 3.6 DAYS EACH · 37.78X ANNUAL YIELD</div>
+                  <p className="profile-brand-tagline">Make every 1% count.</p>
+                  <button 
+                    className="goals-primary-add-btn" 
+                    style={{ marginTop: '16px', display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                    onClick={handleGoogle}
+                  >
+                    Join Now →
+                  </button>
+                </section>
+              </div>
 
               {/* Active Sprint Goals Section */}
               <h2 style={{ fontSize: '20px', fontWeight: 500, margin: '32px 0 16px', letterSpacing: '-0.02em', color: '#eef0e9' }}>
@@ -3042,7 +3116,7 @@ function App() {
               <span>count.</span>
             </h1>
             <p className="billboard-subtitle" style={{ color: '#fff', opacity: 0.88, margin: '16px 0 0', maxWidth: '680px', fontSize: '17px', lineHeight: 1.6 }}>
-              Divide your year into 100 focused 3.6-day sprints. Track daily automated habits, hit crisp deadlines, and watch 1% daily effort compound into 37.78x annual growth.
+              Divide your year into 100 focused 3.6-day sprints. Hit crisp goal deadlines, complete obligatory Rote tasks, and watch 1% daily effort compound into 37.78x annual growth.
             </p>
           </div>
           
@@ -3259,9 +3333,9 @@ function App() {
           <article className="sprint-summary card rote-overview-card rote-summary-pos" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div>
               <div className="sprint-summary-header">
-                <p className="eyebrow">AUTOMATED HABITS</p>
+                <p className="eyebrow">FORCEFUL TASKS</p>
                 <h2>
-                  Rote <em>Routines</em>
+                  Routine <em>Rote</em>
                   <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#c9f36a', marginLeft: '10px', letterSpacing: '0.08em', fontFamily: '"DM Mono", monospace', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '4px', background: 'rgba(201, 243, 106, 0.1)', border: '1px solid rgba(201, 243, 106, 0.2)' }}>
                     DAY-WISE
                   </span>
@@ -3375,7 +3449,7 @@ function App() {
         </div>
       </section>
 
-      <footer><span>ONEPERCENTGOAL / {data.year}</span><span>Life changes 1% at a time.</span></footer>
+      <AppFooter year={data.year} />
       </>)}
       {needsProfile && <ProfileSetupModal user={currentUser} onSubmit={completeProfile} loading={profileLoading} error={profileError} />}
       <AddGoalModal isOpen={addGoalModalOpen} onClose={() => setAddGoalModalOpen(false)} onSubmit={addGoal} loading={addGoalLoading} deadline={deadlineStr} />
@@ -3469,4 +3543,38 @@ function App() {
   )
 }
 
-createRoot(document.getElementById('root')).render(<App />)
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("React Error Boundary caught an exception:", error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '40px', color: '#fff', background: '#141513', fontFamily: 'sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+          <h2 style={{ color: '#c9f36a' }}>Console Interface Active</h2>
+          <p style={{ color: '#8c9085', maxWidth: '500px', margin: '16px 0 24px' }}>Click below to reload the console cleanly.</p>
+          <button onClick={() => window.location.reload()} style={{ background: '#c9f36a', color: '#141513', border: 'none', padding: '12px 24px', borderRadius: '24px', fontWeight: 'bold', cursor: 'pointer' }}>
+            Reload Console
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+createRoot(document.getElementById('root')).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+)

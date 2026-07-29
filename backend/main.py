@@ -519,6 +519,12 @@ def profile_stats(conn, year: int | None = None, user_id: int = DEMO_USER_ID) ->
         else:
             running = 0
 
+    # Calculate Rote completion stats
+    rote_rows = execute(conn, "SELECT * FROM rotes WHERE user_id = %s", (user_id,)).fetchall()
+    total_rotes = len(rote_rows)
+    completed_rotes = sum(1 for r in rote_rows if r.get("completed"))
+    rote_rate = round(completed_rotes / total_rotes * 100) if total_rotes else 0
+
     return {
         "user": {
             **(user_to_dict(execute(conn, "SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()) or {}),
@@ -533,6 +539,9 @@ def profile_stats(conn, year: int | None = None, user_id: int = DEMO_USER_ID) ->
             "goals_completed": goals_completed,
             "total_goals": total_goals,
             "completion_rate": completion_rate,
+            "rote_completed": completed_rotes,
+            "total_rotes": total_rotes,
+            "rote_rate": rote_rate,
             "current_streak": current_streak,
             "longest_streak": longest_streak,
         },
