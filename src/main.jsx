@@ -146,16 +146,6 @@ function formatDateOnly(dateObj) {
   return `${month} ${day}`
 }
 
-function formatDuration(ms) {
-  const seconds = Math.max(0, Math.floor(ms / 1000))
-  return {
-    days: Math.floor(seconds / 86400),
-    hours: Math.floor((seconds % 86400) / 3600),
-    minutes: Math.floor((seconds % 3600) / 60),
-    seconds: seconds % 60,
-  }
-}
-
 function presentGoal(goal) {
   const percent = goal.progress_percent ?? Math.round((goal.progress / goal.target) * 100)
   return {
@@ -824,10 +814,6 @@ function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails }) {
       <strong>{hasChanged ? draft : goal.value}%</strong>
     </div>
   )
-}
-
-function PageHeader({ label, title, action }) {
-  return <header className="page-header">{label && <p className="eyebrow">{label}</p>}<div><h1>{title}</h1>{action}</div></header>
 }
 
 function AuthScreen({ onGoogle, loading, error }) {
@@ -3261,12 +3247,10 @@ function App() {
 
       {/* High-Tech Temporal Urgency Console */}
       <section className="urgency-console">
-        <div className="urgency-header">
-          <span className="urgency-system-status">SYS.ACTIVE // SPRINT #{String(data.sprint).padStart(2, '0')}</span>
-        </div>
-        
         <div className="urgency-main">
-          <div className="urgency-live-percentage">
+          {/* Left Column: Annual Progress Percentage */}
+          <div className="urgency-col left">
+            <div className="urgency-system-status">SYS.ACTIVE // SPRINT #{String(data.sprint).padStart(2, '0')}</div>
             <div className="live-num">
               <span style={{ fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum"', display: 'inline-block' }}>
                 {data.percentage.toFixed(6)}
@@ -3276,34 +3260,19 @@ function App() {
             <div className="live-label">OF {data.year} COMPLETED</div>
           </div>
           
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <div style={{ fontFamily: '"DM Mono", monospace', fontSize: '14px', color: '#8c9085', letterSpacing: '0.12em', marginBottom: '8px', textTransform: 'uppercase' }}>
-              Next sprint begins in
+          {/* Right Column: Next Sprint Countdown Timer (Symmetric Styling) */}
+          <div className="urgency-col right">
+            <div className="urgency-system-status">NEXT SPRINT // COUNTDOWN</div>
+            <div className="live-num countdown-live-num">
+              <span className="time-unit">{String(daysLeft).padStart(2, '0')}<em>d</em></span>
+              <i className="time-colon">:</i>
+              <span className="time-unit">{String(hoursLeft).padStart(2, '0')}<em>h</em></span>
+              <i className="time-colon">:</i>
+              <span className="time-unit">{String(minutesLeft).padStart(2, '0')}<em>m</em></span>
+              <i className="time-colon">:</i>
+              <span className="time-unit">{String(secsLeft).padStart(2, '0')}<em>s</em></span>
             </div>
-            <div className="urgency-countdown-grid">
-              <div className="time-block">
-                <span className="time-val">{String(daysLeft).padStart(2, '0')}</span>
-                <span className="time-lbl">DAYS</span>
-              </div>
-              <i className="time-sep">:</i>
-              <div className="time-block">
-                <span className="time-val">{String(hoursLeft).padStart(2, '0')}</span>
-                <span className="time-lbl">HOURS</span>
-              </div>
-              <i className="time-sep">:</i>
-              <div className="time-block">
-                <span className="time-val">{String(minutesLeft).padStart(2, '0')}</span>
-                <span className="time-lbl">MINUTES</span>
-              </div>
-              <i className="time-sep">:</i>
-              <div className="time-block">
-                <span className="time-val">{String(secsLeft).padStart(2, '0')}</span>
-                <span className="time-lbl">SECONDS</span>
-              </div>
-            </div>
-            <div style={{ fontFamily: '"DM Mono", monospace', fontSize: '14px', color: '#8c9085', letterSpacing: '0.12em', marginTop: '8px', textTransform: 'uppercase' }}>
-              Sprint #{String(data.sprint).padStart(2, '0')} → #{String(data.sprint + 1).padStart(2, '0')}
-            </div>
+            <div className="live-label">SPRINT #{String(data.sprint).padStart(2, '0')} → #{String(data.sprint + 1).padStart(2, '0')}</div>
           </div>
         </div>
 

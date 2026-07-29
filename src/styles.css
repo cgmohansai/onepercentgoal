@@ -1172,38 +1172,75 @@
   font-size: 13px;
   color: #8c9085;
   letter-spacing: 0.08em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
 }
 .urgency-main {
   display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
-  gap: 40px;
+  gap: 32px;
   margin-bottom: 28px;
 }
-.urgency-live-percentage .live-num {
+.urgency-col.right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+.urgency-col.left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+.live-num {
   font-family: 'Instrument Serif', serif;
   font-style: italic;
-  font-size: clamp(48px, 6vw, 76px);
+  font-size: clamp(42px, 5.5vw, 76px);
   line-height: 0.95;
   color: #eef0e9;
-  letter-spacing: -0.05em;
+  letter-spacing: -0.04em;
   display: flex;
   align-items: baseline;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
-.urgency-live-percentage .live-num em {
+.live-num em {
   font-style: normal;
   color: #c9f36a;
   font-size: 0.55em;
   margin-left: 2px;
 }
-.urgency-live-percentage .live-label {
+.live-label {
   font-family: 'DM Mono', monospace;
   font-size: 14px;
   color: #8c9085;
   letter-spacing: 0.12em;
   margin-top: 8px;
+  text-transform: uppercase;
+}
+.countdown-live-num {
+  justify-content: flex-end;
+  gap: 2px;
+}
+.countdown-live-num .time-unit {
+  display: inline-flex;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+.countdown-live-num .time-unit em {
+  font-style: normal;
+  color: #c9f36a;
+  font-size: 0.48em;
+  margin-left: 1px;
+}
+.countdown-live-num .time-colon {
+  font-style: normal;
+  color: #3e423a;
+  font-size: 0.75em;
+  margin: 0 3px;
 }
 .urgency-countdown-grid {
   display: flex;
