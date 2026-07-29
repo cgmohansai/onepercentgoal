@@ -2868,9 +2868,7 @@ function App() {
   }
 
   const userLabel = currentUser?.display_name || currentUser?.name || currentUser?.email || 'Sai'
-  const userInitial = (currentUser?.display_name || currentUser?.username || currentUser?.email || 'U').slice(0, 1).toUpperCase()
   const needsProfile = Boolean(currentUser?.needs_profile)
-
   const streak = profile?.stats?.current_streak ?? 0
   const completionRate = profile?.stats?.completion_rate ?? 0
 
