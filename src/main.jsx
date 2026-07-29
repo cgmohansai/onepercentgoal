@@ -2333,7 +2333,9 @@ function SpotlightNavbar({
   onLogout
 }) {
   const navRef = useRef(null);
+  const containerRef = useRef(null);
   const [hoverX, setHoverX] = useState(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const normalizedItems = items.map(item =>
     typeof item === 'string' ? { label: item, href: `#${item.toLowerCase()}` } : item
@@ -2346,6 +2348,21 @@ function SpotlightNavbar({
   // Refs for the "light" positions so we can animate them imperatively with framer-motion
   const spotlightX = useRef(0);
   const ambienceX = useRef(0);
+
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setMobileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     if (!navRef.current) return;
@@ -2412,13 +2429,14 @@ function SpotlightNavbar({
   }, [activeIndex]);
 
   return (
-    <div className={`spotlight-nav-wrapper ${className}`}>
+    <div ref={containerRef} className={`spotlight-nav-wrapper ${className}`}>
       <nav ref={navRef} className="spotlight-nav">
         {/* Brand Logo inside single unified pill */}
         <button
           className="spotlight-brand-inside"
           onClick={() => {
             if (setActive) setActive('Overview');
+            setMobileOpen(false);
             window.scrollTo({ top: 0, behavior: 'instant' });
           }}
           aria-label="OnePercentGoal home"
@@ -2427,7 +2445,8 @@ function SpotlightNavbar({
           <span>onepercentgoal</span>
         </button>
 
-        <ul className="spotlight-nav-ul">
+        {/* Desktop Nav Items */}
+        <ul className="spotlight-nav-ul desktop-nav-only">
           {normalizedItems.map((item, idx) => {
             const isLogout = item.label === 'Logout';
             return (
@@ -2458,23 +2477,68 @@ function SpotlightNavbar({
           })}
         </ul>
 
-        {/* 1. Moving Spotlight Layer (Follows Mouse) */}
+        {/* Mobile 3-Dash Hamburger Button */}
+        <button
+          className={`spotlight-mobile-toggle ${mobileOpen ? 'open' : ''}`}
+          onClick={() => setMobileOpen(!mobileOpen)}
+          aria-label="Toggle navigation menu"
+        >
+          <span className="hamburger-line" />
+          <span className="hamburger-line" />
+          <span className="hamburger-line" />
+        </button>
+
+        {/* 1. Moving Spotlight Layer (Desktop Only) */}
         <div
-          className="spotlight-glow-layer"
+          className="spotlight-glow-layer desktop-nav-only"
           style={{
             opacity: hoverX !== null ? 1 : 0,
             background: `radial-gradient(120px circle at var(--spotlight-x, 50%) 100%, var(--spotlight-color, rgba(201, 243, 106, 0.22)) 0%, transparent 60%)`
           }}
         />
 
-        {/* 2. Active State Ambience Line (Stays on Active Item) */}
+        {/* 2. Active State Ambience Line (Desktop Only) */}
         <div
-          className="spotlight-ambience-layer"
+          className="spotlight-ambience-layer desktop-nav-only"
           style={{
-            background: `radial-gradient(70px circle at var(--ambience-x, 50%) 0%, var(--ambience-color, rgba(201, 243, 106, 1)) 0%, transparent 100%)`
+            background: `radial-gradient(40px circle at var(--ambience-x, 50%) 100%, var(--ambience-color, rgba(201, 243, 106, 1)) 0%, transparent 80%)`
           }}
         />
       </nav>
+
+      {/* Mobile Dropdown Menu Card */}
+      {mobileOpen && (
+        <div className="spotlight-mobile-dropdown">
+          {normalizedItems.map((item, idx) => {
+            const isLogout = item.label === 'Logout';
+            const isActive = activeIndex === idx;
+            return (
+              <button
+                key={idx}
+                className={`spotlight-mobile-item ${isActive ? 'active' : ''} ${isLogout ? 'logout' : ''}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setMobileOpen(false);
+                  if (isLogout) {
+                    if (onLogout) onLogout();
+                    return;
+                  }
+                  if (item.onClick) {
+                    item.onClick();
+                    return;
+                  }
+                  if (setActive) setActive(item.label);
+                  onItemClick?.(item, idx);
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }}
+              >
+                <span>{item.label}</span>
+                {isActive && <span className="mobile-active-dot">•</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
