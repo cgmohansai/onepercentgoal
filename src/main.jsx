@@ -2862,7 +2862,7 @@ function App() {
       }).catch(() => {})
     }
     localStorage.removeItem('onepercentgoal.token')
-    showToast('Successfully Logged Out')
+    showToast('Logged Out')
     setActive('Overview')
     setShowAuthModal(false)
     setSessionToken('')
