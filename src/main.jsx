@@ -598,14 +598,18 @@ const MorphText = React.memo(function MorphText({
   const words = React.useMemo(() => Array.from({ length: 100 }, (_, i) => `${i + 1}%`), [])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [widths, setWidths] = useState({})
+  const morphRootRef = useRef(null)
   
   // Measure word widths on mount/update to prevent jumps
   useEffect(() => {
     const newWidths = {}
+    const parentFontSize = morphRootRef.current?.parentElement
+      ? getComputedStyle(morphRootRef.current.parentElement).fontSize
+      : fontSize
     words.forEach((word) => {
       const measureEl = document.createElement('span')
       measureEl.style.fontFamily = fontFamily
-      measureEl.style.fontSize = fontSize
+      measureEl.style.fontSize = parentFontSize
       measureEl.style.fontWeight = '700'
       measureEl.style.fontStyle = 'italic'
       measureEl.style.position = 'absolute'
@@ -634,10 +638,10 @@ const MorphText = React.memo(function MorphText({
   }, [words.length, interval])
   const filterId = "morph-threshold-filter"
   const currentWord = words[currentIndex]
-  const currentWidth = (widths[currentWord] || 60) + 32
+  const currentWidth = (widths[currentWord] || 60) + 24
 
   return (
-    <div className={className} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle', position: 'relative', margin: '0 0.2em' }}>
+    <div ref={morphRootRef} className={className} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle', position: 'relative', margin: '0 0.12em' }}>
       <svg
         aria-hidden="true"
         focusable="false"
