@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { animate } from 'framer-motion'
 import './styles.css'
+import { House, Target, Repeat, Clock, User, Gear, SignOut } from '@phosphor-icons/react'
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -1580,6 +1581,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editError, setEditError] = useState('')
   const [editLoading, setEditLoading] = useState(false)
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false)
 
   // Calculate active sprint date range
   const DAY = 24 * 60 * 60 * 1000
@@ -1714,8 +1716,38 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
     return (
       <div className="workspace-page profile-page-custom">
         <header className="profile-page-header">
-          <div className="profile-header-left">
-            <span className="profile-badge">ACCOUNT OVERVIEW</span>
+          <div className="profile-header-left" style={{ width: '100%' }}>
+            <div className="profile-badge-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <span className="profile-badge">ACCOUNT OVERVIEW</span>
+              <div className="profile-settings-menu-container" style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  className="profile-settings-btn"
+                  onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                  title="Account Settings & Logout"
+                  aria-label="Settings"
+                >
+                  <Gear size={15} weight="bold" />
+                  <span>Settings</span>
+                </button>
+
+                {showSettingsMenu && (
+                  <div className="profile-settings-dropdown">
+                    <button
+                      type="button"
+                      className="profile-dropdown-item logout"
+                      onClick={() => {
+                        setShowSettingsMenu(false)
+                        if (onLogout) onLogout()
+                      }}
+                    >
+                      <SignOut size={15} weight="bold" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
             <h1 className="profile-title">
               User <em>Profile</em>
             </h1>
@@ -2303,14 +2335,64 @@ function LandingPage({ onGetStarted, onSignIn }) {
   )
 }
 
+function GlassDock({ items, active, setActive }) {
+  const [hoveredIndex, setHoveredIndex] = useState(null)
+
+  const getIcon = (label, isActive) => {
+    const weight = isActive ? 'fill' : 'regular'
+    switch (label) {
+      case 'Overview':
+        return <House size={22} weight={weight} />
+      case 'Goals':
+        return <Target size={22} weight={weight} />
+      case 'Rote':
+        return <Repeat size={22} weight={weight} />
+      case 'Timeline':
+        return <Clock size={22} weight={weight} />
+      case 'Profile':
+        return <User size={22} weight={weight} />
+      default:
+        return <House size={22} weight={weight} />
+    }
+  }
+
+  return (
+    <div className="glass-dock-mobile-wrapper">
+      <div className="glass-dock" onMouseLeave={() => setHoveredIndex(null)}>
+        {items.map((item, index) => {
+          const label = typeof item === 'string' ? item : item.label
+          const isActive = active === label
+
+          return (
+            <button
+              key={label}
+              type="button"
+              className={cn('glass-dock-item', isActive && 'active')}
+              onMouseEnter={() => setHoveredIndex(index)}
+              onClick={() => {
+                if (setActive) setActive(label)
+                window.scrollTo({ top: 0, behavior: 'instant' })
+              }}
+              title={label}
+              aria-label={label}
+            >
+              {getIcon(label, isActive)}
+              {isActive && <span className="glass-dock-item-dot" />}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function SpotlightNavbar({
   items = [
     { label: "Overview", href: "#overview" },
     { label: "Goals", href: "#goals" },
     { label: "Rote", href: "#rote" },
     { label: "Timeline", href: "#timeline" },
-    { label: "Profile", href: "#profile" },
-    { label: "Logout", href: "#logout" }
+    { label: "Profile", href: "#profile" }
   ],
   className = "",
   onItemClick,
@@ -2434,7 +2516,19 @@ function SpotlightNavbar({
         {/* Desktop Nav Items */}
         <ul className="spotlight-nav-ul desktop-nav-only">
           {normalizedItems.map((item, idx) => {
-            const isLogout = item.label === 'Logout';
+            const label = item.label;
+            const isActive = activeIndex === idx;
+            const weight = isActive ? 'fill' : 'bold';
+
+            const renderNavIcon = (lbl) => {
+              if (lbl === 'Overview') return <House size={16} weight={weight} />;
+              if (lbl === 'Goals') return <Target size={16} weight={weight} />;
+              if (lbl === 'Rote') return <Repeat size={16} weight={weight} />;
+              if (lbl === 'Timeline') return <Clock size={16} weight={weight} />;
+              if (lbl === 'Profile') return <User size={16} weight={weight} />;
+              return null;
+            };
+
             return (
               <li key={idx} className="spotlight-nav-li">
                 <a
@@ -2442,10 +2536,6 @@ function SpotlightNavbar({
                   data-index={idx}
                   onClick={(e) => {
                     e.preventDefault();
-                    if (isLogout) {
-                      if (onLogout) onLogout();
-                      return;
-                    }
                     if (item.onClick) {
                       item.onClick();
                       return;
@@ -2454,25 +2544,16 @@ function SpotlightNavbar({
                     onItemClick?.(item, idx);
                     window.scrollTo({ top: 0, behavior: 'instant' });
                   }}
-                  className={`spotlight-nav-link ${isLogout ? 'logout-link' : activeIndex === idx ? 'active' : ''}`}
+                  className={`spotlight-nav-link ${isActive ? 'active' : ''}`}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 >
-                  {item.label}
+                  {renderNavIcon(label)}
+                  <span>{label}</span>
                 </a>
               </li>
             );
           })}
         </ul>
-
-        {/* Mobile 3-Dash Hamburger Button */}
-        <button
-          className={`spotlight-mobile-toggle ${mobileOpen ? 'open' : ''}`}
-          onClick={() => setMobileOpen(!mobileOpen)}
-          aria-label="Toggle navigation menu"
-        >
-          <span className="hamburger-line" />
-          <span className="hamburger-line" />
-          <span className="hamburger-line" />
-        </button>
 
         {/* 1. Moving Spotlight Layer (Desktop Only) */}
         <div
@@ -2492,39 +2573,8 @@ function SpotlightNavbar({
         />
       </nav>
 
-      {/* Mobile Dropdown Menu Card */}
-      {mobileOpen && (
-        <div className="spotlight-mobile-dropdown">
-          {normalizedItems.map((item, idx) => {
-            const isLogout = item.label === 'Logout';
-            const isActive = activeIndex === idx;
-            return (
-              <button
-                key={idx}
-                className={`spotlight-mobile-item ${isActive ? 'active' : ''} ${isLogout ? 'logout' : ''}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  setMobileOpen(false);
-                  if (isLogout) {
-                    if (onLogout) onLogout();
-                    return;
-                  }
-                  if (item.onClick) {
-                    item.onClick();
-                    return;
-                  }
-                  if (setActive) setActive(item.label);
-                  onItemClick?.(item, idx);
-                  window.scrollTo({ top: 0, behavior: 'instant' });
-                }}
-              >
-                <span>{item.label}</span>
-                {isActive && <span className="mobile-active-dot">•</span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Mobile Glass Dock (Pinned to bottom of phone screen) */}
+      <GlassDock items={normalizedItems.map(it => it.label)} active={active} setActive={setActive} />
     </div>
   );
 }
@@ -3113,11 +3163,16 @@ function App() {
     return (
       <main className="app-shell logged-out">
         <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
-          <SpotlightNavbar
-            items={[{ label: 'Access Console', href: '#auth', onClick: () => setShowAuthModal(true) }]}
-          />
+          <div className="spotlight-nav-wrapper" style={{ justifyContent: 'center' }}>
+            <nav className="spotlight-nav" style={{ padding: '0 20px', justifyContent: 'center' }}>
+              <div className="spotlight-brand-inside" style={{ padding: '0 4px', cursor: 'default' }}>
+                <img src="/favicon.ico" alt="Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+                <span>onepercentgoal</span>
+              </div>
+            </nav>
+          </div>
         </header>
-        
+
         <section className="content">
           <LandingPage onGetStarted={() => setShowAuthModal(true)} onSignIn={() => setShowAuthModal(true)} />
         </section>
@@ -3140,7 +3195,7 @@ function App() {
       <SpotlightNavbar
         active={active}
         setActive={setActive}
-        items={['Overview', 'Goals', 'Rote', 'Timeline', 'Profile', 'Logout']}
+        items={['Overview', 'Goals', 'Rote', 'Timeline', 'Profile']}
         onLogout={logout}
       />
     </header>
