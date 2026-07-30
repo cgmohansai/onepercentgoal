@@ -1,12 +1,21 @@
-"""OnePercentGoal API — PostgreSQL (production) / SQLite (local dev)."""
+"""OnePercentGoal API — Production PostgreSQL / Local SQLite Backend with Google OAuth.
+
+Architecture:
+- Compounding Sprint Engine (100 Sprints/Year = 3.6 Days per 1% Sprint)
+- Google OAuth 2.0 Authentication & Session Token Management
+- Automated Incomplete Goal Rollover Engine
+- Daily Rote Habits & Progress Lineage Tracker
+- Public Profile Gateway & Brevo Email Notification Scheduler
+"""
 from __future__ import annotations
 
 import base64
 import hashlib
-import hmac
 import os
 import secrets
 import sqlite3
+import threading
+import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,6 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
+# Timezone Definition (India Standard Time UTC+5:30)
 IST = timezone(timedelta(hours=5, minutes=30))
 
 ROOT = Path(__file__).resolve().parent
@@ -27,6 +37,7 @@ PROJECT_ROOT = ROOT.parent
 load_dotenv(PROJECT_ROOT / ".env")
 load_dotenv(ROOT / ".env")
 
+# Database & OAuth Environment Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 USE_POSTGRES = DATABASE_URL.startswith(("postgresql://", "postgres://"))
 SQLITE_DATABASE = ROOT / "onepercentgoal.db"
@@ -39,7 +50,6 @@ BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
 BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "").strip()
 EMAIL_LOGO_URL = os.getenv("EMAIL_LOGO_URL", "").strip()
 DEMO_USER_ID = 1
-PASSWORD_ITERATIONS = 120_000
 SESSION_DAYS = 30
 
 app = FastAPI(title="OnePercentGoal API", version="0.3.0")
@@ -59,12 +69,13 @@ app.add_middleware(
 
 
 def sql(query: str) -> str:
-    """Convert %s placeholders to ? for SQLite."""
+    """Convert PostgreSQL %s placeholders to ? placeholders when running under SQLite."""
     return query if USE_POSTGRES else query.replace("%s", "?")
 
 
 @contextmanager
 def db():
+    """Context manager supplying database connection (PostgreSQL in production, SQLite locally)."""
     if USE_POSTGRES:
         import psycopg
         from psycopg.rows import dict_row
@@ -80,14 +91,17 @@ def db():
 
 
 def execute(conn, query: str, params=()):
+    """Helper to execute SQL queries with normalized placeholders."""
     return conn.execute(sql(query), params)
 
 
 def row_dict(row):
+    """Convert database row object to dict."""
     return dict(row) if row else None
 
 
 def as_utc(value: datetime | str | None) -> datetime:
+    """Parse date values into timezone-aware IST datetimes."""
     if value is None:
         return datetime.now(IST)
     if isinstance(value, datetime):
@@ -97,41 +111,27 @@ def as_utc(value: datetime | str | None) -> datetime:
 
 
 def as_iso(value: datetime | str | None) -> str:
+    """Format date values into ISO 8601 strings."""
     return as_utc(value).isoformat()
 
 
-def decode_b64(value: str) -> bytes:
-    padded = value + "=" * (-len(value) % 4)
-    return base64.urlsafe_b64decode(padded.encode("ascii"))
-
-
-def password_hash(password: str, salt: str | None = None) -> tuple[str, str]:
-    salt_bytes = decode_b64(salt) if salt else secrets.token_bytes(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt_bytes, PASSWORD_ITERATIONS)
-    return (
-        base64.urlsafe_b64encode(salt_bytes).decode("ascii"),
-        base64.urlsafe_b64encode(digest).decode("ascii"),
-    )
-
-
-def verify_password(password: str, salt: str, stored_hash: str) -> bool:
-    _, hash_value = password_hash(password, salt)
-    return hmac.compare_digest(hash_value, stored_hash)
-
-
 def token_hash(token: str) -> str:
+    """Compute SHA-256 hash of session bearer tokens for database lookup."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def normalize_username(value: str) -> str:
+    """Normalize user handle strings (lowercase alphanumeric + underscores)."""
     return "".join(char.lower() for char in value.strip() if char.isalnum() or char == "_")
 
 
 def current_timestamp() -> str:
+    """Return ISO 8601 string timestamp for current IST time."""
     return datetime.now(IST).isoformat()
 
 
 def ensure_column(conn, table: str, column: str, ddl: str) -> None:
+    """Idempotently add database columns if missing."""
     if USE_POSTGRES:
         exists = execute(
             conn,
@@ -147,7 +147,8 @@ def ensure_column(conn, table: str, column: str, ddl: str) -> None:
         execute(conn, ddl)
 
 
-def user_to_dict(row):
+def user_to_dict(row) -> dict | None:
+    """Serialize database user row into public user dictionary."""
     if not row:
         return None
     data = row_dict(row)
@@ -159,7 +160,7 @@ def user_to_dict(row):
         "email": data["email"],
         "username": username,
         "display_name": display_name,
-        "auth_provider": data.get("auth_provider") or "local",
+        "auth_provider": data.get("auth_provider") or "google",
         "created_at": as_iso(data["created_at"]),
         "last_login_at": as_iso(data.get("last_login_at")) if data.get("last_login_at") else None,
         "needs_profile": not bool(username),
@@ -169,6 +170,7 @@ def user_to_dict(row):
 
 
 def issue_session(conn, user_id: int) -> str:
+    """Generate and store secure 30-day session token for authenticated user."""
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(IST) + timedelta(days=SESSION_DAYS)
     execute(conn, "DELETE FROM sessions WHERE user_id = %s AND expires_at < %s", (user_id, as_iso(datetime.now(IST))))
@@ -181,6 +183,7 @@ def issue_session(conn, user_id: int) -> str:
 
 
 def current_user_id(conn, authorization: str | None) -> int:
+    """Validate Bearer session token header and return authenticated user ID."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authentication required")
     token = authorization.removeprefix("Bearer ").strip()
@@ -204,11 +207,13 @@ def current_user_id(conn, authorization: str | None) -> int:
 
 
 def current_user(conn, authorization: str | None):
+    """Retrieve full database user record from Bearer session token."""
     user_id = current_user_id(conn, authorization)
     return execute(conn, "SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()
 
 
 def sprint_boundary_timestamp(year: int, N: int) -> float:
+    """Calculate exact unix timestamp boundary for the Nth sprint of a year (100 Sprints = 3.6 days each)."""
     start = datetime(year, 1, 1, tzinfo=IST)
     end = datetime(year + 1, 1, 1, tzinfo=IST)
     days_in_year = (end - start).days
@@ -218,6 +223,7 @@ def sprint_boundary_timestamp(year: int, N: int) -> float:
 
 
 def year_progress(when: datetime | None = None) -> dict:
+    """Calculate year completion percentage, day of year, and active sprint cycle (1 to 100)."""
     now = when.astimezone(IST) if when and when.tzinfo else (when or datetime.now(IST))
     start = datetime(now.year, 1, 1, tzinfo=IST)
     end = datetime(now.year + 1, 1, 1, tzinfo=IST)
@@ -246,6 +252,7 @@ def year_progress(when: datetime | None = None) -> dict:
 
 
 def sprint_window(year: int, sprint_number: int) -> tuple[str, str]:
+    """Return start and end ISO timestamps for a given sprint number."""
     start_ts = sprint_boundary_timestamp(year, sprint_number - 1)
     end_ts = sprint_boundary_timestamp(year, sprint_number)
     return (
@@ -255,10 +262,12 @@ def sprint_window(year: int, sprint_number: int) -> tuple[str, str]:
 
 
 def sprint_end_datetime(year: int, sprint_number: int) -> datetime:
+    """Return timezone-aware IST datetime for end of sprint."""
     end_ts = sprint_boundary_timestamp(year, sprint_number)
     return datetime.fromtimestamp(end_ts, tz=IST)
 
 
+# Pydantic Request Schemas
 class GoalCreate(BaseModel):
     title: str = Field(min_length=1, max_length=140)
     description: str = Field(default="", max_length=500)
@@ -273,23 +282,6 @@ class GoalUpdate(BaseModel):
     progress_percent: int | None = Field(default=None, ge=0, le=100)
     completed: bool | None = None
     completion_note: str | None = Field(default=None, max_length=1000)
-
-
-class AuthRegister(BaseModel):
-    email: str = Field(min_length=3, max_length=255)
-    password: str = Field(min_length=8, max_length=128)
-    display_name: str | None = Field(default=None, max_length=80)
-
-
-class AuthLogin(BaseModel):
-    email: str = Field(min_length=3, max_length=255)
-    password: str = Field(min_length=8, max_length=128)
-
-
-class AuthGoogle(BaseModel):
-    email: str = Field(min_length=3, max_length=255)
-    display_name: str | None = Field(default=None, max_length=80)
-    google_sub: str | None = Field(default=None, max_length=255)
 
 
 class ProfileUpdate(BaseModel):
@@ -310,7 +302,8 @@ class RoteToggle(BaseModel):
     completed: bool | None = None
 
 
-def goal_dict(row):
+def goal_dict(row) -> dict:
+    """Format goal database row into API response dictionary."""
     data = row_dict(row)
     data["completed"] = bool(data["completed"])
     if data.get("progress_percent") is None:
@@ -320,6 +313,7 @@ def goal_dict(row):
 
 
 def resolve_source_goal_id(conn, row) -> int:
+    """Recursively trace goal lineage to locate original root goal ID across sprint rollovers."""
     data = row_dict(row)
     source_goal_id = data.get("source_goal_id")
     if source_goal_id:
@@ -333,6 +327,7 @@ def resolve_source_goal_id(conn, row) -> int:
 
 
 def sprint_summary(conn, year: int, sprint_number: int, user_id: int = DEMO_USER_ID) -> dict:
+    """Compute sprint completion metrics, goal counts, and goal arrays for a specific sprint cycle."""
     rows = execute(
         conn,
         """
@@ -360,12 +355,14 @@ def sprint_summary(conn, year: int, sprint_number: int, user_id: int = DEMO_USER
 
 
 def user_created_at(conn, user_id: int = DEMO_USER_ID) -> datetime:
+    """Retrieve user creation timestamp."""
     row = execute(conn, "SELECT created_at FROM users WHERE id = %s", (user_id,)).fetchone()
     created_at = row["created_at"] if row else current_timestamp()
     return as_utc(created_at)
 
 
 def previous_sprint(year: int, sprint_number: int) -> tuple[int, int] | None:
+    """Calculate prior sprint number and year tuple."""
     if sprint_number > 1:
         return year, sprint_number - 1
     if year > 1:
@@ -374,6 +371,7 @@ def previous_sprint(year: int, sprint_number: int) -> tuple[int, int] | None:
 
 
 def ensure_sprint_rollover(conn, year: int, sprint_number: int, user_id: int = DEMO_USER_ID) -> None:
+    """Automatic Rollover Engine: copies uncompleted goals from prior sprints into current active sprint."""
     joined = user_created_at(conn, user_id)
     joined_progress = year_progress(joined)
     joined_year = joined_progress["year"]
@@ -444,6 +442,7 @@ def ensure_sprint_rollover(conn, year: int, sprint_number: int, user_id: int = D
 
 
 def profile_stats(conn, year: int | None = None, user_id: int = DEMO_USER_ID) -> dict:
+    """Calculate user streak metrics, sprint completion heatmaps, and total goal statistics."""
     progress = year_progress()
     selected_year = year or progress["year"]
     joined = user_created_at(conn, user_id)
@@ -548,18 +547,15 @@ def profile_stats(conn, year: int | None = None, user_id: int = DEMO_USER_ID) ->
     }
 
 
-def auth_payload(conn, user_id: int) -> dict:
-    return {"token": issue_session(conn, user_id), "user": user_to_dict(execute(conn, "SELECT * FROM users WHERE id = %s", (user_id,)).fetchone())}
-
-
 def setup_database():
+    """Initialize database schemas, tables, and indices for users, sessions, goals, rotes, and logs."""
     with db() as conn:
         if USE_POSTGRES:
             execute(conn, """
                 CREATE TABLE IF NOT EXISTS users (
                     id BIGSERIAL PRIMARY KEY, name TEXT, email TEXT NOT NULL UNIQUE,
-                    username TEXT, display_name TEXT, auth_provider TEXT NOT NULL DEFAULT 'local',
-                    password_hash TEXT, password_salt TEXT, google_sub TEXT UNIQUE,
+                    username TEXT, display_name TEXT, auth_provider TEXT NOT NULL DEFAULT 'google',
+                    google_sub TEXT UNIQUE,
                     created_at TIMESTAMPTZ NOT NULL, last_login_at TIMESTAMPTZ, profile_photo TEXT, bio TEXT
                 )""")
             execute(conn, """
@@ -616,8 +612,8 @@ def setup_database():
             execute(conn, """
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, email TEXT NOT NULL UNIQUE,
-                    username TEXT, display_name TEXT, auth_provider TEXT NOT NULL DEFAULT 'local',
-                    password_hash TEXT, password_salt TEXT, google_sub TEXT UNIQUE,
+                    username TEXT, display_name TEXT, auth_provider TEXT NOT NULL DEFAULT 'google',
+                    google_sub TEXT UNIQUE,
                     created_at TEXT NOT NULL, last_login_at TEXT, profile_photo TEXT, bio TEXT
                 )""")
             execute(conn, """
@@ -679,9 +675,7 @@ def setup_database():
         alter_columns = [
             ("users", "username", "ALTER TABLE users ADD COLUMN username TEXT"),
             ("users", "display_name", "ALTER TABLE users ADD COLUMN display_name TEXT"),
-            ("users", "auth_provider", "ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'local'"),
-            ("users", "password_hash", "ALTER TABLE users ADD COLUMN password_hash TEXT"),
-            ("users", "password_salt", "ALTER TABLE users ADD COLUMN password_salt TEXT"),
+            ("users", "auth_provider", "ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'google'"),
             ("users", "google_sub", "ALTER TABLE users ADD COLUMN google_sub TEXT"),
             ("users", "last_login_at", "ALTER TABLE users ADD COLUMN last_login_at TIMESTAMPTZ" if USE_POSTGRES else "ALTER TABLE users ADD COLUMN last_login_at TEXT"),
             ("users", "profile_photo", "ALTER TABLE users ADD COLUMN profile_photo TEXT"),
@@ -701,6 +695,7 @@ def setup_database():
 
 @app.on_event("startup")
 def startup():
+    """Application startup lifecycle event: initializes database and starts background email scheduler daemon."""
     setup_database()
     t = threading.Thread(target=run_email_scheduler_loop, daemon=True)
     t.start()
@@ -708,11 +703,15 @@ def startup():
 
 @app.get("/api/health")
 def health():
+    """Backend service health check endpoint."""
     return {"status": "ok"}
 
 
+# --- GOOGLE OAUTH AUTHENTICATION ENDPOINTS ---
+
 @app.get("/api/auth/google/start")
 def auth_google_start():
+    """Initiate Google OAuth 2.0 PKCE flow: generates state token and redirects to Google login consent."""
     if not GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=500, detail="Google auth is not configured")
     state = secrets.token_urlsafe(24)
@@ -737,6 +736,7 @@ def auth_google_start():
 
 @app.get("/api/auth/google/callback")
 async def auth_google_callback(background_tasks: BackgroundTasks, code: str | None = None, state: str | None = None):
+    """Google OAuth Callback: exchanges authorization code for user info, provisions user record, and issues session token."""
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         raise HTTPException(status_code=500, detail="Google auth is not configured")
     if not code or not state:
@@ -810,44 +810,9 @@ async def auth_google_callback(background_tasks: BackgroundTasks, code: str | No
     return RedirectResponse(f"{FRONTEND_URL}/?auth_token={token}")
 
 
-@app.post("/api/auth/register")
-def auth_register(payload: AuthRegister, background_tasks: BackgroundTasks):
-    email = payload.email.strip().lower()
-    display_name = (payload.display_name or "").strip() or None
-    with db() as conn:
-        existing = execute(conn, "SELECT id FROM users WHERE email = %s", (email,)).fetchone()
-        if existing:
-            raise HTTPException(status_code=409, detail="Email already exists")
-        salt, digest = password_hash(payload.password)
-        row = execute(
-            conn,
-            """
-            INSERT INTO users (name, email, display_name, username, auth_provider, password_hash, password_salt, created_at, last_login_at)
-            VALUES (%s, %s, %s, %s, 'local', %s, %s, %s, %s)
-            RETURNING id
-            """,
-            (display_name, email, display_name, None, digest, salt, current_timestamp(), current_timestamp()),
-        ).fetchone()
-        user_id = int(row["id"])
-        background_tasks.add_task(send_welcome_email, email, display_name or "User")
-        return auth_payload(conn, user_id)
-
-
-@app.post("/api/auth/login")
-def auth_login(payload: AuthLogin):
-    email = payload.email.strip().lower()
-    with db() as conn:
-        user = execute(conn, "SELECT * FROM users WHERE email = %s", (email,)).fetchone()
-        if not user or not user.get("password_hash") or not user.get("password_salt"):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-        if not verify_password(payload.password, user["password_salt"], user["password_hash"]):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-        execute(conn, "UPDATE users SET last_login_at = %s WHERE id = %s", (current_timestamp(), user["id"]))
-        return auth_payload(conn, int(user["id"]))
-
-
 @app.get("/api/auth/me")
 def auth_me(authorization: str | None = Header(default=None)):
+    """Retrieve current authenticated user metadata."""
     with db() as conn:
         user = current_user(conn, authorization)
         return {"user": user_to_dict(user)}
@@ -855,6 +820,7 @@ def auth_me(authorization: str | None = Header(default=None)):
 
 @app.post("/api/auth/profile")
 def auth_complete_profile(payload: ProfileUpdate, authorization: str | None = Header(default=None)):
+    """Update profile handle, display name, photo, and bio."""
     username = normalize_username(payload.username)
     if len(username) < 3:
         raise HTTPException(status_code=400, detail="Username is too short")
@@ -880,14 +846,18 @@ def auth_complete_profile(payload: ProfileUpdate, authorization: str | None = He
 
 @app.post("/api/auth/logout")
 def auth_logout(authorization: str | None = Header(default=None)):
+    """Revoke active session token on sign out."""
     with db() as conn:
         if authorization and authorization.startswith("Bearer "):
             execute(conn, "DELETE FROM sessions WHERE token_hash = %s", (token_hash(authorization.removeprefix("Bearer ").strip()),))
     return {"ok": True}
 
 
+# --- DASHBOARD & GOALS ENDPOINTS ---
+
 @app.get("/api/dashboard")
 def dashboard(authorization: str | None = Header(default=None)):
+    """Overview dashboard endpoint: returns year progress, user profile, and active sprint goals."""
     progress = year_progress()
     with db() as conn:
         user_id = current_user_id(conn, authorization)
@@ -907,6 +877,7 @@ def dashboard(authorization: str | None = Header(default=None)):
 
 @app.get("/api/goals")
 def list_goals(sprint_number: int | None = None, authorization: str | None = Header(default=None)):
+    """List goals for active sprint or requested sprint cycle."""
     progress = year_progress()
     number = sprint_number or progress["sprint_number"]
     with db() as conn:
@@ -927,6 +898,7 @@ def list_goals(sprint_number: int | None = None, authorization: str | None = Hea
 
 @app.post("/api/goals", status_code=status.HTTP_201_CREATED)
 def create_goal(payload: GoalCreate, authorization: str | None = Header(default=None)):
+    """Create a new goal for the active sprint."""
     sprint = year_progress()
     completed = int(payload.progress_percent >= 100)
     with db() as conn:
@@ -949,6 +921,7 @@ def create_goal(payload: GoalCreate, authorization: str | None = Header(default=
 
 @app.patch("/api/goals/{goal_id}")
 def update_goal(goal_id: int, payload: GoalUpdate, authorization: str | None = Header(default=None)):
+    """Update goal title, progress, completion status, or reflection notes."""
     with db() as conn:
         user_id = current_user_id(conn, authorization)
         existing = execute(conn, "SELECT * FROM goals WHERE id = %s AND user_id = %s", (goal_id, user_id)).fetchone()
@@ -987,6 +960,7 @@ def update_goal(goal_id: int, payload: GoalUpdate, authorization: str | None = H
 
 @app.delete("/api/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_goal(goal_id: int, authorization: str | None = Header(default=None)):
+    """Delete goal and clean up all rolled-over instances across sprint cycles."""
     with db() as conn:
         user_id = current_user_id(conn, authorization)
         goal = execute(conn, "SELECT * FROM goals WHERE id = %s AND user_id = %s", (goal_id, user_id)).fetchone()
@@ -996,8 +970,11 @@ def delete_goal(goal_id: int, authorization: str | None = Header(default=None)):
         execute(conn, "DELETE FROM goals WHERE (id = %s OR source_goal_id = %s) AND user_id = %s", (source_id, source_id, user_id))
 
 
+# --- ROTE DAILY HABIT ENDPOINTS ---
+
 @app.get("/api/rotes")
 def get_rotes(date: str | None = None, authorization: str | None = Header(default=None)):
+    """Retrieve daily rote habits and completion logs for a given date."""
     target_date = date or datetime.now(IST).strftime("%Y-%m-%d")
     with db() as conn:
         user_id = current_user_id(conn, authorization)
@@ -1057,6 +1034,7 @@ def get_rotes(date: str | None = None, authorization: str | None = Header(defaul
 
 @app.post("/api/rotes")
 def create_rote(payload: RoteCreate, authorization: str | None = Header(default=None)):
+    """Create a new daily habit / rote routine."""
     with db() as conn:
         user_id = current_user_id(conn, authorization)
         rote_date = payload.date or datetime.now(IST).strftime("%Y-%m-%d")
@@ -1079,6 +1057,7 @@ def create_rote(payload: RoteCreate, authorization: str | None = Header(default=
 
 @app.post("/api/rotes/{rote_id}/toggle")
 def toggle_rote(rote_id: int, payload: RoteToggle, authorization: str | None = Header(default=None)):
+    """Toggle daily completion status of a rote habit for a specific date."""
     with db() as conn:
         user_id = current_user_id(conn, authorization)
         rote = execute(conn, "SELECT * FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id)).fetchone()
@@ -1117,6 +1096,7 @@ def toggle_rote(rote_id: int, payload: RoteToggle, authorization: str | None = H
 
 @app.delete("/api/rotes/{rote_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_rote(rote_id: int, authorization: str | None = Header(default=None)):
+    """Delete a rote habit and its associated completion logs."""
     with db() as conn:
         user_id = current_user_id(conn, authorization)
         rote = execute(conn, "SELECT * FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id)).fetchone()
@@ -1126,8 +1106,11 @@ def delete_rote(rote_id: int, authorization: str | None = Header(default=None)):
         execute(conn, "DELETE FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id))
 
 
+# --- STATS, PROFILE & TIMELINE ENDPOINTS ---
+
 @app.get("/api/stats")
 def stats(authorization: str | None = Header(default=None)):
+    """Retrieve overall goal and streak statistics for current user."""
     with db() as conn:
         user_id = current_user_id(conn, authorization)
         return profile_stats(conn, user_id=user_id)["stats"]
@@ -1135,6 +1118,7 @@ def stats(authorization: str | None = Header(default=None)):
 
 @app.get("/api/profile")
 def profile(year: int | None = None, authorization: str | None = Header(default=None)):
+    """Profile endpoint: returns heatmaps, streaks, user info, and sprint completion stats."""
     with db() as conn:
         user_id = current_user_id(conn, authorization)
         progress = year_progress()
@@ -1145,6 +1129,7 @@ def profile(year: int | None = None, authorization: str | None = Header(default=
 
 @app.get("/api/timeline")
 def timeline(year: int | None = None, authorization: str | None = Header(default=None)):
+    """Timeline history endpoint: lists all past sprint summaries for the selected year."""
     progress = year_progress()
     with db() as conn:
         user_id = current_user_id(conn, authorization)
@@ -1167,6 +1152,7 @@ def timeline(year: int | None = None, authorization: str | None = Header(default
 
 @app.get("/api/timeline/{sprint_number}")
 def timeline_sprint(sprint_number: int, year: int | None = None, authorization: str | None = Header(default=None)):
+    """Retrieve detailed goal breakdown for a specific sprint in the timeline history."""
     progress = year_progress()
     if sprint_number < 1 or sprint_number > 100:
         raise HTTPException(status_code=404, detail="Sprint not found")
@@ -1189,6 +1175,7 @@ def timeline_sprint(sprint_number: int, year: int | None = None, authorization: 
 
 @app.get("/api/u/{username}")
 def get_public_profile(username: str, year: int | None = None):
+    """Public Profile Gateway: returns public user details, active goals, stats, and timeline history."""
     username = normalize_username(username)
     with db() as conn:
         user_row = execute(conn, "SELECT id, name, username, display_name, created_at, profile_photo, bio FROM users WHERE username = %s", (username,)).fetchone()
@@ -1234,7 +1221,6 @@ def get_public_profile(username: str, year: int | None = None):
             "sprints": history_items,
         }
         
-        # Format active since date details
         joined_date = user_created_at(conn, user_id)
         joined_progress = year_progress(joined_date)
         
@@ -1257,10 +1243,10 @@ def get_public_profile(username: str, year: int | None = None):
         }
 
 
-import threading
-import time
+# --- BREVO EMAIL NOTIFICATION SCHEDULER ---
 
 def send_email_via_brevo(to_email: str, subject: str, html_body: str) -> bool:
+    """Send transactional email via Brevo REST API v3."""
     if not BREVO_API_KEY or not BREVO_SENDER_EMAIL:
         print("Brevo credentials are not configured. Skipping email send.")
         return False
@@ -1291,6 +1277,7 @@ def send_email_via_brevo(to_email: str, subject: str, html_body: str) -> bool:
 
 
 def send_welcome_email(user_email: str, user_name: str):
+    """Dispatch welcome onboarding email to new Google OAuth user."""
     subject = "Welcome to OnePercentGoal! Let's start compounding."
     logo_url = EMAIL_LOGO_URL if EMAIL_LOGO_URL else f"{FRONTEND_URL}/favicon.ico"
     html_body = f"""
@@ -1333,6 +1320,7 @@ def send_welcome_email(user_email: str, user_name: str):
 
 
 def log_sent_reminder(conn, user_id: int, year: int, sprint: int, rtype: str):
+    """Record email notification sent state to prevent duplicate emails."""
     if USE_POSTGRES:
         execute(
             conn,
@@ -1348,6 +1336,7 @@ def log_sent_reminder(conn, user_id: int, year: int, sprint: int, rtype: str):
 
 
 def check_and_send_sprint_reminders():
+    """Background worker task: evaluates active sprints, pending goals, and sends automated 12h/6h countdown and rollover wrap-up emails."""
     now = datetime.now(IST)
     progress = year_progress(now)
     current_year = progress["year"]
@@ -1373,7 +1362,6 @@ def check_and_send_sprint_reminders():
                 user_email = u_row["email"]
                 user_name = u_row["display_name"] or u_row["name"] or "User"
                 
-                # Check if reminder already sent
                 reminder_sent = execute(
                     conn,
                     "SELECT id FROM sprint_email_reminders WHERE user_id = %s AND sprint_year = %s AND sprint_number = %s AND reminder_type = %s",
@@ -1383,7 +1371,6 @@ def check_and_send_sprint_reminders():
                 if reminder_sent:
                     continue
                     
-                # Check if pending goals exist
                 goals_rows = execute(
                     conn,
                     "SELECT title, target, progress FROM goals WHERE user_id = %s AND sprint_year = %s AND sprint_number = %s AND completed = 0",
@@ -1432,7 +1419,7 @@ def check_and_send_sprint_reminders():
                 if success:
                     log_sent_reminder(conn, user_id, current_year, current_sprint, reminder_type)
 
-        # 2. Post-Sprint Outcomes check (Congrats or Rollovers)
+        # 2. Post-Sprint Outcomes check
         if current_sprint > 1:
             prev_sprint = current_sprint - 1
             prev_year = current_year
@@ -1445,13 +1432,11 @@ def check_and_send_sprint_reminders():
             user_email = u_row["email"]
             user_name = u_row["display_name"] or u_row["name"] or "User"
 
-            # Trigger automated rollover evaluation
             try:
                 ensure_sprint_rollover(conn, current_year, current_sprint, user_id)
             except Exception as e:
                 print(f"Error running rollover during email check: {e}")
 
-            # Check if post-sprint email already evaluated
             wrap_sent = execute(
                 conn,
                 """
@@ -1479,7 +1464,6 @@ def check_and_send_sprint_reminders():
             completed_count = sum(1 for g in prev_goals if g["completed"])
 
             if completed_count == total_count:
-                # 100% completed congrats
                 subject = f"100% Completion! Congratulations on Sprint #{prev_sprint}!"
                 html_body = f"""
                 <div style="font-family: 'DM Sans', sans-serif; background: #141513; color: #f3f1ed; padding: 40px 24px; max-width: 580px; margin: 0 auto; border: 1px solid #2b2c28; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
@@ -1512,7 +1496,6 @@ def check_and_send_sprint_reminders():
                     log_sent_reminder(conn, user_id, prev_year, prev_sprint, "sprint_end_congrats")
 
             else:
-                # Less than 100% completion -> List rolled over goals in the current sprint
                 rolled_goals = execute(
                     conn,
                     """
@@ -1571,6 +1554,7 @@ def check_and_send_sprint_reminders():
 
 
 def run_email_scheduler_loop():
+    """Background daemon loop: executes email notification checks every 5 minutes."""
     print("Email reminder background scheduler loop started.")
     while True:
         try:

@@ -632,13 +632,12 @@ const MorphText = React.memo(function MorphText({
     }, interval)
     return () => clearInterval(intervalId)
   }, [words.length, interval])
-
   const filterId = "morph-threshold-filter"
   const currentWord = words[currentIndex]
   const currentWidth = (widths[currentWord] || 60) + 32
 
   return (
-    <div className={className} style={{ display: 'inline-block', verticalAlign: 'middle', position: 'relative' }}>
+    <div className={className} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle', position: 'relative', margin: '0 0.2em' }}>
       <svg
         aria-hidden="true"
         focusable="false"
@@ -680,7 +679,8 @@ const MorphText = React.memo(function MorphText({
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            overflow: 'visible'
+            overflow: 'visible',
+            paddingRight: '0.15em'
           }}
         >
           {words.map((word, i) => {
@@ -1566,7 +1566,7 @@ function AppFooter({ year = 2026 }) {
   )
 }
 
-function WorkspacePage({ active, data, user, goals, profile, history, historyModal, selectedYear, availableYears, onSelectYear, onOpenSprint, onCloseSprint, onProgress, onComplete, onDelete, onAdd, onShowGoalDetails, onUpdateProfile }) {
+function WorkspacePage({ active, data, user, goals, profile, history, historyModal, selectedYear, availableYears, onSelectYear, onOpenSprint, onCloseSprint, onProgress, onComplete, onDelete, onAdd, onShowGoalDetails, onUpdateProfile, showToast, onLogout }) {
   const completed = goals.filter(goal => goal.done).length
 
   // Profile image cropping state
@@ -1582,6 +1582,21 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
   const [editError, setEditError] = useState('')
   const [editLoading, setEditLoading] = useState(false)
   const [showSettingsMenu, setShowSettingsMenu] = useState(false)
+  const settingsMenuRef = useRef(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(e.target)) {
+        setShowSettingsMenu(false)
+      }
+    }
+    if (showSettingsMenu) {
+      document.addEventListener('pointerdown', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside)
+    }
+  }, [showSettingsMenu])
 
   // Calculate active sprint date range
   const DAY = 24 * 60 * 60 * 1000
@@ -1717,18 +1732,27 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
       <div className="workspace-page profile-page-custom">
         <header className="profile-page-header">
           <div className="profile-header-left" style={{ width: '100%' }}>
-            <div className="profile-badge-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div className="profile-badge-row">
               <span className="profile-badge">ACCOUNT OVERVIEW</span>
-              <div className="profile-settings-menu-container" style={{ position: 'relative' }}>
+            </div>
+            <div className="profile-title-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '16px' }}>
+              <h1 className="profile-title" style={{ margin: 0 }}>
+                User <em>Profile</em>
+              </h1>
+              
+              <div 
+                ref={settingsMenuRef} 
+                className="profile-settings-menu-container" 
+                style={{ position: 'relative' }}
+              >
                 <button
                   type="button"
-                  className="profile-settings-btn"
+                  className="profile-settings-btn circular-settings-btn"
                   onClick={() => setShowSettingsMenu(!showSettingsMenu)}
                   title="Account Settings & Logout"
                   aria-label="Settings"
                 >
-                  <Gear size={15} weight="bold" />
-                  <span>Settings</span>
+                  <Gear size={22} weight="bold" />
                 </button>
 
                 {showSettingsMenu && (
@@ -1741,16 +1765,13 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
                         if (onLogout) onLogout()
                       }}
                     >
-                      <SignOut size={15} weight="bold" />
+                      <SignOut size={16} weight="bold" />
                       <span>Sign Out</span>
                     </button>
                   </div>
                 )}
               </div>
             </div>
-            <h1 className="profile-title">
-              User <em>Profile</em>
-            </h1>
             <p className="profile-subtitle">
               Manage your personal settings, view cumulative statistics, and inspect sprint achievements.
             </p>
@@ -1820,40 +1841,41 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
                   <p className="profile-active-meta">
                     Active since sprint {String(joined.sprint_number).padStart(2, '0')} · {joined.year}
                   </p>
-                  
-                  <div className="profile-action-btns">
-                    <button className="profile-edit-btn" onClick={() => setEditModalOpen(true)}>
-                      Edit Profile
-                    </button>
-                    <button 
-                      className="profile-edit-btn share-btn" 
-                      onClick={() => {
-                        const shareUrl = `${window.location.origin}/u/${profileUser.username}`;
-                        navigator.clipboard.writeText(shareUrl).then(() => {
-                          alert('Public profile link copied to clipboard!');
-                        });
-                      }}
-                    >
-                      Share Profile
-                    </button>
-                  </div>
                 </div>
               </div>
 
-              {/* Year progress percentage badge */}
+              {/* Year progress percentage badge (Right side - same level) */}
               <div className="profile-col-progress compact-progress">
                 <span>{yearProgress.percentage.toFixed(2)}%</span>
                 <small>of '{String(yearProgress.year).slice(-2)}</small>
               </div>
             </div>
-            
-            {/* Dynamic Bio details — Only rendered if bio exists */}
+
+            {/* Dynamic Bio details below identity row */}
             {profileUser.bio && (
               <div className="profile-bio-dynamic">
                 <span className="bio-label">BIO</span>
                 <p className="bio-content-text">{profileUser.bio}</p>
               </div>
             )}
+
+            {/* Action Buttons */}
+            <div className="profile-action-btns">
+              <button className="profile-edit-btn" onClick={() => setEditModalOpen(true)}>
+                Edit Profile
+              </button>
+              <button 
+                className="profile-edit-btn share-btn" 
+                onClick={() => {
+                  const shareUrl = `${window.location.origin}/u/${profileUser.username}`;
+                  navigator.clipboard.writeText(shareUrl).then(() => {
+                    showToast('Done');
+                  });
+                }}
+              >
+                Share Profile
+              </button>
+            </div>
           </section>
 
           {/* Right side OnePercentGoal branding card */}
@@ -2336,7 +2358,7 @@ function LandingPage({ onGetStarted, onSignIn }) {
 }
 
 function GlassDock({ items, active, setActive }) {
-  const [hoveredIndex, setHoveredIndex] = useState(null)
+  if (!items || items.length <= 1) return null;
 
   const getIcon = (label, isActive) => {
     const weight = isActive ? 'fill' : 'regular'
@@ -2358,7 +2380,7 @@ function GlassDock({ items, active, setActive }) {
 
   return (
     <div className="glass-dock-mobile-wrapper">
-      <div className="glass-dock" onMouseLeave={() => setHoveredIndex(null)}>
+      <div className="glass-dock">
         {items.map((item, index) => {
           const label = typeof item === 'string' ? item : item.label
           const isActive = active === label
@@ -2368,7 +2390,6 @@ function GlassDock({ items, active, setActive }) {
               key={label}
               type="button"
               className={cn('glass-dock-item', isActive && 'active')}
-              onMouseEnter={() => setHoveredIndex(index)}
               onClick={() => {
                 if (setActive) setActive(label)
                 window.scrollTo({ top: 0, behavior: 'instant' })
@@ -2377,7 +2398,6 @@ function GlassDock({ items, active, setActive }) {
               aria-label={label}
             >
               {getIcon(label, isActive)}
-              {isActive && <span className="glass-dock-item-dot" />}
             </button>
           )
         })}
@@ -2397,13 +2417,10 @@ function SpotlightNavbar({
   className = "",
   onItemClick,
   active,
-  setActive,
-  onLogout
+  setActive
 }) {
   const navRef = useRef(null);
-  const containerRef = useRef(null);
   const [hoverX, setHoverX] = useState(null);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   const normalizedItems = items.map(item =>
     typeof item === 'string' ? { label: item, href: `#${item.toLowerCase()}` } : item
@@ -2416,21 +2433,6 @@ function SpotlightNavbar({
   // Refs for the "light" positions so we can animate them imperatively with framer-motion
   const spotlightX = useRef(0);
   const ambienceX = useRef(0);
-
-  // Close mobile menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setMobileOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("touchstart", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("touchstart", handleClickOutside);
-    };
-  }, []);
 
   useEffect(() => {
     if (!navRef.current) return;
@@ -2496,20 +2498,32 @@ function SpotlightNavbar({
     }
   }, [activeIndex]);
 
+  if (normalizedItems.length <= 1) {
+    return (
+      <div className={`spotlight-nav-wrapper ${className}`} style={{ justifyContent: 'center' }}>
+        <nav ref={navRef} className="spotlight-nav" style={{ padding: '0 20px', justifyContent: 'center' }}>
+          <div className="spotlight-brand-inside" style={{ padding: '0 4px', cursor: 'default' }}>
+            <img src="/favicon.ico" alt="Logo" style={{ width: 'clamp(14px, 3.8vw, 20px)', height: 'clamp(14px, 3.8vw, 20px)', objectFit: 'contain' }} />
+            <span>onepercentgoal</span>
+          </div>
+        </nav>
+      </div>
+    );
+  }
+
   return (
-    <div ref={containerRef} className={`spotlight-nav-wrapper ${className}`}>
+    <div className={`spotlight-nav-wrapper ${className}`}>
       <nav ref={navRef} className="spotlight-nav">
         {/* Brand Logo inside single unified pill */}
         <button
           className="spotlight-brand-inside"
           onClick={() => {
             if (setActive) setActive('Overview');
-            setMobileOpen(false);
             window.scrollTo({ top: 0, behavior: 'instant' });
           }}
           aria-label="OnePercentGoal home"
         >
-          <img src="/favicon.ico" alt="Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+          <img src="/favicon.ico" alt="Logo" style={{ width: 'clamp(14px, 3.8vw, 20px)', height: 'clamp(14px, 3.8vw, 20px)', objectFit: 'contain' }} />
           <span>onepercentgoal</span>
         </button>
 
@@ -2693,6 +2707,11 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState('')
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [toastMsg, setToastMsg] = useState('')
+  const showToast = msg => {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(''), 2500)
+  }
   const [deleteConfirmFlow, setDeleteConfirmFlow] = useState(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState('')
@@ -2832,10 +2851,20 @@ function App() {
   }
 
   const logout = async () => {
-    try {
-      await apiFetch('/api/auth/logout', { method: 'POST', headers: buildHeaders() })
-    } catch {}
+    // Clear the local session immediately so sign out does not depend on the
+    // network or the API being available. Revoke the token on the server in
+    // the background as a best-effort cleanup.
+    const token = sessionToken
+    if (token) {
+      apiFetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {})
+    }
     localStorage.removeItem('onepercentgoal.token')
+    showToast('Successfully Logged Out')
+    setActive('Overview')
+    setShowAuthModal(false)
     setSessionToken('')
     setCurrentUser(null)
     setGoals([])
@@ -3163,14 +3192,7 @@ function App() {
     return (
       <main className="app-shell logged-out">
         <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
-          <div className="spotlight-nav-wrapper" style={{ justifyContent: 'center' }}>
-            <nav className="spotlight-nav" style={{ padding: '0 20px', justifyContent: 'center' }}>
-              <div className="spotlight-brand-inside" style={{ padding: '0 4px', cursor: 'default' }}>
-                <img src="/favicon.ico" alt="Logo" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
-                <span>onepercentgoal</span>
-              </div>
-            </nav>
-          </div>
+          <SpotlightNavbar items={[]} />
         </header>
 
         <section className="content">
@@ -3185,6 +3207,13 @@ function App() {
             </div>
           </div>
         )}
+
+        {toastMsg && (
+          <div className="bottom-toast-notification">
+            <span className="toast-tick">✓</span>
+            <span className="toast-text">{toastMsg}</span>
+          </div>
+        )}
       </main>
     );
   }
@@ -3196,13 +3225,12 @@ function App() {
         active={active}
         setActive={setActive}
         items={['Overview', 'Goals', 'Rote', 'Timeline', 'Profile']}
-        onLogout={logout}
       />
     </header>
 
     <section className="content" id="top">
       {active !== 'Overview' ? (
-        <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onDelete={deleteGoal} onAdd={() => setAddGoalModalOpen(true)} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} />
+        <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onDelete={deleteGoal} onAdd={() => setAddGoalModalOpen(true)} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} showToast={showToast} onLogout={logout} />
       ) : (
         <>
       <section className="aurora-hero-wrapper">
@@ -3218,30 +3246,75 @@ function App() {
               <MorphText />
               <span>count.</span>
             </h1>
-            <p className="billboard-subtitle" style={{ color: '#fff', opacity: 0.88, margin: '16px 0 0', maxWidth: '680px', fontSize: '17px', lineHeight: 1.6 }}>
-              Divide your year into 100 focused 3.6-day sprints. Hit crisp goal deadlines, complete obligatory Rote tasks, and watch 1% daily effort compound into 37.78x annual growth.
-            </p>
           </div>
           
-          <div className="aurora-action-group" style={{ flexShrink: 0 }}>
-            <LiquidMetalButton size="md" onClick={() => setActive('Goals')}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '16px' }}>
-                Enter Goals Board
-                <span style={{
-                  borderRadius: '9999px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: '#242721',
-                  width: '32px',
-                  height: '32px',
-                  color: '#c9f36a',
-                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)',
-                  fontSize: '18px',
-                  lineHeight: 1
-                }}>→</span>
-              </span>
-            </LiquidMetalButton>
+          <div className="aurora-quick-widget card">
+            {(() => {
+              const sprintStart = getSprintBoundary(data.year, data.sprint - 1);
+              const sprintEnd = getSprintBoundary(data.year, data.sprint);
+              const sprintDuration = sprintEnd.getTime() - sprintStart.getTime();
+              const sprintElapsed = now.getTime() - sprintStart.getTime();
+              const sprintPercent = Math.min(100, Math.max(0, (sprintElapsed / sprintDuration) * 100)).toFixed(2);
+              const yearPercent = Math.min(100, Math.max(0, data.percentage || 0)).toFixed(2);
+
+              return (
+                <div className="quick-percentages-bar">
+                  <div className="perc-pill">
+                    <span className="perc-label">{data.year} Year</span>
+                    <strong className="perc-val">{yearPercent}%</strong>
+                  </div>
+                  <div className="perc-divider"></div>
+                  <div className="perc-pill">
+                    <span className="perc-label">Sprint #{String(data.sprint).padStart(2, '0')}</span>
+                    <strong className="perc-val">{sprintPercent}%</strong>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="quick-widget-header">
+              <span className="quick-widget-title">TASK OVERVIEW</span>
+            </div>
+
+            <div className="quick-widget-items">
+              <div className="quick-widget-row">
+                <div className="quick-widget-info">
+                  <Target size={24} weight="fill" className="quick-widget-icon goals" />
+                  <div className="quick-widget-text">
+                    <strong>{goals.filter(g => !g.done).length} Goals Remaining</strong>
+                    <small>Sprint Goal Targets</small>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  className="quick-add-btn" 
+                  onClick={() => setAddGoalModalOpen(true)}
+                  title="Add Sprint Goal"
+                  aria-label="Add Sprint Goal"
+                >
+                  <span className="plus-icon">+</span>
+                </button>
+              </div>
+
+              <div className="quick-widget-row">
+                <div className="quick-widget-info">
+                  <Repeat size={24} weight="bold" className="quick-widget-icon rotes" />
+                  <div className="quick-widget-text">
+                    <strong>{Math.max(0, (roteOverviewStats.total || 0) - (roteOverviewStats.completed || 0))} Rotes Remaining</strong>
+                    <small>Daily Routine Tasks</small>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  className="quick-add-btn" 
+                  onClick={() => setActive('Rote')}
+                  title="Manage Daily Rotes"
+                  aria-label="Manage Daily Rotes"
+                >
+                  <span className="plus-icon">+</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3358,9 +3431,9 @@ function App() {
         </div>
       </section>
 
-      {/* Grid containing Current Sprint, Rote Routines, Motivational Wisdom and Speed */}
+      {/* Grid containing Current Sprint, Speed & Momentum, Motivational Drive, and Forceful Tasks */}
       <section className="overview-staggered-grid">
-        {/* Row 1: Active Sprint Status (Left side) */}
+        {/* Row 1: Active Sprint Status (Left) & Your Speed & Momentum (Right) */}
         <div className="staggered-row-1">
           <article className="sprint-summary card sprint-summary-pos">
             <div className="sprint-summary-header">
@@ -3410,12 +3483,74 @@ function App() {
               <b>→</b>
             </button>
           </article>
-          <div className="staggered-empty-space" />
+
+          {/* Live stats and momentum (Right side of Active Sprint Status) */}
+          <article className="stats-card card">
+            <p className="eyebrow">YOUR SPEED & MOMENTUM</p>
+            
+            <div className="stats-showcase">
+              <div className="stat-giant-box" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', justifyContent: 'center', padding: '24px' }}>
+                <div className="sprint-progress-circle-wrap" style={{ margin: '0 0 12px', alignItems: 'center' }}>
+                  <div className="sprint-progress-big-number" style={{ fontSize: '64px', lineHeight: 1 }}>
+                    {streak}
+                  </div>
+                  <p className="sprint-progress-label" style={{ marginTop: '4px', fontSize: '11px' }}>Sprint Streak</p>
+                </div>
+                <div className="stat-giant-badge" style={{ color: '#c9f36a', fontSize: '12px' }}>{streak} Sprint{streak === 1 ? '' : 's'} Constant Progress</div>
+              </div>
+              
+              <div className="stat-giant-box" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', justifyContent: 'center', padding: '24px' }}>
+                <div className="sprint-progress-circle-wrap" style={{ margin: '0 0 12px', alignItems: 'center' }}>
+                  <div className="sprint-progress-big-number" style={{ fontSize: '64px', lineHeight: 1 }}>
+                    {completionRate}<em>%</em>
+                  </div>
+                  <p className="sprint-progress-label" style={{ marginTop: '4px', fontSize: '11px' }}>Completion Rate</p>
+                </div>
+                <div className="stat-giant-badge" style={{ color: completionRate >= 80 ? '#c9f36a' : completionRate >= 60 ? '#eef0e9' : '#ffb9b9', fontSize: '12px' }}>
+                  {completionRate >= 80 ? 'ELITE LEVEL PERFORMANCE' : completionRate >= 60 ? 'STEADY PERFORMANCE' : 'WARNING: FOCUS INTENSIVELY'}
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
 
-        {/* Row 2: Rote Routines Overview Card (Right side) */}
+        {/* Row 2: Motivational Drive (Left) & Forceful Tasks (Right) */}
         <div className="staggered-row-2">
-          <div className="staggered-empty-space" />
+          {/* Temporal Wisdom Card (Left side of Forceful Tasks) */}
+          <article className="quote-card card">
+            <p className="eyebrow" style={{ marginBottom: '12px' }}>MOTIVATIONAL DRIVE</p>
+            
+            {(() => {
+              const q1 = MOTIVATIONAL_QUOTES[quoteIndices[0] ?? 0];
+              const q2 = MOTIVATIONAL_QUOTES[quoteIndices[1] ?? 1];
+              
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, justifyContent: 'center' }}>
+                  <div className="quote-item">
+                    <blockquote style={{ margin: '0 0 8px', fontStyle: 'italic', fontFamily: '"Instrument Serif", serif' }}>
+                      “{q1.quote}”
+                    </blockquote>
+                    <span className="quote-author" style={{ marginTop: '0', display: 'block', color: '#ffa726', fontFamily: '"DM Mono", monospace', fontSize: '11px', letterSpacing: '0.08em' }}>
+                      — {q1.author}
+                    </span>
+                  </div>
+
+                  <div className="quote-item" style={{ borderTop: '1px solid #3c3224', paddingTop: '16px' }}>
+                    <blockquote style={{ margin: '0 0 8px', fontStyle: 'italic', fontFamily: '"Instrument Serif", serif' }}>
+                      “{q2.quote}”
+                    </blockquote>
+                    <span className="quote-author" style={{ marginTop: '0', display: 'block', color: '#ffa726', fontFamily: '"DM Mono", monospace', fontSize: '11px', letterSpacing: '0.08em' }}>
+                      — {q2.author}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="quote-line" style={{ marginTop: '16px', background: '#ffa726' }} />
+          </article>
+
+          {/* Rote Routines Overview Card (Right side) */}
           <article className="sprint-summary card rote-overview-card rote-summary-pos" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
             <div>
               <div className="sprint-summary-header">
@@ -3465,72 +3600,6 @@ function App() {
               <span>Open Rote Routines</span>
               <b>→</b>
             </button>
-          </article>
-        </div>
-
-        {/* Row 3: Remaining Cards (Motivational Drive & Speed) Combined Together Below */}
-        <div className="staggered-row-3-combined">
-          {/* Temporal Wisdom Card */}
-          <article className="quote-card card">
-            <p className="eyebrow" style={{ marginBottom: '12px' }}>MOTIVATIONAL DRIVE</p>
-            
-            {(() => {
-              const q1 = MOTIVATIONAL_QUOTES[quoteIndices[0] ?? 0];
-              const q2 = MOTIVATIONAL_QUOTES[quoteIndices[1] ?? 1];
-              
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, justifyContent: 'center' }}>
-                  <div className="quote-item">
-                    <blockquote style={{ margin: '0 0 8px', fontStyle: 'italic', fontFamily: '"Instrument Serif", serif' }}>
-                      “{q1.quote}”
-                    </blockquote>
-                    <span className="quote-author" style={{ marginTop: '0', display: 'block', color: '#ffa726', fontFamily: '"DM Mono", monospace', fontSize: '11px', letterSpacing: '0.08em' }}>
-                      — {q1.author}
-                    </span>
-                  </div>
-
-                  <div className="quote-item" style={{ borderTop: '1px solid #3c3224', paddingTop: '16px' }}>
-                    <blockquote style={{ margin: '0 0 8px', fontStyle: 'italic', fontFamily: '"Instrument Serif", serif' }}>
-                      “{q2.quote}”
-                    </blockquote>
-                    <span className="quote-author" style={{ marginTop: '0', display: 'block', color: '#ffa726', fontFamily: '"DM Mono", monospace', fontSize: '11px', letterSpacing: '0.08em' }}>
-                      — {q2.author}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="quote-line" style={{ marginTop: '16px', background: '#ffa726' }} />
-          </article>
-
-          {/* Live stats and momentum */}
-          <article className="stats-card card">
-            <p className="eyebrow">YOUR SPEED & MOMENTUM</p>
-            
-            <div className="stats-showcase">
-              <div className="stat-giant-box" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', justifyContent: 'center', padding: '24px' }}>
-                <div className="sprint-progress-circle-wrap" style={{ margin: '0 0 12px', alignItems: 'center' }}>
-                  <div className="sprint-progress-big-number" style={{ fontSize: '64px', lineHeight: 1 }}>
-                    {streak}
-                  </div>
-                  <p className="sprint-progress-label" style={{ marginTop: '4px', fontSize: '11px' }}>Sprint Streak</p>
-                </div>
-                <div className="stat-giant-badge" style={{ color: '#c9f36a', fontSize: '12px' }}>{streak} Sprint{streak === 1 ? '' : 's'} Constant Progress</div>
-              </div>
-              
-              <div className="stat-giant-box" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', justifyContent: 'center', padding: '24px' }}>
-                <div className="sprint-progress-circle-wrap" style={{ margin: '0 0 12px', alignItems: 'center' }}>
-                  <div className="sprint-progress-big-number" style={{ fontSize: '64px', lineHeight: 1 }}>
-                    {completionRate}<em>%</em>
-                  </div>
-                  <p className="sprint-progress-label" style={{ marginTop: '4px', fontSize: '11px' }}>Completion Rate</p>
-                </div>
-                <div className="stat-giant-badge" style={{ color: completionRate >= 80 ? '#c9f36a' : completionRate >= 60 ? '#eef0e9' : '#ffb9b9', fontSize: '12px' }}>
-                  {completionRate >= 80 ? 'ELITE LEVEL PERFORMANCE' : completionRate >= 60 ? 'STEADY PERFORMANCE' : 'WARNING: FOCUS INTENSIVELY'}
-                </div>
-              </div>
-            </div>
           </article>
         </div>
       </section>
@@ -3622,6 +3691,12 @@ function App() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {toastMsg && (
+        <div className="bottom-toast-notification">
+          <span className="toast-tick">✓</span>
+          <span className="toast-text">{toastMsg}</span>
         </div>
       )}
     </section>
