@@ -3,10 +3,10 @@
 /* Kinetic Text Loader Animations */
 @keyframes ktl-dotMove {
   0%, 100% {
-    transform: rotate(180deg) translate(-80px, -10px) rotate(-180deg);
+    transform: rotate(180deg) translate(calc(-1 * var(--ktl-i-shift, 80px)), -10px) rotate(-180deg);
   }
   50% {
-    transform: rotate(0deg) translate(-81px, 10px) rotate(0deg);
+    transform: rotate(0deg) translate(calc(-1 * var(--ktl-l-shift, 81px)), 10px) rotate(0deg);
   }
 }
 
@@ -102,6 +102,8 @@
 }
 
 .ktl-moving-dot-exact {
+  --ktl-i-shift: 80px;
+  --ktl-l-shift: 81px;
   position: absolute;
   z-index: 10;
   top: 6px;
@@ -1465,7 +1467,7 @@ a:focus-visible,
     margin-bottom: 20px !important;
   }
   .aurora-content {
-    padding-top: var(--dynamic-island-20px-gap, 98px) !important;
+    padding-top: 20px !important;
     padding-bottom: 28px !important;
     padding-left: 20px !important;
     padding-right: 20px !important;
@@ -1831,7 +1833,7 @@ a:focus-visible,
     justify-content: center !important;
     align-items: center !important;
     text-align: center !important;
-    padding-top: var(--dynamic-island-20px-gap, 98px) !important;
+    padding-top: 20px !important;
     gap: 20px !important;
   }
   .aurora-text-group { align-items: center !important; text-align: center !important; }
@@ -1906,7 +1908,7 @@ a:focus-visible,
     margin-bottom: 20px;
   }
   .aurora-content {
-    padding-top: var(--dynamic-island-20px-gap, 98px) !important;
+    padding-top: 20px !important;
     gap: 20px !important;
     justify-content: center !important;
     align-items: center !important;
@@ -2450,7 +2452,7 @@ a:focus-visible,
 
 @media (max-width: 768px) {
   .aurora-content {
-    padding-top: var(--dynamic-island-20px-gap, 78px) !important;
+    padding-top: 20px !important;
   }
 
   .workspace-page,
@@ -3423,7 +3425,7 @@ a:focus-visible,
     align-items: center !important;
     justify-content: center !important;
     text-align: center !important;
-    padding-top: var(--dynamic-island-20px-gap, 98px) !important;
+    padding-top: 20px !important;
     gap: 20px !important;
   }
   .aurora-text-group {
@@ -4400,8 +4402,8 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   }
 
   .aurora-hero-wrapper {
-    min-height: calc(100dvh - 40px) !important;
-    height: calc(100dvh - 40px) !important;
+    min-height: calc(100dvh - 40px - var(--safe-top) - var(--safe-bottom)) !important;
+    height: calc(100dvh - 40px - var(--safe-top) - var(--safe-bottom)) !important;
     margin-bottom: 20px !important;
     border-radius: 20px !important;
     display: flex !important;
@@ -4410,8 +4412,8 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   }
 
   .logged-out .landing-hero {
-    min-height: calc(100dvh - 40px) !important;
-    height: calc(100dvh - 40px) !important;
+    min-height: calc(100dvh - 40px - var(--safe-top) - var(--safe-bottom)) !important;
+    height: calc(100dvh - 40px - var(--safe-top) - var(--safe-bottom)) !important;
     margin-bottom: 20px !important;
   }
 
@@ -4595,7 +4597,7 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     flex-direction: column !important;
     justify-content: center !important;
     align-items: center !important;
-    padding-top: var(--dynamic-island-20px-gap, 98px) !important;
+    padding-top: 20px !important;
     gap: 20px !important;
     text-align: center !important;
     width: 100% !important;
@@ -4824,7 +4826,7 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
 /* Bottom Center Toast Notification */
 .bottom-toast-notification {
   position: fixed;
-  bottom: 104px;
+  bottom: calc(104px + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
   z-index: 99999;
@@ -4880,6 +4882,33 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
 
 @media (max-width: 768px) {
   .bottom-toast-notification {
-    bottom: 112px;
+    bottom: calc(112px + var(--safe-bottom));
+  }
+}
+
+/* ===== Safe-area support: notch/cutout & 3-button navigation bars =====
+   Top boundary  = bottom of the notch (screen starts below it)
+   Bottom boundary = top of the 3-button nav bar (screen ends at it) */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.app-shell {
+  padding-top: var(--safe-top) !important;
+  padding-bottom: var(--safe-bottom) !important;
+}
+
+.ktl-fullscreen-overlay {
+  padding-top: var(--safe-top) !important;
+  padding-bottom: var(--safe-bottom) !important;
+}
+
+@media (max-width: 768px) {
+  .shell-header {
+    top: calc(40px + var(--safe-top)) !important;
+  }
+  .glass-dock-mobile-wrapper {
+    bottom: calc(40px + var(--safe-bottom)) !important;
   }
 }
