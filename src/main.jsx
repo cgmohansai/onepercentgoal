@@ -1,8 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useState, useEffect, useRef, useMemo, memo } from 'react'
+import { createPortal } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import { animate } from 'framer-motion'
 import './styles.css'
 import { House, Target, Repeat, Clock, User, Gear, SignOut } from '@phosphor-icons/react'
+import Silk from './Silk'
+import SpecularButton from './SpecularButton'
+import AnimatedPlusButton from './AnimatedPlusButton'
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -821,36 +825,31 @@ function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails }) {
   )
 }
 
-function AuthScreen({ onGoogle, loading, error }) {
+function AuthScreen({ onGoogle, loading, error, onClose }) {
   return (
-    <div className="auth-screen google-only-auth">
-      <div className="auth-aurora-glow"></div>
-      <section className="auth-card card premium-auth-card">
-        <div className="auth-header-wrapper">
-          <p className="eyebrow auth-eyebrow">SECURE GATEWAY</p>
-          <h1 className="auth-title">
-            <span>Sign in to</span> <em>OnePercentGoal</em>
-          </h1>
-          <p className="auth-copy">
-            Every 1% counts. Sign in securely with Google to access your active sprint boards, track compounding targets, and view real-time temporal momentum.
-          </p>
-        </div>
+    <section className="auth-mini-card" onClick={event => event.stopPropagation()}>
+      <button className="auth-mini-close-btn" onClick={onClose} aria-label="Close auth">×</button>
 
-        <div className="google-auth-container" style={{ margin: '24px 0 12px', width: '100%' }}>
-          <button className="google-button premium-google-btn large-google-btn" type="button" onClick={onGoogle} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 20px', borderRadius: '12px', fontSize: '15px', fontWeight: '600' }}>
-            <svg style={{ width: '20px', height: '20px', marginRight: '12px', verticalAlign: 'middle' }} viewBox="0 0 24 24">
-              <path fill="currentColor" d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.58h3.29c1.92,-1.77 3.02,-4.38 3.02,-7.38c0,-0.6 -0.05,-1.2 -0.15,-1.8z" />
-              <path fill="currentColor" d="M12,20.4c2.54,0 4.67,-0.84 6.23,-2.28l-3.29,-2.58c-0.91,0.61 -2.08,0.98 -2.94,0.98c-2.27,0 -4.2,-1.54 -4.89,-3.6H3.66v2.66c1.55,3.08 4.73,5.18 8.34,5.18z" />
-              <path fill="currentColor" d="M7.11,12.92a5.92,5.92 0 0 1 0,-1.84V8.42H3.66a9.92,9.92 0 0 0 0,7.16l3.45,-2.66z" fillOpacity="0.9" />
-              <path fill="currentColor" d="M12,5.28c1.38,0 2.62,0.47 3.59,1.4l2.69,-2.69C16.66,2.5 14.54,1.8 12,1.8c-3.61,0 -6.79,2.1 -8.34,5.18l3.45,2.66c0.69,-2.06 2.62,-3.6 4.89,-3.6z" />
-            </svg>
-            {loading ? 'Initializing Console...' : 'Continue with Google'}
-          </button>
-        </div>
+      <div className="auth-header-wrapper">
+        <h1 className="auth-title">
+          <span>Sign in to</span> <em>OnePercentGoal</em>
+        </h1>
+      </div>
 
-        {error && <p className="auth-error premium-auth-error">{error}</p>}
-      </section>
-    </div>
+      <div className="google-auth-container" style={{ width: '100%' }}>
+        <button className="google-button premium-google-btn large-google-btn" type="button" onClick={onGoogle} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 20px', borderRadius: '12px', fontSize: '15px', fontWeight: '600' }}>
+          <svg style={{ width: '20px', height: '20px', marginRight: '12px', verticalAlign: 'middle' }} viewBox="0 0 24 24">
+            <path fill="currentColor" d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.58h3.29c1.92,-1.77 3.02,-4.38 3.02,-7.38c0,-0.6 -0.05,-1.2 -0.15,-1.8z" />
+            <path fill="currentColor" d="M12,20.4c2.54,0 4.67,-0.84 6.23,-2.28l-3.29,-2.58c-0.91,0.61 -2.08,0.98 -2.94,0.98c-2.27,0 -4.2,-1.54 -4.89,-3.6H3.66v2.66c1.55,3.08 4.73,5.18 8.34,5.18z" />
+            <path fill="currentColor" d="M7.11,12.92a5.92,5.92 0 0 1 0,-1.84V8.42H3.66a9.92,9.92 0 0 0 0,7.16l3.45,-2.66z" fillOpacity="0.9" />
+            <path fill="currentColor" d="M12,5.28c1.38,0 2.62,0.47 3.59,1.4l2.69,-2.69C16.66,2.5 14.54,1.8 12,1.8c-3.61,0 -6.79,2.1 -8.34,5.18l3.45,2.66c0.69,-2.06 2.62,-3.6 4.89,-3.6z" />
+          </svg>
+          {loading ? 'Initializing Console...' : 'Continue with Google'}
+        </button>
+      </div>
+
+      {error && <p className="auth-error premium-auth-error">{error}</p>}
+    </section>
   )
 }
 
@@ -1400,9 +1399,27 @@ function RotePage({ user }) {
           </p>
         </div>
         {selectedDate === todayStr && (
-          <button className="goals-primary-add-btn" onClick={() => setAddModalOpen(true)}>
+          <SpecularButton
+            size="md"
+            radius={18}
+            tint="#ffffff"
+            tintOpacity={0}
+            blur={0}
+            textColor="#f5f5f5"
+            lineColor="#ffffff"
+            baseColor="#525252"
+            intensity={1}
+            shineSize={10}
+            shineFade={40}
+            thickness={1}
+            speed={0.35}
+            followMouse
+            proximity={250}
+            autoAnimate={false}
+            onClick={() => setAddModalOpen(true)}
+          >
             + Add Routine Rote
-          </button>
+          </SpecularButton>
         )}
       </header>
 
@@ -1622,9 +1639,27 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
               All current sprint goals present here. Compounding progress is built 1% at a time.
             </p>
           </div>
-          <button className="goals-primary-add-btn" onClick={onAdd}>
+          <SpecularButton
+            size="md"
+            radius={18}
+            tint="#ffffff"
+            tintOpacity={0}
+            blur={0}
+            textColor="#f5f5f5"
+            lineColor="#ffffff"
+            baseColor="#525252"
+            intensity={1}
+            shineSize={10}
+            shineFade={40}
+            thickness={1}
+            speed={0.35}
+            followMouse
+            proximity={250}
+            autoAnimate={false}
+            onClick={onAdd}
+          >
             Create Sprint Goal
-          </button>
+          </SpecularButton>
         </header>
         
         <section className="all-goals card">
@@ -1756,7 +1791,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
                   title="Account Settings & Logout"
                   aria-label="Settings"
                 >
-                  <Gear size={22} weight="bold" />
+                  <Gear size={17} weight="bold" />
                 </button>
 
                 {showSettingsMenu && (
@@ -2168,69 +2203,51 @@ function LandingPage({ onGetStarted, onSignIn }) {
     <div className="landing-page">
       {/* Hero Card */}
       <section className="aurora-hero-wrapper landing-hero">
-        <div className="aurora-hero-bg"></div>
+        <div className="silk-bg-container">
+          <Silk
+            speed={5}
+            scale={1}
+            color="#366cf3"
+            noiseIntensity={1.5}
+            rotation={0}
+          />
+        </div>
         <div className="aurora-content">
           <div className="aurora-text-group">
-            <p className="eyebrow motivational-eyebrow" style={{ color: '#fff', textShadow: '0 0 8px rgba(255,255,255,0.45)', margin: '0 0 16px' }}>
-              COMPOUND YOUR POTENTIAL
-            </p>
-            <h1 className="h1-scalingSize">
-              <span>Make this</span>
-              <MorphText />
-              <span>count.</span>
-            </h1>
-            <p className="billboard-subtitle" style={{ color: '#fff', opacity: 0.82, margin: '16px 0 0', maxWidth: '640px', fontSize: '16px', lineHeight: 1.55 }}>
-              One percent progress every single day compounding over the year. Build consistency, define short sprint targets, and witness a massive 37.78x increase in capability.
-            </p>
-          </div>
-          
-          <div className="aurora-action-group" style={{ flexShrink: 0 }}>
-            <LiquidMetalButton size="lg" onClick={onGetStarted}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '20px', fontSize: '20px', fontWeight: '600' }}>
-                Start Your First Sprint
-                <span style={{
-                  borderRadius: '9999px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: '#242721',
-                  width: '40px',
-                  height: '40px',
-                  color: '#c9f36a',
-                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)',
-                  fontSize: '22px',
-                  lineHeight: 1
-                }}>→</span>
-              </span>
-            </LiquidMetalButton>
-          </div>
+          <p className="eyebrow motivational-eyebrow" style={{ color: '#fff', textShadow: '0 0 8px rgba(255,255,255,0.45)', margin: '0 0 6px' }}>
+            COMPOUND YOUR POTENTIAL
+          </p>
+          <h1 className="h1-scalingSize">
+            <span>Make this</span>
+            <MorphText />
+            <span>count.</span>
+          </h1>
+          <p className="billboard-subtitle" style={{ color: '#fff', opacity: 0.82, margin: '16px 0 0', maxWidth: '640px', fontSize: '16px', lineHeight: 1.55 }}>
+            One percent progress every single day compounding over the year. Build consistency, define short sprint targets, and witness a massive 37.78x increase in capability.
+          </p>
         </div>
-
-        <svg
-          version="1.1"
-          xmlns="http://www.w3.org/2000/svg"
-          xmlnsXlink="http://www.w3.org/1999/xlink"
-          colorInterpolationFilters="sRGB"
-          style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none" }}
-          aria-hidden="true"
-          focusable="false"
-        >
-          <filter id="fluted" primitiveUnits="objectBoundingBox">
-            <feImage
-              x="0"
-              y="0"
-              result="image_0"
-              crossOrigin="anonymous"
-              href={filterImageHref}
-              preserveAspectRatio="none meet"
-              width=".03"
-              height="1"
-            />
-            <feTile in="image_0" result="tile_0" />
-            <feGaussianBlur stdDeviation=".0001" edgeMode="none" in="tile_0" result="bar_smoothness" x="0" y="0" />
-            <feDisplacementMap scale=".08" xChannelSelector="R" yChannelSelector="G" in="SourceGraphic" in2="bar_smoothness" result="displacement_0" />
-          </filter>
-        </svg>
+        
+        <div className="aurora-action-group" style={{ flexShrink: 0 }}>
+          <LiquidMetalButton size="lg" onClick={onGetStarted}>
+            <span className="start-sprint-btn-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '20px', fontSize: '20px', fontWeight: '600' }}>
+              Start Your First Sprint
+              <span className="start-sprint-btn-arrow" style={{
+                borderRadius: '9999px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#242721',
+                width: '40px',
+                height: '40px',
+                color: '#c9f36a',
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)',
+                fontSize: '22px',
+                lineHeight: 1
+              }}>→</span>
+            </span>
+          </LiquidMetalButton>
+        </div>
+        </div>
       </section>
 
       {/* Compounding Visual Banner */}
@@ -2259,50 +2276,57 @@ function LandingPage({ onGetStarted, onSignIn }) {
             <p className="compounding-cta-text">
               Break your annual goals down into bite-sized 3.6-day active sprint directives. Track progress, rollover leftovers, and build unstoppable momentum.
             </p>
-            <button className="compounding-create-btn" onClick={onGetStarted}>
+            <SpecularButton
+              size="lg"
+              radius={18}
+              tint="#ffffff"
+              tintOpacity={0}
+              blur={0}
+              textColor="#f5f5f5"
+              lineColor="#ffffff"
+              baseColor="#525252"
+              intensity={1}
+              shineSize={10}
+              shineFade={40}
+              thickness={1}
+              speed={0.35}
+              followMouse
+              proximity={250}
+              autoAnimate={false}
+              onClick={onGetStarted}
+            >
               Join the System
-            </button>
+            </SpecularButton>
           </div>
         </div>
       </section>
 
       {/* Temporal Urgency Console Mockup */}
       <section className="urgency-console landing-urgency-mock">
-        <div className="urgency-header">
-          <span className="urgency-system-status">SYS.MOCK // SPRINT #{String(yearData.sprint).padStart(2, '0')}</span>
-        </div>
-        
         <div className="urgency-main">
           <div className="urgency-live-percentage">
-            <div className="live-num">{yearData.percentage.toFixed(6)}<em>%</em></div>
+            <div className="urgency-system-status">SYS.MOCK // SPRINT #{String(yearData.sprint).padStart(2, '0')}</div>
+            <div className="live-num">
+              <span style={{ fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum"', display: 'inline-block' }}>
+                {yearData.percentage.toFixed(6)}
+              </span>
+              <em>%</em>
+            </div>
             <div className="live-label">OF {yearData.year} COMPLETED</div>
           </div>
           
           <div className="landing-countdown-container">
-            <div style={{ fontFamily: '"DM Mono", monospace', fontSize: '14px', color: '#8c9085', letterSpacing: '0.12em', marginBottom: '8px', textTransform: 'uppercase' }}>
-              Next sprint begins in
+            <div className="urgency-system-status">NEXT SPRINT BEGINS IN</div>
+            <div className="live-num countdown-live-num">
+              <span className="time-unit"><span className="time-num">{String(daysLeft).padStart(2, '0')}</span><em>d</em></span>
+              <i className="time-colon">:</i>
+              <span className="time-unit"><span className="time-num">{String(hoursLeft).padStart(2, '0')}</span><em>h</em></span>
+              <i className="time-colon">:</i>
+              <span className="time-unit"><span className="time-num">{String(minutesLeft).padStart(2, '0')}</span><em>m</em></span>
+              <i className="time-colon">:</i>
+              <span className="time-unit"><span className="time-num">{String(secsLeft).padStart(2, '0')}</span><em>s</em></span>
             </div>
-            <div className="urgency-countdown-grid">
-              <div className="time-block">
-                <span className="time-val">{String(daysLeft).padStart(2, '0')}</span>
-                <span className="time-lbl">DAYS</span>
-              </div>
-              <i className="time-sep">:</i>
-              <div className="time-block">
-                <span className="time-val">{String(hoursLeft).padStart(2, '0')}</span>
-                <span className="time-lbl">HOURS</span>
-              </div>
-              <i className="time-sep">:</i>
-              <div className="time-block">
-                <span className="time-val">{String(minutesLeft).padStart(2, '0')}</span>
-                <span className="time-lbl">MINUTES</span>
-              </div>
-              <i className="time-sep">:</i>
-              <div className="time-block">
-                <span className="time-val">{String(secsLeft).padStart(2, '0')}</span>
-                <span className="time-lbl">SECONDS</span>
-              </div>
-            </div>
+            <div className="live-label">SPRINT #{String(yearData.sprint).padStart(2, '0')} → #{String(yearData.sprint + 1).padStart(2, '0')}</div>
           </div>
         </div>
 
@@ -2353,8 +2377,35 @@ function LandingPage({ onGetStarted, onSignIn }) {
 
       {/* Call to action footer */}
       <footer className="landing-footer">
+        <div className="profile-brand-header-row">
+          <div className="profile-brand-logo-wrap">
+            <img src="/favicon.ico" alt="OnePercentGoal" className="profile-brand-logo-img" />
+          </div>
+          <span className="profile-brand-title">OnePercentGoal</span>
+        </div>
         <p className="landing-footer-slogan">1 SPRINT = 1% OF YEAR · 1 SPRINT = 3.6 DAYS</p>
-        <button className="landing-footer-btn" onClick={onGetStarted}>Initialize Your Console</button>
+        <p className="landing-footer-quote">Make every 1% count.</p>
+        <SpecularButton
+          size="lg"
+          radius={18}
+          tint="#ffffff"
+          tintOpacity={0}
+          blur={0}
+          textColor="#f5f5f5"
+          lineColor="#ffffff"
+          baseColor="#525252"
+          intensity={1}
+          shineSize={10}
+          shineFade={40}
+          thickness={1}
+          speed={0.35}
+          followMouse
+          proximity={250}
+          autoAnimate={false}
+          onClick={onGetStarted}
+        >
+          Initialize Your Console
+        </SpecularButton>
       </footer>
       <AppFooter year={2026} />
     </div>
@@ -2382,10 +2433,18 @@ function GlassDock({ items, active, setActive }) {
     }
   }
 
-  return (
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
     <div className="glass-dock-mobile-wrapper">
       <div className="glass-dock">
-        {items.map((item, index) => {
+        {items.map((item) => {
           const label = typeof item === 'string' ? item : item.label
           const isActive = active === label
 
@@ -2406,7 +2465,8 @@ function GlassDock({ items, active, setActive }) {
           )
         })}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -2437,6 +2497,26 @@ function SpotlightNavbar({
   // Refs for the "light" positions so we can animate them imperatively with framer-motion
   const spotlightX = useRef(0);
   const ambienceX = useRef(0);
+
+  // Dynamically measure exact 20px gap below the bottom of the onepercentgoal island
+  useEffect(() => {
+    const updateDynamicGap = () => {
+      if (!navRef.current) return;
+      const rect = navRef.current.getBoundingClientRect();
+      const gap20Px = rect.bottom > 0 ? rect.bottom + 20 : 98;
+      document.documentElement.style.setProperty('--dynamic-island-20px-gap', `${gap20Px}px`);
+    };
+
+    updateDynamicGap();
+    const timer = setTimeout(updateDynamicGap, 100);
+    window.addEventListener('resize', updateDynamicGap);
+    window.addEventListener('orientationchange', updateDynamicGap);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updateDynamicGap);
+      window.removeEventListener('orientationchange', updateDynamicGap);
+    };
+  }, []);
 
   useEffect(() => {
     if (!navRef.current) return;
@@ -2719,6 +2799,13 @@ function App() {
   const [deleteConfirmFlow, setDeleteConfirmFlow] = useState(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState('')
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
+  const [minLoadElapsed, setMinLoadElapsed] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setMinLoadElapsed(true), 2000)
+    return () => clearTimeout(t)
+  }, [])
 
   const buildHeaders = extra => ({ ...(extra || {}), ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}) })
 
@@ -2752,6 +2839,43 @@ function App() {
         setAuthReady(true)
       })
   }, [])
+
+  const isNativeShell = () => Boolean(
+    window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+  )
+
+  const exitApp = () => {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+      window.Capacitor.Plugins.App.exitApp()
+    } else {
+      setCloseConfirmOpen(false)
+      window.close()
+    }
+  }
+
+  useEffect(() => {
+    const isMobileBrowser = /Android|iPhone|iPad|iPod|Mobile|wv/i.test(navigator.userAgent)
+    if (isNativeShell() || !isMobileBrowser) return
+    const handler = event => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!isNativeShell()) return
+    const app = window.Capacitor.Plugins.App
+    const handler = app.addListener('backButton', () => {
+      if (closeConfirmOpen) {
+        app.exitApp()
+      } else {
+        setCloseConfirmOpen(true)
+      }
+    })
+    return () => { if (handler && handler.remove) handler.remove() }
+  }, [closeConfirmOpen])
 
   const data = useMemo(() => getYearData(now), [now])
   const deadlineStr = useMemo(() => {
@@ -3005,7 +3129,7 @@ function App() {
   const streak = profile?.stats?.current_streak ?? 0
   const completionRate = profile?.stats?.completion_rate ?? 0
 
-  if (!authReady) {
+  if (!authReady || !minLoadElapsed) {
     return (
       <div className="ktl-fullscreen-overlay">
         <KineticTextLoader text="Loading" />
@@ -3205,10 +3329,7 @@ function App() {
 
         {showAuthModal && (
           <div className="modal-backdrop" onClick={() => setShowAuthModal(false)}>
-            <div className="auth-modal-content" onClick={e => e.stopPropagation()}>
-              <button className="modal-close-btn" onClick={() => setShowAuthModal(false)} aria-label="Close modal">×</button>
-              <AuthScreen onGoogle={handleGoogle} loading={authLoading} error={authError} />
-            </div>
+            <AuthScreen onGoogle={handleGoogle} loading={authLoading} error={authError} onClose={() => setShowAuthModal(false)} />
           </div>
         )}
 
@@ -3238,11 +3359,18 @@ function App() {
       ) : (
         <>
       <section className="aurora-hero-wrapper">
-        <div className="aurora-hero-bg"></div>
-
+        <div className="silk-bg-container">
+          <Silk
+            speed={5}
+            scale={1}
+            color="#366cf3"
+            noiseIntensity={1.5}
+            rotation={0}
+          />
+        </div>
         <div className="aurora-content">
           <div className="aurora-text-group">
-            <p className="eyebrow motivational-eyebrow" style={{ color: '#fff', textShadow: '0 0 8px rgba(255,255,255,0.45)', margin: '0 0 16px' }}>
+            <p className="eyebrow motivational-eyebrow" style={{ color: '#fff', textShadow: '0 0 8px rgba(255,255,255,0.45)', margin: '0 0 6px' }}>
               {greeting.toUpperCase()}, {userLabel.toUpperCase()}
             </p>
             <h1 className="h1-scalingSize">
@@ -3251,102 +3379,72 @@ function App() {
               <span>count.</span>
             </h1>
           </div>
-          
-          <div className="aurora-quick-widget card">
-            {(() => {
-              const sprintStart = getSprintBoundary(data.year, data.sprint - 1);
-              const sprintEnd = getSprintBoundary(data.year, data.sprint);
-              const sprintDuration = sprintEnd.getTime() - sprintStart.getTime();
-              const sprintElapsed = now.getTime() - sprintStart.getTime();
-              const sprintPercent = Math.min(100, Math.max(0, (sprintElapsed / sprintDuration) * 100)).toFixed(2);
-              const yearPercent = Math.min(100, Math.max(0, data.percentage || 0)).toFixed(2);
+        
+        <div className="aurora-quick-widget card">
+          {(() => {
+            const sprintStart = getSprintBoundary(data.year, data.sprint - 1);
+            const sprintEnd = getSprintBoundary(data.year, data.sprint);
+            const sprintDuration = sprintEnd.getTime() - sprintStart.getTime();
+            const sprintElapsed = now.getTime() - sprintStart.getTime();
+            const sprintPercent = Math.min(100, Math.max(0, (sprintElapsed / sprintDuration) * 100)).toFixed(2);
+            const yearPercent = Math.min(100, Math.max(0, data.percentage || 0)).toFixed(2);
 
-              return (
-                <div className="quick-percentages-bar">
-                  <div className="perc-pill">
-                    <span className="perc-label">{data.year} Year</span>
-                    <strong className="perc-val">{yearPercent}%</strong>
-                  </div>
-                  <div className="perc-divider"></div>
-                  <div className="perc-pill">
-                    <span className="perc-label">Sprint #{String(data.sprint).padStart(2, '0')}</span>
-                    <strong className="perc-val">{sprintPercent}%</strong>
-                  </div>
+            return (
+              <div className="quick-percentages-bar">
+                <div className="perc-pill">
+                  <span className="perc-label">{data.year} Year</span>
+                  <strong className="perc-val">{yearPercent}%</strong>
                 </div>
-              );
-            })()}
+                <div className="perc-divider"></div>
+                <div className="perc-pill">
+                  <span className="perc-label">Sprint #{String(data.sprint).padStart(2, '0')}</span>
+                  <strong className="perc-val">{sprintPercent}%</strong>
+                </div>
+              </div>
+            );
+          })()}
 
-            <div className="quick-widget-header">
-              <span className="quick-widget-title">TASK OVERVIEW</span>
+          <div className="quick-widget-header">
+            <span className="quick-widget-title">TASK OVERVIEW</span>
+          </div>
+
+          <div className="quick-widget-items">
+            <div className="quick-widget-row">
+              <div className="quick-widget-info">
+                <Target size={24} weight="fill" className="quick-widget-icon goals" />
+                <div className="quick-widget-text">
+                  <strong>{goals.filter(g => !g.done).length} Goals Remaining</strong>
+                  <small>Sprint Goal Targets</small>
+                </div>
+              </div>
+              <AnimatedPlusButton
+                onClick={() => setAddGoalModalOpen(true)}
+                title="Add Sprint Goal"
+                ariaLabel="Add Sprint Goal"
+                color="#c9f36a"
+                size={22}
+              />
             </div>
 
-            <div className="quick-widget-items">
-              <div className="quick-widget-row">
-                <div className="quick-widget-info">
-                  <Target size={24} weight="fill" className="quick-widget-icon goals" />
-                  <div className="quick-widget-text">
-                    <strong>{goals.filter(g => !g.done).length} Goals Remaining</strong>
-                    <small>Sprint Goal Targets</small>
-                  </div>
+            <div className="quick-widget-row">
+              <div className="quick-widget-info">
+                <Repeat size={24} weight="bold" className="quick-widget-icon rotes" />
+                <div className="quick-widget-text">
+                  <strong>{Math.max(0, (roteOverviewStats.total || 0) - (roteOverviewStats.completed || 0))} Rotes Remaining</strong>
+                  <small>Daily Routine Tasks</small>
                 </div>
-                <button 
-                  type="button" 
-                  className="quick-add-btn" 
-                  onClick={() => setAddGoalModalOpen(true)}
-                  title="Add Sprint Goal"
-                  aria-label="Add Sprint Goal"
-                >
-                  <span className="plus-icon">+</span>
-                </button>
               </div>
-
-              <div className="quick-widget-row">
-                <div className="quick-widget-info">
-                  <Repeat size={24} weight="bold" className="quick-widget-icon rotes" />
-                  <div className="quick-widget-text">
-                    <strong>{Math.max(0, (roteOverviewStats.total || 0) - (roteOverviewStats.completed || 0))} Rotes Remaining</strong>
-                    <small>Daily Routine Tasks</small>
-                  </div>
-                </div>
-                <button 
-                  type="button" 
-                  className="quick-add-btn" 
-                  onClick={() => setActive('Rote')}
-                  title="Manage Daily Rotes"
-                  aria-label="Manage Daily Rotes"
-                >
-                  <span className="plus-icon">+</span>
-                </button>
-              </div>
+              <AnimatedPlusButton
+                onClick={() => setActive('Rote')}
+                title="Manage Daily Rotes"
+                ariaLabel="Manage Daily Rotes"
+                color="#60a5fa"
+                size={22}
+              />
             </div>
           </div>
         </div>
-
-        <svg
-          version="1.1"
-          xmlns="http://www.w3.org/2000/svg"
-          xmlnsXlink="http://www.w3.org/1999/xlink"
-          colorInterpolationFilters="sRGB"
-          style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none" }}
-          aria-hidden="true"
-          focusable="false"
-        >
-          <filter id="fluted" primitiveUnits="objectBoundingBox">
-            <feImage
-              x="0"
-              y="0"
-              result="image_0"
-              crossOrigin="anonymous"
-              href={filterImageHref}
-              preserveAspectRatio="none meet"
-              width=".03"
-              height="1"
-            />
-            <feTile in="image_0" result="tile_0" />
-            <feGaussianBlur stdDeviation=".0001" edgeMode="none" in="tile_0" result="bar_smoothness" x="0" y="0" />
-            <feDisplacementMap scale=".08" xChannelSelector="R" yChannelSelector="G" in="SourceGraphic" in2="bar_smoothness" result="displacement_0" />
-          </filter>
-        </svg>
+      </div>
       </section>
 
       {/* Visual Compounding Banner */}
@@ -3370,9 +3468,27 @@ function App() {
             <p className="compounding-cta-text">
               Complete your mini goals in that 3.6 days in here
             </p>
-            <button className="compounding-create-btn" onClick={() => setAddGoalModalOpen(true)}>
+            <SpecularButton
+              size="lg"
+              radius={18}
+              tint="#ffffff"
+              tintOpacity={0}
+              blur={0}
+              textColor="#f5f5f5"
+              lineColor="#ffffff"
+              baseColor="#525252"
+              intensity={1}
+              shineSize={10}
+              shineFade={40}
+              thickness={1}
+              speed={0.35}
+              followMouse
+              proximity={250}
+              autoAnimate={false}
+              onClick={() => setAddGoalModalOpen(true)}
+            >
               Create Sprint Goal
-            </button>
+            </SpecularButton>
           </div>
         </div>
       </section>
@@ -3396,13 +3512,13 @@ function App() {
           <div className="urgency-col right">
             <div className="urgency-system-status">NEXT SPRINT // COUNTDOWN</div>
             <div className="live-num countdown-live-num">
-              <span className="time-unit">{String(daysLeft).padStart(2, '0')}<em>d</em></span>
+              <span className="time-unit"><span className="time-num">{String(daysLeft).padStart(2, '0')}</span><em>d</em></span>
               <i className="time-colon">:</i>
-              <span className="time-unit">{String(hoursLeft).padStart(2, '0')}<em>h</em></span>
+              <span className="time-unit"><span className="time-num">{String(hoursLeft).padStart(2, '0')}</span><em>h</em></span>
               <i className="time-colon">:</i>
-              <span className="time-unit">{String(minutesLeft).padStart(2, '0')}<em>m</em></span>
+              <span className="time-unit"><span className="time-num">{String(minutesLeft).padStart(2, '0')}</span><em>m</em></span>
               <i className="time-colon">:</i>
-              <span className="time-unit">{String(secsLeft).padStart(2, '0')}<em>s</em></span>
+              <span className="time-unit"><span className="time-num">{String(secsLeft).padStart(2, '0')}</span><em>s</em></span>
             </div>
             <div className="live-label">SPRINT #{String(data.sprint).padStart(2, '0')} → #{String(data.sprint + 1).padStart(2, '0')}</div>
           </div>
@@ -3434,6 +3550,8 @@ function App() {
           <p className="warning-text">Time is slipping away. Every second counts. Today is Day {day} of {data.total}. <b>Will you complete your goals, or let another day burn out?</b></p>
         </div>
       </section>
+
+
 
       {/* Grid containing Current Sprint, Speed & Momentum, Motivational Drive, and Forceful Tasks */}
       <section className="overview-staggered-grid">
@@ -3561,7 +3679,7 @@ function App() {
                 <p className="eyebrow">FORCEFUL TASKS</p>
                 <h2>
                   Routine <em>Rote</em>
-                  <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#c9f36a', marginLeft: '10px', letterSpacing: '0.08em', fontFamily: '"DM Mono", monospace', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '4px', background: 'rgba(201, 243, 106, 0.1)', border: '1px solid rgba(201, 243, 106, 0.2)' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#c9f36a', marginLeft: '10px', letterSpacing: '0.08em', fontFamily: '"DM Mono", monospace', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '4px', background: 'rgba(201, 243, 106, 0.1)', border: '1px solid rgba(201, 243, 106, 0.2)', display: 'inline-block', width: 'fit-content' }}>
                     DAY-WISE
                   </span>
                 </h2>
@@ -3701,6 +3819,39 @@ function App() {
         <div className="bottom-toast-notification">
           <span className="toast-tick">✓</span>
           <span className="toast-text">{toastMsg}</span>
+        </div>
+      )}
+      {closeConfirmOpen && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setCloseConfirmOpen(false)}>
+          <div className="completion-modal confirm-modal" onClick={event => event.stopPropagation()} style={{ maxWidth: '420px', padding: '28px' }}>
+            <p className="eyebrow" style={{ color: '#c9f36a' }}>EXIT CONSOLE</p>
+            <h2 style={{ fontSize: '24px', marginBottom: '16px', fontWeight: '500', letterSpacing: '-.035em', textAlign: 'center' }}>Did you really want to close the app?</h2>
+
+            <p style={{ color: '#a5a79e', fontSize: '14px', lineHeight: 1.5, margin: '0 0 24px', textAlign: 'center' }}>
+              Your progress is saved and synced. If you exit now, your current session ends here. Press back again or confirm below to leave.
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+              <button type="button" onClick={() => setCloseConfirmOpen(false)} style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: 'pointer', fontSize: '12px' }}>Stay</button>
+              <button
+                type="button"
+                className="add-button"
+                onClick={exitApp}
+                style={{
+                  background: '#ff6b6b',
+                  color: '#141513',
+                  border: 'none',
+                  borderRadius: '24px',
+                  padding: '10px 24px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Close App
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </section>
