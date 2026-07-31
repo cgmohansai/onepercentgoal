@@ -60,6 +60,9 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost",
+        "https://localhost",
+        "capacitor://localhost",
         FRONTEND_URL,
     ],
     allow_credentials=True,
@@ -566,7 +569,8 @@ def setup_database():
                 )""")
             execute(conn, """
                 CREATE TABLE IF NOT EXISTS oauth_states (
-                    state TEXT PRIMARY KEY, provider TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL
+                    state TEXT PRIMARY KEY, provider TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL,
+                    redirect TEXT NOT NULL DEFAULT ''
                 )""")
             execute(conn, """
                 CREATE TABLE IF NOT EXISTS goals (
@@ -624,7 +628,8 @@ def setup_database():
                 )""")
             execute(conn, """
                 CREATE TABLE IF NOT EXISTS oauth_states (
-                    state TEXT PRIMARY KEY, provider TEXT NOT NULL, created_at TEXT NOT NULL
+                    state TEXT PRIMARY KEY, provider TEXT NOT NULL, created_at TEXT NOT NULL,
+                    redirect TEXT NOT NULL DEFAULT ''
                 )""")
             execute(conn, """
                 CREATE TABLE IF NOT EXISTS goals (
@@ -685,6 +690,7 @@ def setup_database():
             ("goals", "rolled_from_goal_id", "ALTER TABLE goals ADD COLUMN rolled_from_goal_id BIGINT" if USE_POSTGRES else "ALTER TABLE goals ADD COLUMN rolled_from_goal_id INTEGER"),
             ("goals", "source_goal_id", "ALTER TABLE goals ADD COLUMN source_goal_id BIGINT" if USE_POSTGRES else "ALTER TABLE goals ADD COLUMN source_goal_id INTEGER"),
             ("rotes", "rote_date", "ALTER TABLE rotes ADD COLUMN rote_date TEXT NOT NULL DEFAULT ''"),
+            ("oauth_states", "redirect", "ALTER TABLE oauth_states ADD COLUMN redirect TEXT NOT NULL DEFAULT ''"),
         ]
         for table, column, ddl in alter_columns:
             ensure_column(conn, table, column, ddl)
@@ -709,17 +715,33 @@ def health():
 
 # --- GOOGLE OAUTH AUTHENTICATION ENDPOINTS ---
 
+def _sanitize_redirect(redirect: str | None) -> str:
+    """Restrict OAuth completion redirects to trusted destinations (open-redirect guard)."""
+    if not redirect:
+        return FRONTEND_URL
+    allowed_prefixes = (
+        "com.onepercentgoal.app://",
+        "http://localhost",
+        "https://localhost",
+        "capacitor://localhost",
+    )
+    if redirect.startswith(allowed_prefixes) or redirect.startswith(FRONTEND_URL):
+        return redirect
+    return FRONTEND_URL
+
+
 @app.get("/api/auth/google/start")
-def auth_google_start():
+def auth_google_start(redirect: str | None = None):
     """Initiate Google OAuth 2.0 PKCE flow: generates state token and redirects to Google login consent."""
     if not GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=500, detail="Google auth is not configured")
     state = secrets.token_urlsafe(24)
+    redirect_target = _sanitize_redirect(redirect)
     with db() as conn:
         execute(
             conn,
-            "INSERT INTO oauth_states (state, provider, created_at) VALUES (%s, 'google', %s) ON CONFLICT (state) DO UPDATE SET created_at = EXCLUDED.created_at",
-            (state, current_timestamp()),
+            "INSERT INTO oauth_states (state, provider, created_at, redirect) VALUES (%s, 'google', %s, %s) ON CONFLICT (state) DO UPDATE SET created_at = EXCLUDED.created_at, redirect = EXCLUDED.redirect",
+            (state, current_timestamp(), redirect_target),
         )
     params = {
         "client_id": GOOGLE_CLIENT_ID,
@@ -807,7 +829,10 @@ async def auth_google_callback(background_tasks: BackgroundTasks, code: str | No
             user_id = int(row["id"])
             background_tasks.add_task(send_welcome_email, email, display_name or "User")
         token = issue_session(conn, user_id)
-    return RedirectResponse(f"{FRONTEND_URL}/?auth_token={token}")
+    redirect_target = state_row["redirect"] if "redirect" in state_row.keys() else FRONTEND_URL
+    redirect_target = redirect_target or FRONTEND_URL
+    sep = "&" if "?" in redirect_target else "?"
+    return RedirectResponse(f"{redirect_target}{sep}auth_token={token}")
 
 
 @app.get("/api/auth/me")

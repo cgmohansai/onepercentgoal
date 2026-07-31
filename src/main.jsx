@@ -7,6 +7,8 @@ import { House, Target, Repeat, Clock, User, Gear, SignOut } from '@phosphor-ico
 import Silk from './Silk'
 import SpecularButton from './SpecularButton'
 import AnimatedPlusButton from './AnimatedPlusButton'
+import { isNativeApp, requestNotificationPermission, scheduleDailyReminders, cancelDailyReminders } from './reminders'
+import { Browser } from '@capacitor/browser'
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -1605,6 +1607,55 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
   const [showSettingsMenu, setShowSettingsMenu] = useState(false)
   const settingsMenuRef = useRef(null)
 
+  const [remindersEnabled, setRemindersEnabled] = useState(() => localStorage.getItem('opg.reminders.enabled') === '1')
+  const [reminderTime, setReminderTime] = useState(() => localStorage.getItem('opg.reminders.time') || '21:00')
+  const [remindersBusy, setRemindersBusy] = useState(false)
+
+  useEffect(() => {
+    if (!isNativeApp()) return
+    if (localStorage.getItem('opg.reminders.enabled') !== '1') return
+    const [hour, minute] = (localStorage.getItem('opg.reminders.time') || '21:00').split(':').map(Number)
+    requestNotificationPermission()
+      .then(granted => {
+        if (granted) return scheduleDailyReminders(hour, minute)
+        setRemindersEnabled(false)
+        return null
+      })
+      .catch(err => console.error('Failed to restore reminders:', err))
+  }, [])
+
+  const saveReminders = async () => {
+    if (!isNativeApp()) {
+      showToast('Reminders are available in the app version')
+      return
+    }
+    setRemindersBusy(true)
+    try {
+      if (remindersEnabled) {
+        const granted = await requestNotificationPermission()
+        if (!granted) {
+          setRemindersEnabled(false)
+          showToast('Notification permission denied')
+          return
+        }
+        const [hour, minute] = reminderTime.split(':').map(Number)
+        await scheduleDailyReminders(hour, minute)
+        localStorage.setItem('opg.reminders.enabled', '1')
+        localStorage.setItem('opg.reminders.time', reminderTime)
+        showToast('Daily reminders scheduled')
+      } else {
+        await cancelDailyReminders()
+        localStorage.setItem('opg.reminders.enabled', '0')
+        showToast('Reminders paused')
+      }
+    } catch (err) {
+      console.error('Failed to update reminders:', err)
+      showToast('Failed to update reminders')
+    } finally {
+      setRemindersBusy(false)
+    }
+  }
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (settingsMenuRef.current && !settingsMenuRef.current.contains(e.target)) {
@@ -1936,6 +1987,59 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
           <div className="metric card"><small>ROTE RATE</small><b>{stats.rote_rate || 0}%</b><span>{stats.rote_completed || 0}/{stats.total_rotes || 0} tasks done</span></div>
           <div className="metric card"><small>STREAK</small><b>{stats.current_streak} <small className="best-streak-tag">Best: {stats.longest_streak}</small></b><span>sprints streak</span></div>
         </div>
+
+        <section className="reminders-card card">
+          <div className="reminders-card-header">
+            <div>
+              <p className="eyebrow" style={{ color: '#c9f36a', margin: '0 0 6px' }}>DAILY REMINDERS</p>
+              <h3>Stay on track</h3>
+            </div>
+            {isNativeApp() && (
+              <label className="reminders-toggle" title={remindersEnabled ? 'Pause reminders' : 'Enable reminders'}>
+                <input
+                  type="checkbox"
+                  checked={remindersEnabled}
+                  onChange={event => setRemindersEnabled(event.target.checked)}
+                  disabled={remindersBusy}
+                />
+                <span className="reminders-toggle-track" />
+              </label>
+            )}
+          </div>
+
+          <p className="reminders-desc">
+            Get a daily nudge to focus on your sprint goals and complete your rotes before the day ends.
+          </p>
+
+          {isNativeApp() ? (
+            <>
+              <div className="reminders-time-row">
+                <span>Reminder time</span>
+                <input
+                  type="time"
+                  value={reminderTime}
+                  onChange={event => setReminderTime(event.target.value)}
+                  disabled={remindersBusy}
+                />
+              </div>
+              <button
+                type="button"
+                className="add-button reminders-save"
+                onClick={saveReminders}
+                disabled={remindersBusy}
+              >
+                {remindersBusy ? 'Saving…' : 'Schedule Reminders'}
+              </button>
+              <p className="reminders-note">
+                {remindersEnabled
+                  ? `Reminders fire daily at ${reminderTime}. Two notifications: sprint goals and rote completion.`
+                  : 'Reminders are currently paused. Enable them to stay on track.'}
+              </p>
+            </>
+          ) : (
+            <p className="reminders-note">Available in the OnePercentGoal app.</p>
+          )}
+        </section>
 
         <AppFooter year={yearProgress.year} />
 
@@ -2867,6 +2971,21 @@ function App() {
   useEffect(() => {
     if (!isNativeShell()) return
     const app = window.Capacitor.Plugins.App
+    const handler = app.addListener('appUrlOpen', event => {
+      const url = event.url || ''
+      const token = new URLSearchParams(url.split('?')[1] || '').get('auth_token')
+      if (token) {
+        localStorage.setItem('onepercentgoal.token', token)
+        setSessionToken(token)
+        window.location.href = '/'
+      }
+    })
+    return () => { if (handler && handler.remove) handler.remove() }
+  }, [])
+
+  useEffect(() => {
+    if (!isNativeShell()) return
+    const app = window.Capacitor.Plugins.App
     const handler = app.addListener('backButton', () => {
       if (closeConfirmOpen) {
         app.exitApp()
@@ -2955,7 +3074,15 @@ function App() {
   }, [data.year, selectedTimelineYear, currentUser, sessionToken])
 
   const handleGoogle = () => {
-    window.location.href = apiUrl('/api/auth/google/start')
+    const authUrl = apiUrl('/api/auth/google/start')
+    if (isNativeShell()) {
+      const startUrl = `${authUrl}${authUrl.includes('?') ? '&' : '?'}redirect=${encodeURIComponent('com.onepercentgoal.app://auth')}`
+      Browser.open({ url: startUrl, windowName: '_blank' }).catch(() => {
+        window.location.href = startUrl
+      })
+    } else {
+      window.location.href = authUrl
+    }
   }
 
   const completeProfile = async form => {

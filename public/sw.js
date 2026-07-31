@@ -1,9 +1,11 @@
-const CACHE_NAME = 'onepercentgoal-v3';
+const CACHE_NAME = 'onepercentgoal-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/favicon.ico',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
   '/icon.png'
 ];
 
