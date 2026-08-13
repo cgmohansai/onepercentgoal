@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo, memo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react'
+
 import { createPortal } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import { animate } from 'framer-motion'
@@ -7,12 +8,19 @@ import { House, Target, Repeat, Clock, User, Gear, SignOut } from '@phosphor-ico
 import Silk from './Silk'
 import SpecularButton from './SpecularButton'
 import AnimatedPlusButton from './AnimatedPlusButton'
-import { isNativeApp, requestNotificationPermission, scheduleDailyReminders, cancelDailyReminders } from './reminders'
+import { isNativeApp, checkNotificationPermission, requestNotificationPermission, scheduleDailyReminders, cancelDailyReminders, areExactAlarmsAllowed, requestExactAlarmAccess } from './reminders'
+
 import { Browser } from '@capacitor/browser'
+import { App as CapacitorApp } from '@capacitor/app'
+import { Keyboard as CapacitorKeyboard } from '@capacitor/keyboard'
+import { Media } from '@capacitor-community/media'
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
 
+
 function KineticTextLoader({ 
+
+
   className = "", 
   text = "Loading", 
   showBrand = true,
@@ -56,8 +64,9 @@ function KineticTextLoader({
       const iCenter = iRect.left + iRect.width / 2;
       const half = (iCenter - lSpot) / 2;
       dotEl.style.setProperty('--ktl-i-shift', `${half}px`);
-      dotEl.style.setProperty('--ktl-l-shift', `${half}px`);
+      dotEl.style.setProperty('--ktl-l-shift', `${half - 2}px`);
       dotEl.style.left = `${Math.round(iCenter - half - dotW / 2)}px`;
+
     };
     const schedule = () => {
       if (!rafId) rafId = requestAnimationFrame(alignDot);
@@ -122,9 +131,27 @@ function KineticTextLoader({
 }
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {})
-  })
+  const isCapacitorNative = () => Boolean(
+    window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+  )
+  if (isCapacitorNative()) {
+    // In the native WebView the bundled assets are local and fast, so a service
+    // worker adds nothing but staleness risk across APK updates. Purge any
+    // worker + caches a previous install left behind so a stale shell can never
+    // block the app from booting.
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.getRegistrations()
+        .then(regs => Promise.all(regs.map(r => r.unregister())))
+        .catch(() => {})
+      if (window.caches) {
+        window.caches.keys().then(keys => Promise.all(keys.map(k => window.caches.delete(k)))).catch(() => {})
+      }
+    })
+  } else {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {})
+    })
+  }
 }
 
 const DAY = 24 * 60 * 60 * 1000
@@ -166,6 +193,15 @@ function getISTDate() {
   const utc = d.getTime() + (d.getTimezoneOffset() * 60000)
   return new Date(utc + (3600000 * 5.5))
 }
+
+function getTodayYMD() {
+  const d = getISTDate()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 
 function formatDateWithTime(dateObj) {
   if (!dateObj) return ''
@@ -372,6 +408,28 @@ function downloadImage(dataUrl, filename) {
   document.body.appendChild(link)
   link.click()
   link.remove()
+}
+
+async function saveImageToGallery(dataUrl, filename) {
+  let albumsRes
+  try {
+    albumsRes = await Media.getAlbums()
+  } catch { albumsRes = { albums: [] } }
+  let album = (albumsRes.albums || []).find(a => a.name === 'OnePercentGoal')
+  if (!album) {
+    try { await Media.createAlbum({ name: 'OnePercentGoal' }) } catch {}
+    try {
+      const res = await Media.getAlbums()
+      album = (res.albums || []).find(a => a.name === 'OnePercentGoal')
+    } catch { album = null }
+  }
+  if (!album) return false
+  await Media.savePhoto({
+    path: dataUrl,
+    albumIdentifier: album.identifier,
+    fileName: filename.replace(/\.png$/, '')
+  })
+  return true
 }
 
 // ============================================================================
@@ -1230,31 +1288,40 @@ function AddRoteModal({ isOpen, onClose, onSubmit }) {
   )
 }
 
-function RotePage({ user }) {
-  const getTodayStr = () => {
-    const d = new Date()
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
-
-  const todayStr = getTodayStr()
+function RotePage({ user, onRotesChanged }) {
+  const todayStr = getTodayYMD()
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear())
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth())
   
   const cacheRef = useRef({})
+  const pendingTogglesRef = useRef(new Set())
+  const pendingTempTogglesRef = useRef(new Set())
   const [loadedDates, setLoadedDates] = useState({})
   
   const [rotesData, setRotesData] = useState({ date: todayStr, user_joined_date: todayStr, rotes: [], completed_dates: [], stats: { total_rotes: 0, completed_rotes: 0 } })
   const [addModalOpen, setAddModalOpen] = useState(false)
 
+  const persistRotes = (dateStr, state) => {
+    try { localStorage.setItem(`opg.rotes.${dateStr}`, JSON.stringify(state)) } catch {}
+  }
+
   const fetchRotes = async (dateStr) => {
     if (cacheRef.current[dateStr]) {
       setRotesData(cacheRef.current[dateStr])
       setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
-      return
+    } else {
+      try {
+        const stored = localStorage.getItem(`opg.rotes.${dateStr}`)
+        if (stored) {
+          const data = JSON.parse(stored)
+          if (data && Array.isArray(data.rotes)) {
+            cacheRef.current[dateStr] = data
+            setRotesData(data)
+            setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+          }
+        }
+      } catch {}
     }
 
     try {
@@ -1263,9 +1330,32 @@ function RotePage({ user }) {
         headers: { Authorization: token ? `Bearer ${token}` : '' }
       })
       if (res.ok) {
-        const data = await res.json()
-        cacheRef.current[dateStr] = data
-        setRotesData(data)
+        const serverData = await res.json()
+        setRotesData(prev => {
+          let mergedRotes = serverData.rotes
+          if (prev && Array.isArray(prev.rotes) && prev.date === dateStr) {
+            const prevMap = new Map(prev.rotes.map(r => [String(r.id), r]))
+            mergedRotes = serverData.rotes.map(sr => {
+              const pr = prevMap.get(String(sr.id))
+              if (pr && (pendingTogglesRef.current.has(sr.id) || pendingTogglesRef.current.has(String(sr.id)) || pr.completed !== sr.completed)) {
+                return { ...sr, completed: pr.completed }
+              }
+              return sr
+            })
+          }
+          const doneCount = mergedRotes.filter(r => r.completed).length
+          const mergedData = {
+            ...serverData,
+            rotes: mergedRotes,
+            stats: { ...serverData.stats, total_rotes: mergedRotes.length, completed_rotes: doneCount }
+          }
+          cacheRef.current[dateStr] = mergedData
+          persistRotes(dateStr, mergedData)
+          if (dateStr === todayStr && onRotesChanged) {
+            onRotesChanged(mergedData)
+          }
+          return mergedData
+        })
         setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
       }
     } catch (err) {
@@ -1278,39 +1368,89 @@ function RotePage({ user }) {
     fetchRotes(selectedDate)
   }, [selectedDate])
 
-  const toggleRote = async (roteId) => {
-    setRotesData(prev => {
-      const updated = prev.rotes.map(r => r.id === roteId ? { ...r, completed: !r.completed } : r)
-      const doneCount = updated.filter(r => r.completed).length
-      const nextState = {
-        ...prev,
-        rotes: updated,
-        stats: { ...prev.stats, completed_rotes: doneCount }
-      }
-      cacheRef.current[selectedDate] = nextState
-      return nextState
-    })
+  const [syncingRoteIds, setSyncingRoteIds] = useState({})
 
+  const toggleRote = async (roteId) => {
+    const targetIdStr = String(roteId)
+    if (syncingRoteIds[targetIdStr]) return
+    
+    // Determine target completed status
+    const currentItem = rotesData.rotes.find(r => String(r.id) === targetIdStr)
+    const targetStatus = currentItem ? !currentItem.completed : true
+
+    if (targetIdStr.startsWith('temp-')) {
+      pendingTempTogglesRef.current.add(targetIdStr)
+      setRotesData(prev => {
+        const updated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: targetStatus } : r)
+        const doneCount = updated.filter(r => r.completed).length
+        const nextState = {
+          ...prev,
+          rotes: updated,
+          stats: { ...prev.stats, completed_rotes: doneCount }
+        }
+        cacheRef.current[selectedDate] = nextState
+        persistRotes(selectedDate, nextState)
+        if (selectedDate === todayStr && onRotesChanged) {
+          onRotesChanged(nextState)
+        }
+        return nextState
+      })
+      return
+    }
+
+    setSyncingRoteIds(prev => ({ ...prev, [targetIdStr]: true }))
+
+    // 1. Send system update request to backend database
     try {
       const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
-      await apiFetch(`/api/rotes/${roteId}/toggle`, {
+      const res = await apiFetch(`/api/rotes/${roteId}/toggle`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: token ? `Bearer ${token}` : ''
         },
-        body: JSON.stringify({ date: selectedDate })
+        body: JSON.stringify({ date: selectedDate, completed: targetStatus })
       })
+
+      if (res.ok) {
+        const result = await res.json()
+        const confirmedStatus = Boolean(result.completed)
+        
+        // 2. System update confirmed — update state, cache & broadcast dependent alerts
+        setRotesData(prev => {
+          const updated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
+          const doneCount = updated.filter(r => r.completed).length
+          const nextState = {
+            ...prev,
+            rotes: updated,
+            stats: { ...prev.stats, completed_rotes: doneCount }
+          }
+          cacheRef.current[selectedDate] = nextState
+          persistRotes(selectedDate, nextState)
+          if (selectedDate === todayStr && onRotesChanged) {
+            onRotesChanged(nextState)
+          }
+          return nextState
+        })
+      }
     } catch (err) {
-      console.error('Failed to toggle rote:', err)
-      delete cacheRef.current[selectedDate]
-      fetchRotes(selectedDate)
+      console.error('Failed to update rote in system database:', err)
+    } finally {
+      setSyncingRoteIds(prev => {
+        const copy = { ...prev }
+        delete copy[targetIdStr]
+        return copy
+      })
     }
   }
 
+
+
   const deleteRote = async (roteId) => {
+    const targetIdStr = String(roteId)
+    let nextStateToBroadcast = null
     setRotesData(prev => {
-      const updated = prev.rotes.filter(r => r.id !== roteId)
+      const updated = prev.rotes.filter(r => String(r.id) !== targetIdStr)
       const doneCount = updated.filter(r => r.completed).length
       const nextState = {
         ...prev,
@@ -1318,8 +1458,17 @@ function RotePage({ user }) {
         stats: { total_rotes: updated.length, completed_rotes: doneCount }
       }
       cacheRef.current[selectedDate] = nextState
+      persistRotes(selectedDate, nextState)
+      nextStateToBroadcast = nextState
       return nextState
     })
+
+    if (selectedDate === todayStr && onRotesChanged && nextStateToBroadcast) {
+      onRotesChanged(nextStateToBroadcast)
+    }
+
+
+    if (String(roteId).startsWith('temp-')) return
 
     try {
       const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
@@ -1329,8 +1478,6 @@ function RotePage({ user }) {
       })
     } catch (err) {
       console.error('Failed to delete rote:', err)
-      delete cacheRef.current[selectedDate]
-      fetchRotes(selectedDate)
     }
   }
 
@@ -1348,6 +1495,7 @@ function RotePage({ user }) {
       completed_at: null
     }
 
+    let nextStateToBroadcast = null
     setRotesData(prev => {
       const updated = [...prev.rotes, tempItem]
       const nextState = {
@@ -1356,8 +1504,14 @@ function RotePage({ user }) {
         stats: { total_rotes: updated.length, completed_rotes: prev.stats.completed_rotes }
       }
       cacheRef.current[todayStr] = nextState
+      persistRotes(todayStr, nextState)
+      nextStateToBroadcast = nextState
       return nextState
     })
+
+    if (onRotesChanged && nextStateToBroadcast) {
+      onRotesChanged(nextStateToBroadcast)
+    }
 
     try {
       const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
@@ -1371,19 +1525,35 @@ function RotePage({ user }) {
       })
       if (res.ok) {
         const newItem = await res.json()
+        let updatedNextState = null
         setRotesData(prev => {
-          const updated = prev.rotes.map(r => r.id === tempId ? { ...r, id: newItem.id } : r)
-          const nextState = { ...prev, rotes: updated }
+          const wasCompleted = pendingTempTogglesRef.current.has(tempId)
+          pendingTempTogglesRef.current.delete(tempId)
+
+          const updated = prev.rotes.map(r => r.id === tempId ? { ...newItem, completed: wasCompleted || r.completed } : r)
+          const doneCount = updated.filter(r => r.completed).length
+          const nextState = {
+            ...prev,
+            rotes: updated,
+            stats: { total_rotes: updated.length, completed_rotes: doneCount }
+          }
           cacheRef.current[todayStr] = nextState
+          persistRotes(todayStr, nextState)
+          updatedNextState = nextState
           return nextState
         })
+        if (onRotesChanged && updatedNextState) {
+          onRotesChanged(updatedNextState)
+        }
+        if (pendingTempTogglesRef.current.has(tempId)) {
+          toggleRote(newItem.id)
+        }
       }
     } catch (err) {
       console.error('Failed to create rote:', err)
-      delete cacheRef.current[todayStr]
-      fetchRotes(todayStr)
     }
   }
+
 
   const joinedDateStr = rotesData.user_joined_date || todayStr
   const joinedDateParts = joinedDateStr.split('-')
@@ -1563,28 +1733,42 @@ function RotePage({ user }) {
                 <div className="rote-skeleton-row" />
               </div>
             ) : rotesData.rotes && rotesData.rotes.length > 0 ? (
-              rotesData.rotes.map(rote => (
-                <div key={rote.id} className={`rote-row ${rote.completed ? 'completed' : ''}`}>
-                  <button 
-                    className="rote-checkbox" 
-                    onClick={() => toggleRote(rote.id)}
-                    aria-label={rote.completed ? 'Mark pending' : 'Mark done'}
+              rotesData.rotes.map(rote => {
+                const isSyncing = Boolean(syncingRoteIds[String(rote.id)])
+                return (
+                  <div
+                    key={rote.id}
+                    className={`rote-row ${rote.completed ? 'completed' : ''} ${isSyncing ? 'syncing' : ''}`}
+                    onClick={() => !isSyncing && toggleRote(rote.id)}
+                    style={{ cursor: isSyncing ? 'wait' : 'pointer', touchAction: 'manipulation' }}
                   >
-                    {rote.completed ? '✓' : ''}
-                  </button>
-                  <div className="rote-info" onClick={() => toggleRote(rote.id)}>
-                    <span className="rote-title">{rote.title}</span>
+                    <div className="rote-checkbox" aria-hidden="true">
+                      {rote.completed ? '✓' : ''}
+                    </div>
+                    <div className="rote-info">
+                      <span className="rote-title">{rote.title}</span>
+                    </div>
+                    <div className="rote-meta">
+                      {isSyncing && (
+                        <svg className="rote-spin-icon" viewBox="0 0 24 24" width="14" height="14" stroke="#c9f36a" strokeWidth="2.5" fill="none">
+                          <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                          <path d="M12 2 a10 10 0 0 1 10 10" />
+                        </svg>
+                      )}
+                      <span className={`rote-status-tag ${isSyncing ? 'syncing' : (rote.completed ? 'done' : 'pending')}`}>
+                        {isSyncing ? 'SAVING…' : (rote.completed ? 'DONE' : 'PENDING')}
+                      </span>
+                      <button className="rote-delete-btn" disabled={isSyncing} onClick={(e) => { e.stopPropagation(); deleteRote(rote.id); }}>
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                  <div className="rote-meta">
-                    <span className={`rote-status-tag ${rote.completed ? 'done' : 'pending'}`}>
-                      {rote.completed ? 'DONE' : 'PENDING'}
-                    </span>
-                    <button className="rote-delete-btn" onClick={(e) => { e.stopPropagation(); deleteRote(rote.id); }}>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))
+                )
+              })
+
+
+
+
             ) : (
               <div className="rote-empty-state">
                 <p>{selectedDate === todayStr ? 'No routine rotes configured for today.' : 'No routine rotes were logged for this day.'}</p>
@@ -1644,7 +1828,7 @@ function AppFooter({ year = 2026 }) {
   )
 }
 
-function WorkspacePage({ active, data, user, goals, profile, history, historyModal, selectedYear, availableYears, onSelectYear, onOpenSprint, onCloseSprint, onProgress, onComplete, onDelete, onAdd, onShowGoalDetails, onUpdateProfile, showToast, onLogout }) {
+function WorkspacePage({ active, data, user, goals, profile, history, historyModal, selectedYear, availableYears, onSelectYear, onOpenSprint, onCloseSprint, onProgress, onComplete, onDelete, onAdd, onShowGoalDetails, onUpdateProfile, showToast, onLogout, onRotesChanged, editModalOpen, setEditModalOpen }) {
   const completed = goals.filter(goal => goal.done).length
 
   // Profile image cropping state
@@ -1655,8 +1839,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
   const [isDragging, setIsDragging] = useState(false)
   const dragStart = useRef({ x: 0, y: 0 })
 
-  // Edit Profile modal state
-  const [editModalOpen, setEditModalOpen] = useState(false)
+
   const [editError, setEditError] = useState('')
   const [editLoading, setEditLoading] = useState(false)
   const [showSettingsMenu, setShowSettingsMenu] = useState(false)
@@ -1670,7 +1853,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
     if (!isNativeApp()) return
     if (localStorage.getItem('opg.reminders.enabled') !== '1') return
     const [hour, minute] = (localStorage.getItem('opg.reminders.time') || '21:00').split(':').map(Number)
-    requestNotificationPermission()
+    checkNotificationPermission()
       .then(granted => {
         if (granted) return scheduleDailyReminders(hour, minute)
         setRemindersEnabled(false)
@@ -1679,25 +1862,32 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
       .catch(err => console.error('Failed to restore reminders:', err))
   }, [])
 
-  const saveReminders = async () => {
+
+  const saveReminders = async (enabled = remindersEnabled) => {
     if (!isNativeApp()) {
       showToast('Reminders are available in the app version')
       return
     }
     setRemindersBusy(true)
     try {
-      if (remindersEnabled) {
+      if (enabled) {
         const granted = await requestNotificationPermission()
         if (!granted) {
           setRemindersEnabled(false)
-          showToast('Notification permission denied')
+          showToast('Permission denied — allow notifications in Settings')
           return
         }
         const [hour, minute] = reminderTime.split(':').map(Number)
-        await scheduleDailyReminders(hour, minute)
+        const pending = await scheduleDailyReminders(hour, minute)
         localStorage.setItem('opg.reminders.enabled', '1')
         localStorage.setItem('opg.reminders.time', reminderTime)
-        showToast('Daily reminders scheduled')
+        const exactAlarms = await areExactAlarmsAllowed()
+        if (!exactAlarms) {
+          requestExactAlarmAccess()
+          showToast(pending >= 1 ? 'Reminders set — enable "Alarms & reminders" for on-time delivery' : 'Reminders could not be scheduled')
+        } else {
+          showToast(pending >= 1 ? 'Daily reminders scheduled' : 'Reminders could not be scheduled')
+        }
       } else {
         await cancelDailyReminders()
         localStorage.setItem('opg.reminders.enabled', '0')
@@ -1709,6 +1899,11 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
     } finally {
       setRemindersBusy(false)
     }
+  }
+
+  const handleRemindersToggle = checked => {
+    setRemindersEnabled(checked)
+    saveReminders(checked)
   }
 
   useEffect(() => {
@@ -1777,7 +1972,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
     );
   }
   if (active === 'Rote') {
-    return <RotePage user={user} />;
+    return <RotePage user={user} onRotesChanged={onRotesChanged} />;
   }
   if (active === 'Timeline') {
     return (
@@ -2014,7 +2209,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
                 onClick={() => {
                   const shareUrl = `${window.location.origin}/u/${profileUser.username}`;
                   navigator.clipboard.writeText(shareUrl).then(() => {
-                    showToast('Done');
+                    showToast('Copied');
                   });
                 }}
               >
@@ -2054,7 +2249,7 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
                 <input
                   type="checkbox"
                   checked={remindersEnabled}
-                  onChange={event => setRemindersEnabled(event.target.checked)}
+                  onChange={event => handleRemindersToggle(event.target.checked)}
                   disabled={remindersBusy}
                 />
                 <span className="reminders-toggle-track" />
@@ -2087,12 +2282,12 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
               </button>
               <p className="reminders-note">
                 {remindersEnabled
-                  ? `Reminders fire daily at ${reminderTime}. Two notifications: sprint goals and rote completion.`
+                  ? `Fires daily at ${reminderTime} (device time). Two notifications: sprint goals + rote completion. Keep OnePercentGoal unswiped in Recents so the alarm isn't killed.`
                   : 'Reminders are currently paused. Enable them to stay on track.'}
               </p>
             </>
           ) : (
-            <p className="reminders-note">Available in the OnePercentGoal app.</p>
+            <p className="reminders-note">Available in the OnePercentGoal app, check the releases in github repository</p>
           )}
         </section>
 
@@ -2571,7 +2766,7 @@ function LandingPage({ onGetStarted, onSignIn }) {
   )
 }
 
-function GlassDock({ items, active, setActive }) {
+function GlassDock({ items, active, setActive, keyboardHidden }) {
   if (!items || items.length <= 1) return null;
 
   const getIcon = (label, isActive) => {
@@ -2601,7 +2796,7 @@ function GlassDock({ items, active, setActive }) {
   if (!mounted) return null;
 
   return createPortal(
-    <div className="glass-dock-mobile-wrapper">
+    <div className={`glass-dock-mobile-wrapper${keyboardHidden ? ' dock-hidden' : ''}`}>
       <div className="glass-dock">
         {items.map((item) => {
           const label = typeof item === 'string' ? item : item.label
@@ -2640,7 +2835,8 @@ function SpotlightNavbar({
   className = "",
   onItemClick,
   active,
-  setActive
+  setActive,
+  keyboardHidden
 }) {
   const navRef = useRef(null);
   const [hoverX, setHoverX] = useState(null);
@@ -2662,7 +2858,7 @@ function SpotlightNavbar({
     const updateDynamicGap = () => {
       if (!navRef.current) return;
       const rect = navRef.current.getBoundingClientRect();
-      const gap20Px = rect.bottom > 0 ? rect.bottom + 20 : 98;
+      const gap20Px = rect.bottom > 0 ? rect.bottom + 10 : 88;
       document.documentElement.style.setProperty('--dynamic-island-20px-gap', `${gap20Px}px`);
     };
 
@@ -2831,7 +3027,7 @@ function SpotlightNavbar({
       </nav>
 
       {/* Mobile Glass Dock (Pinned to bottom of phone screen) */}
-      <GlassDock items={normalizedItems.map(it => it.label)} active={active} setActive={setActive} />
+      <GlassDock items={normalizedItems.map(it => it.label)} active={active} setActive={setActive} keyboardHidden={keyboardHidden} />
     </div>
   );
 }
@@ -2882,24 +3078,118 @@ function App() {
     }
   }, [active])
   const [goals, setGoals] = useState([])
-  const [roteOverviewStats, setRoteOverviewStats] = useState({ total: 0, completed: 0, percentage: 0, rotes: [] })
+  const [roteOverviewStats, setRoteOverviewStats] = useState(() => {
+
+    const todayStr = getTodayYMD()
+    try {
+      const stored = localStorage.getItem(`opg.rotes.${todayStr}`)
+      if (stored) {
+        const data = JSON.parse(stored)
+        if (data && Array.isArray(data.rotes)) {
+          const total = data.rotes.length
+          const completed = data.rotes.filter(r => r.completed).length
+          const percentage = total > 0 ? Math.round((completed / total) * 100) : 0
+          return { total, completed, percentage, rotes: data.rotes }
+        }
+      }
+    } catch {}
+    return { total: 0, completed: 0, percentage: 0, rotes: [] }
+  })
+  const [roteTick, setRoteTick] = useState(0)
+
+  const handleRotesChanged = useCallback((updatedData) => {
+    const todayStr = getTodayYMD()
+    let dataToUse = updatedData
+    if (!dataToUse || !Array.isArray(dataToUse.rotes)) {
+      try {
+        const stored = localStorage.getItem(`opg.rotes.${todayStr}`)
+        if (stored) dataToUse = JSON.parse(stored)
+      } catch {}
+    }
+
+    if (dataToUse && Array.isArray(dataToUse.rotes)) {
+      const total = dataToUse.rotes.length
+      const completed = dataToUse.rotes.filter(r => r.completed).length
+      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0
+      const nextStats = { total, completed, percentage, rotes: dataToUse.rotes }
+
+      setRoteOverviewStats(nextStats)
+
+      setProfile(prev => {
+        if (!prev || !prev.stats) return prev
+        return {
+          ...prev,
+          stats: {
+            ...prev.stats,
+            total_rotes: total,
+            rote_completed: completed,
+            rote_rate: percentage
+          }
+        }
+      })
+
+      try {
+        localStorage.setItem(`opg.rotes.${todayStr}`, JSON.stringify(dataToUse))
+      } catch {}
+    }
+
+    setRoteTick(t => t + 1)
+  }, [])
 
   useEffect(() => {
-    if (active === 'Overview') {
-      const todayStr = getISTDate().toISOString().split('T')[0]
-      apiFetch(`/api/rotes?date=${todayStr}`)
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data && Array.isArray(data.rotes)) {
-            const total = data.rotes.length
-            const completed = data.rotes.filter(r => r.completed).length
-            const percentage = total > 0 ? Math.round((completed / total) * 100) : 0
-            setRoteOverviewStats({ total, completed, percentage, rotes: data.rotes })
-          }
-        })
-        .catch(() => {})
+    const todayStr = getTodayYMD()
+    const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
+    apiFetch(`/api/rotes?date=${todayStr}`, {
+      headers: { Authorization: token ? `Bearer ${token}` : '' }
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && Array.isArray(data.rotes)) {
+          handleRotesChanged(data)
+        }
+      })
+      .catch(() => {})
+  }, [active, roteTick, handleRotesChanged])
+
+  const toggleRoteFromOverview = async (roteId) => {
+    const todayStr = getTodayYMD()
+    const targetIdStr = String(roteId)
+    const currentRotes = roteOverviewStats.rotes || []
+    const currentItem = currentRotes.find(r => String(r.id) === targetIdStr)
+    const targetStatus = currentItem ? !currentItem.completed : true
+
+    if (targetIdStr.startsWith('temp-')) return
+
+    try {
+      const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
+      const res = await apiFetch(`/api/rotes/${roteId}/toggle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({ date: todayStr, completed: targetStatus })
+      })
+
+      if (res.ok) {
+        const result = await res.json()
+        const confirmedStatus = Boolean(result.completed)
+        const updated = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
+        const doneCount = updated.filter(r => r.completed).length
+        const nextData = {
+          date: todayStr,
+          rotes: updated,
+          stats: { total_rotes: updated.length, completed_rotes: doneCount }
+        }
+        handleRotesChanged(nextData)
+      }
+    } catch (err) {
+      console.error('Failed to toggle rote from overview:', err)
     }
-  }, [active])
+  }
+
+
+
   const [addGoalModalOpen, setAddGoalModalOpen] = useState(false)
   const [addGoalLoading, setAddGoalLoading] = useState(false)
   const [timelineHistory, setTimelineHistory] = useState({ year: new Date().getFullYear(), years: [], sprints: [] })
@@ -2947,24 +3237,91 @@ function App() {
   const [sessionToken, setSessionToken] = useState(() => localStorage.getItem('onepercentgoal.token') || '')
   const [currentUser, setCurrentUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
+
+  useEffect(() => {
+    if (window.hideBootLoader) {
+      window.hideBootLoader()
+    } else {
+      const el = document.getElementById('boot-loader')
+      if (el && el.parentNode) el.parentNode.removeChild(el)
+    }
+  }, [authReady])
+
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState('')
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
-  const showToast = msg => {
+  const [toastNoTick, setToastNoTick] = useState(false)
+  const showToast = (msg, noTick = false) => {
     setToastMsg(msg)
+    setToastNoTick(Boolean(noTick))
     setTimeout(() => setToastMsg(''), 2500)
   }
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+const exitPendingRef = useRef(false)
+
+  useEffect(() => {
+    if (isNativeApp()) {
+      const handles = []
+      const Keyboard = CapacitorKeyboard
+      const onShow = () => setKeyboardOpen(true)
+      const onHide = () => setKeyboardOpen(false)
+      const attach = handle => { if (handle) handles.push(handle) }
+      try {
+        const r1 = Keyboard.addListener('keyboardWillShow', onShow)
+        const r2 = Keyboard.addListener('keyboardWillHide', onHide)
+        if (r1 && typeof r1.then === 'function') { r1.then(attach).catch(() => {}) } else { attach(r1) }
+        if (r2 && typeof r2.then === 'function') { r2.then(attach).catch(() => {}) } else { attach(r2) }
+      } catch {}
+      return () => { handles.forEach(h => { if (h && h.remove) h.remove() }) }
+    }
+
+    const vv = window.visualViewport
+    if (!vv) return
+    let baseline = window.innerHeight || vv.height
+    const check = () => {
+      const cur = window.innerHeight || vv.height
+      setKeyboardOpen(cur < baseline - 120)
+    }
+    const onOrientation = () => {
+      setTimeout(() => {
+        baseline = window.innerHeight || vv.height
+        check()
+      }, 300)
+    }
+    vv.addEventListener('resize', check)
+    vv.addEventListener('scroll', check)
+    window.addEventListener('orientationchange', onOrientation)
+    check()
+    return () => {
+      vv.removeEventListener('resize', check)
+      vv.removeEventListener('scroll', check)
+      window.removeEventListener('orientationchange', onOrientation)
+    }
+  }, [])
   const [deleteConfirmFlow, setDeleteConfirmFlow] = useState(null)
+  const [completedShare, setCompletedShare] = useState(null)
+  const savedShareRef = useRef(new Set())
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState('')
-  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
   const [minLoadElapsed, setMinLoadElapsed] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setMinLoadElapsed(true), 2000)
     return () => clearTimeout(t)
   }, [])
+
+  useEffect(() => {
+    if (!completedShare || !completedShare.image) return
+    if (!isNativeApp()) return
+    const key = `${completedShare.goal.id}:${completedShare.note}`
+    if (savedShareRef.current.has(key)) return
+    savedShareRef.current.add(key)
+    saveImageToGallery(completedShare.image, `onepercentgoal-${sanitizeFilename(completedShare.goal.title)}.png`)
+      .then(saved => showToast(saved ? 'Saved to your Photos' : 'Image could not be saved'))
+      .catch(() => showToast('Image could not be saved'))
+  }, [completedShare])
 
   const buildHeaders = extra => ({ ...(extra || {}), ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}) })
 
@@ -3007,7 +3364,6 @@ function App() {
     if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
       window.Capacitor.Plugins.App.exitApp()
     } else {
-      setCloseConfirmOpen(false)
       window.close()
     }
   }
@@ -3026,7 +3382,8 @@ function App() {
   useEffect(() => {
     if (!isNativeShell()) return
     const app = window.Capacitor.Plugins.App
-    const handler = app.addListener('appUrlOpen', event => {
+    let activeHandle = null
+    const result = app.addListener('appUrlOpen', event => {
       const url = event.url || ''
       const token = new URLSearchParams(url.split('?')[1] || '').get('auth_token')
       if (token) {
@@ -3035,21 +3392,49 @@ function App() {
         window.location.href = '/'
       }
     })
-    return () => { if (handler && handler.remove) handler.remove() }
+    if (result && typeof result.then === 'function') {
+      result.then(handle => { activeHandle = handle }).catch(() => {})
+    } else {
+      activeHandle = result
+    }
+    return () => { if (activeHandle) activeHandle.remove() }
   }, [])
 
   useEffect(() => {
     if (!isNativeShell()) return
     const app = window.Capacitor.Plugins.App
-    const handler = app.addListener('backButton', () => {
-      if (closeConfirmOpen) {
-        app.exitApp()
-      } else {
-        setCloseConfirmOpen(true)
+    let activeHandle = null
+    const result = app.addListener('backButton', () => {
+      if (showAuthModal) { setShowAuthModal(false); return }
+      if (addGoalModalOpen) { setAddGoalModalOpen(false); return }
+      if (editModalOpen) { setEditModalOpen(false); return }
+      if (completionFlow) { setCompletionFlow(null); return }
+      if (completedShare) { setCompletedShare(null); return }
+      if (deleteConfirmFlow) { setDeleteConfirmFlow(null); return }
+      if (selectedGoalDetails) { setSelectedGoalDetails(null); return }
+      if (historyModal) { setHistoryModal(null); return }
+      if (active !== 'Overview') {
+        setActive('Overview')
+        setHeaderHidden(false)
+        window.scrollTo({ top: 0, behavior: 'instant' })
+        return
       }
+      if (exitPendingRef.current) {
+        exitPendingRef.current = false
+        app.exitApp()
+        return
+      }
+      exitPendingRef.current = true
+      showToast('Press back again to exit', true)
+      setTimeout(() => { exitPendingRef.current = false }, 2500)
     })
-    return () => { if (handler && handler.remove) handler.remove() }
-  }, [closeConfirmOpen])
+    if (result && typeof result.then === 'function') {
+      result.then(handle => { activeHandle = handle }).catch(() => {})
+    } else {
+      activeHandle = result
+    }
+    return () => { if (activeHandle) activeHandle.remove() }
+  }, [showAuthModal, addGoalModalOpen, editModalOpen, completionFlow, completedShare, deleteConfirmFlow, selectedGoalDetails, historyModal, active])
 
   const data = useMemo(() => getYearData(now), [now])
   const deadlineStr = useMemo(() => {
@@ -3073,18 +3458,32 @@ function App() {
     if (!activeToken) return
     const yr = year || selectedTimelineYear
     try {
-      const response = await apiFetch(`/api/profile?year=${yr}`, { headers: { Authorization: `Bearer ${activeToken}` } })
-      if (!response.ok) throw new Error('Unable to load profile')
-      setProfile(await response.json())
-      
-      const timelineRes = await apiFetch(`/api/timeline?year=${yr}`, { headers: { Authorization: `Bearer ${activeToken}` } })
-      if (timelineRes.ok) {
-        setTimelineHistory(await timelineRes.json())
-      }
-    } catch {
-      setProfile(null)
+      const [profileRes, timelineRes] = await Promise.all([
+        apiFetch(`/api/profile?year=${yr}`, { headers: { Authorization: `Bearer ${activeToken}` } }),
+        apiFetch(`/api/timeline?year=${yr}`, { headers: { Authorization: `Bearer ${activeToken}` } })
+      ])
+      if (!profileRes.ok) throw new Error('Unable to load profile')
+      const profileData = await profileRes.json()
+      setProfile(prev => {
+        if (!profileData || !profileData.stats) return profileData
+        const curRote = roteOverviewStats
+        const hasLocal = curRote && curRote.total > 0
+        return {
+          ...profileData,
+          stats: {
+            ...profileData.stats,
+            total_rotes: hasLocal ? curRote.total : (profileData.stats.total_rotes || 0),
+            rote_completed: hasLocal ? curRote.completed : (profileData.stats.rote_completed || 0),
+            rote_rate: hasLocal ? curRote.percentage : (profileData.stats.rote_rate || 0)
+          }
+        }
+      })
+      if (timelineRes.ok) setTimelineHistory(await timelineRes.json())
+    } catch (err) {
+      console.error('Failed to refresh profile:', err)
     }
   }
+
 
   const loadDashboard = async token => {
     try {
@@ -3126,7 +3525,7 @@ function App() {
   useEffect(() => {
     if (!currentUser || !sessionToken) return
     refreshProfile(sessionToken, selectedTimelineYear)
-  }, [data.year, selectedTimelineYear, currentUser, sessionToken])
+  }, [data.year, selectedTimelineYear, currentUser, sessionToken, roteTick])
 
   const handleGoogle = () => {
     const authUrl = apiUrl('/api/auth/google/start')
@@ -3215,16 +3614,26 @@ function App() {
   const completeGoal = async () => {
     if (!completionFlow) return
     const note = completionFlow.note.trim()
-    const saved = await updateGoal(completionFlow.goal, { completed: true, completion_note: note })
-    if (!saved) return
+    const goal = completionFlow.goal
     try {
-      const image = await createCompletionCard(completionFlow.goal, note)
-      downloadImage(image, `onepercentgoal-${sanitizeFilename(completionFlow.goal.title)}.png`)
+      const response = await apiFetch(`/api/goals/${goal.id}`, {
+        method: 'PATCH',
+        headers: buildHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ completed: true, completion_note: note })
+      })
+      if (!response.ok) throw new Error('Unable to complete goal')
+      const saved = presentGoal(await response.json())
+      setGoals(items => items.map(item => item.id === saved.id ? saved : item))
+      setCompletionFlow(null)
+      setCompletedShare({ goal: saved, note, image: null })
+      showToast('Goal Completed')
+      refreshProfile()
+      createCompletionCard(saved, note)
+        .then(image => setCompletedShare(prev => prev && prev.goal.id === saved.id ? { ...prev, image } : prev))
+        .catch(() => {})
     } catch {
-      // The goal is still completed even if the image download fails.
+      showToast('Could not complete goal')
     }
-    await refreshProfile()
-    setCompletionFlow(null)
   }
 
   const deleteGoal = (goal) => {
@@ -3311,7 +3720,15 @@ function App() {
   const streak = profile?.stats?.current_streak ?? 0
   const completionRate = profile?.stats?.completion_rate ?? 0
 
-  if (!authReady || !minLoadElapsed) {
+  if (!authReady) {
+    if (isNativeApp()) return null
+    return (
+      <div className="ktl-fullscreen-overlay">
+        <KineticTextLoader text="Loading" />
+      </div>
+    )
+  }
+  if (!isNativeApp() && !minLoadElapsed) {
     return (
       <div className="ktl-fullscreen-overlay">
         <KineticTextLoader text="Loading" />
@@ -3531,13 +3948,15 @@ function App() {
       <SpotlightNavbar
         active={active}
         setActive={setActive}
+        keyboardHidden={keyboardOpen}
         items={['Overview', 'Goals', 'Rote', 'Timeline', 'Profile']}
       />
     </header>
 
     <section className="content" id="top">
       {active !== 'Overview' ? (
-        <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onDelete={deleteGoal} onAdd={() => setAddGoalModalOpen(true)} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} showToast={showToast} onLogout={logout} />
+        <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onDelete={deleteGoal} onAdd={() => setAddGoalModalOpen(true)} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} showToast={showToast} onLogout={logout} onRotesChanged={handleRotesChanged} editModalOpen={editModalOpen} setEditModalOpen={setEditModalOpen} />
+
       ) : (
         <>
       <section className="aurora-hero-wrapper">
@@ -3888,7 +4307,7 @@ function App() {
                   <p style={{ margin: '10px 0', fontSize: '12px', color: '#8c9085', fontStyle: 'italic' }}>No routine rotes added for today yet.</p>
                 ) : (
                   roteOverviewStats.rotes.map(r => (
-                    <div key={r.id} className={`mini-goal-item ${r.completed ? 'completed' : ''}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: '1px solid #282a25', fontSize: '12px' }}>
+                    <div key={r.id} className={`mini-goal-item ${r.completed ? 'completed' : ''}`} onClick={() => toggleRoteFromOverview(r.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: '1px solid #282a25', fontSize: '12px', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                         <span style={{ color: r.completed ? '#c9f36a' : '#8c9085', fontWeight: 'bold' }}>{r.completed ? '✓' : '•'}</span>
                         <span style={{ textDecoration: r.completed ? 'line-through' : 'none', color: r.completed ? '#7f8279' : '#eef0e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</span>
@@ -3896,6 +4315,7 @@ function App() {
                       <span style={{ fontFamily: '"DM Mono", monospace', fontSize: '10px', color: r.completed ? '#c9f36a' : '#a1a49b' }}>{r.completed ? 'DONE' : 'PENDING'}</span>
                     </div>
                   ))
+
                 )}
               </div>
             </div>
@@ -3932,6 +4352,42 @@ function App() {
               <button type="submit">Complete & Share it</button>
             </div>
           </form>
+        </div>
+      )}
+      {completedShare && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setCompletedShare(null)}>
+          <div className="completion-modal confirm-modal" onClick={event => event.stopPropagation()}>
+            <p className="eyebrow" style={{ color: '#c9f36a' }}>CONGRATS</p>
+            <h2 style={{ fontSize: '24px', marginBottom: '16px', fontWeight: '500', letterSpacing: '-.035em', textAlign: 'center' }}>Goal Completed!</h2>
+
+            <div className="confirm-summary-simple" style={{ display: 'block', width: '100%', boxSizing: 'border-box', background: '#171916', border: '1px solid #32352f', padding: '20px 24px', borderRadius: '6px', marginBottom: '24px', textAlign: 'center', wordBreak: 'break-word', maxHeight: '320px', overflowY: 'auto' }}>
+              <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '6px' }}>Completed</span>
+              <strong style={{ display: 'block', color: '#eef0e9', fontSize: '20px', fontWeight: '500', letterSpacing: '-.025em', marginBottom: '20px', lineHeight: '1.4' }}>{completedShare.goal.title}</strong>
+              <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '6px' }}>Reflection</span>
+              <p style={{ margin: 0, color: '#c9f36a', fontSize: '24px', fontFamily: '"Instrument Serif", serif', fontStyle: 'italic', lineHeight: '1.35', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>“{completedShare.note}”</p>
+            </div>
+
+            <p style={{ color: '#a5a79e', fontSize: '14px', lineHeight: 1.5, margin: '0 0 24px', textAlign: 'center' }}>Your progress is saved. Share this win as an image.</p>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+              <button type="button" onClick={() => setCompletedShare(null)} style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: 'pointer', fontSize: '12px' }}>Done</button>
+              <button
+                type="button"
+                className="add-button"
+                disabled={!completedShare.image}
+                onClick={() => {
+                  if (!completedShare.image) return
+                  if (isNativeApp()) {
+                    setCompletedShare(null)
+                  } else {
+                    downloadImage(completedShare.image, `onepercentgoal-${sanitizeFilename(completedShare.goal.title)}.png`)
+                  }
+                }}
+              >
+                {completedShare.image ? (isNativeApp() ? 'Saved to Photos' : 'Share it') : 'Preparing…'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {selectedGoalDetails && (
@@ -3999,41 +4455,8 @@ function App() {
       )}
       {toastMsg && (
         <div className="bottom-toast-notification">
-          <span className="toast-tick">✓</span>
+          {!toastNoTick && <span className="toast-tick">✓</span>}
           <span className="toast-text">{toastMsg}</span>
-        </div>
-      )}
-      {closeConfirmOpen && (
-        <div className="modal-backdrop" role="presentation" onClick={() => setCloseConfirmOpen(false)}>
-          <div className="completion-modal confirm-modal" onClick={event => event.stopPropagation()} style={{ maxWidth: '420px', padding: '28px' }}>
-            <p className="eyebrow" style={{ color: '#c9f36a' }}>EXIT CONSOLE</p>
-            <h2 style={{ fontSize: '24px', marginBottom: '16px', fontWeight: '500', letterSpacing: '-.035em', textAlign: 'center' }}>Did you really want to close the app?</h2>
-
-            <p style={{ color: '#a5a79e', fontSize: '14px', lineHeight: 1.5, margin: '0 0 24px', textAlign: 'center' }}>
-              Your progress is saved and synced. If you exit now, your current session ends here. Press back again or confirm below to leave.
-            </p>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
-              <button type="button" onClick={() => setCloseConfirmOpen(false)} style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: 'pointer', fontSize: '12px' }}>Stay</button>
-              <button
-                type="button"
-                className="add-button"
-                onClick={exitApp}
-                style={{
-                  background: '#ff6b6b',
-                  color: '#141513',
-                  border: 'none',
-                  borderRadius: '24px',
-                  padding: '10px 24px',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: 'pointer'
-                }}
-              >
-                Close App
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </section>
@@ -4060,7 +4483,12 @@ class ErrorBoundary extends React.Component {
       return (
         <div style={{ padding: '40px', color: '#fff', background: '#141513', fontFamily: 'sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
           <h2 style={{ color: '#c9f36a' }}>Console Interface Active</h2>
-          <p style={{ color: '#8c9085', maxWidth: '500px', margin: '16px 0 24px' }}>Click below to reload the console cleanly.</p>
+          {this.state.error && (
+            <pre style={{ color: '#ff6b6b', background: 'rgba(255,255,255,0.05)', padding: '12px 16px', borderRadius: '10px', maxWidth: '100%', whiteSpace: 'pre-wrap', fontSize: '12px', textAlign: 'left', overflow: 'auto', margin: '16px 0 24px' }}>
+              {this.state.error.stack || this.state.error.message || String(this.state.error)}
+            </pre>
+          )}
+          <p style={{ color: '#8c9085', maxWidth: '500px', margin: '0 0 24px' }}>Click below to reload the console cleanly.</p>
           <button onClick={() => window.location.reload()} style={{ background: '#c9f36a', color: '#141513', border: 'none', padding: '12px 24px', borderRadius: '24px', fontWeight: 'bold', cursor: 'pointer' }}>
             Reload Console
           </button>

@@ -9,18 +9,100 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="OnePercent" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" href="/favicon.ico" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icon.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="/icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Instrument+Serif:ital@0;1&family=Roboto:wght@300&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Instrument+Serif:ital@0;1&family=Roboto:wght@300&display=swap" /></noscript>
   <title>OnePercentGoal</title>
   <style>
     html, body { margin: 0; background: #141513; }
     #root { background: #141513; min-height: 100vh; }
+    #boot-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #141513;
+    }
+    .boot-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 30px;
+    }
+    .boot-ripple {
+      width: 54px;
+      height: 54px;
+      color: #c9f36a;
+    }
+    .boot-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .boot-logo {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+    }
+    .boot-name {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 17px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: #f3f1ed;
+    }
   </style>
 </head>
 <body>
   <div id="root"></div>
+  <div id="boot-loader">
+    <div class="boot-content">
+      <svg viewBox="0 0 44 44" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg" class="boot-ripple" role="status">
+        <title>Loading...</title>
+        <g fill="none" fillRule="evenodd" strokeWidth="2">
+          <circle cx="22" cy="22" r="1">
+            <animate attributeName="r" begin="0s" calcMode="spline" dur="1.8s" keySplines="0.165, 0.84, 0.44, 1" keyTimes="0; 1" repeatCount="indefinite" values="1; 20" />
+            <animate attributeName="stroke-opacity" begin="0s" calcMode="spline" dur="1.8s" keySplines="0.3, 0.61, 0.355, 1" keyTimes="0; 1" repeatCount="indefinite" values="1; 0" />
+          </circle>
+          <circle cx="22" cy="22" r="1">
+            <animate attributeName="r" begin="-0.9s" calcMode="spline" dur="1.8s" keySplines="0.165, 0.84, 0.44, 1" keyTimes="0; 1" repeatCount="indefinite" values="1; 20" />
+            <animate attributeName="stroke-opacity" begin="-0.9s" calcMode="spline" dur="1.8s" keySplines="0.3, 0.61, 0.355, 1" keyTimes="0; 1" repeatCount="indefinite" values="1; 0" />
+          </circle>
+        </g>
+      </svg>
+      <div class="boot-brand">
+        <img src="/favicon.ico" alt="" class="boot-logo" />
+        <span class="boot-name">OnePercentGoal</span>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      var isNative = Boolean(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+      var el = document.getElementById('boot-loader');
+      if (!isNative && el && el.parentNode) {
+        // In browser / website: remove boot-loader element immediately so older KineticTextLoader renders
+        el.parentNode.removeChild(el);
+      }
+      window.hideBootLoader = function() {
+        var node = document.getElementById('boot-loader');
+        if (node && node.parentNode) {
+          node.style.opacity = '0';
+          node.style.transition = 'opacity 0.15s ease';
+          setTimeout(function() { if (node && node.parentNode) node.parentNode.removeChild(node); }, 150);
+        }
+      };
+    })();
+  </script>
+
+
   <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>

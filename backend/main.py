@@ -520,11 +520,37 @@ def profile_stats(conn, year: int | None = None, user_id: int = DEMO_USER_ID) ->
         else:
             running = 0
 
-    # Calculate Rote completion stats
-    rote_rows = execute(conn, "SELECT * FROM rotes WHERE user_id = %s", (user_id,)).fetchall()
+    # Calculate Rote completion stats for today
+    today_str = datetime.now(IST).strftime("%Y-%m-%d")
+    rote_rows = execute(
+        conn,
+        "SELECT * FROM rotes WHERE user_id = %s AND (rote_date = %s OR rote_date = '' OR rote_date IS NULL)",
+        (user_id, today_str)
+    ).fetchall()
     total_rotes = len(rote_rows)
-    completed_rotes = sum(1 for r in rote_rows if r.get("completed"))
-    rote_rate = round(completed_rotes / total_rotes * 100) if total_rotes else 0
+    if total_rotes > 0:
+        logs_rows = execute(
+            conn,
+            "SELECT * FROM rote_logs WHERE user_id = %s AND log_date = %s AND completed = 1",
+            (user_id, today_str)
+        ).fetchall()
+        completed_rotes = len(logs_rows)
+        rote_rate = round(completed_rotes / total_rotes * 100)
+    else:
+        all_logs = execute(
+            conn,
+            "SELECT COUNT(*) as c FROM rote_logs WHERE user_id = %s AND completed = 1",
+            (user_id,)
+        ).fetchone()
+        completed_rotes = int(all_logs["c"]) if all_logs else 0
+        all_rotes_count = execute(
+            conn,
+            "SELECT COUNT(*) as c FROM rotes WHERE user_id = %s",
+            (user_id,)
+        ).fetchone()
+        total_rotes = int(all_rotes_count["c"]) if all_rotes_count else 0
+        rote_rate = round(completed_rotes / total_rotes * 100) if total_rotes else 0
+
 
     return {
         "user": {
@@ -829,8 +855,8 @@ async def auth_google_callback(background_tasks: BackgroundTasks, code: str | No
             user_id = int(row["id"])
             background_tasks.add_task(send_welcome_email, email, display_name or "User")
         token = issue_session(conn, user_id)
-    redirect_target = state_row["redirect"] if "redirect" in state_row.keys() else FRONTEND_URL
-    redirect_target = redirect_target or FRONTEND_URL
+    state_dict = row_dict(state_row) or {}
+    redirect_target = state_dict.get("redirect") or FRONTEND_URL
     sep = "&" if "?" in redirect_target else "?"
     return RedirectResponse(f"{redirect_target}{sep}auth_token={token}")
 

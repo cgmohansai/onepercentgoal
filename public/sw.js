@@ -1,4 +1,4 @@
-const CACHE_NAME = 'onepercentgoal-v4';
+const CACHE_NAME = 'onepercentgoal-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -35,12 +35,29 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch Event — Network-first for API requests, Cache-first for static assets
+// Fetch Event — Network-first for navigations, Cache-first for static assets
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // API calls are network-only or network-first
+  // API calls are network-only
   if (url.pathname.startsWith('/api/')) {
+    return;
+  }
+
+  // HTML navigations: always try network first so a stale shell can never
+  // block the app from booting after a deploy.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
     return;
   }
 

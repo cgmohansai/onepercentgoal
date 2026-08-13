@@ -20,9 +20,34 @@ const REMINDERS = [
   }
 ]
 
+export async function checkNotificationPermission() {
+  try {
+    const perm = await LocalNotifications.checkPermissions()
+    return perm.display === 'granted'
+  } catch {
+    return false
+  }
+}
+
 export async function requestNotificationPermission() {
   const perm = await LocalNotifications.requestPermissions()
-  return Boolean(perm.display)
+  return perm.display === 'granted'
+}
+
+
+export async function areExactAlarmsAllowed() {
+  try {
+    const res = await LocalNotifications.checkExactNotificationSetting()
+    return res.exact_alarm === 'granted'
+  } catch {
+    return true
+  }
+}
+
+export async function requestExactAlarmAccess() {
+  try {
+    await LocalNotifications.changeExactNotificationSetting()
+  } catch {}
 }
 
 export async function scheduleDailyReminders(hour, minute) {
@@ -35,6 +60,8 @@ export async function scheduleDailyReminders(hour, minute) {
       schedule: { on: { hour, minute }, repeats: true, allowWhileIdle: true }
     }))
   })
+  const pending = await LocalNotifications.getPending()
+  return pending.notifications.length
 }
 
 export async function cancelDailyReminders() {
