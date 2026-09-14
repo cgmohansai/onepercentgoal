@@ -1331,32 +1331,39 @@ function RotePage({ user, onRotesChanged }) {
       })
       if (res.ok) {
         const serverData = await res.json()
-        setRotesData(prev => {
-          let mergedRotes = serverData.rotes
-          if (prev && Array.isArray(prev.rotes) && prev.date === dateStr) {
-            const prevMap = new Map(prev.rotes.map(r => [String(r.id), r]))
-            mergedRotes = serverData.rotes.map(sr => {
-              const pr = prevMap.get(String(sr.id))
-              if (pr && (pendingTogglesRef.current.has(sr.id) || pendingTogglesRef.current.has(String(sr.id)) || pr.completed !== sr.completed)) {
-                return { ...sr, completed: pr.completed }
-              }
-              return sr
-            })
+        let localRotes = []
+        try {
+          const stored = localStorage.getItem(`opg.rotes.${dateStr}`)
+          if (stored) localRotes = JSON.parse(stored)?.rotes || []
+        } catch {}
+        const localMap = new Map(localRotes.map(r => [String(r.id), r]))
+
+        let mergedRotes = serverData.rotes.map(sr => {
+          const lr = localMap.get(String(sr.id))
+          if (lr && (pendingTempTogglesRef.current.has(String(sr.id)) || lr.completed !== sr.completed)) {
+            return { ...sr, completed: lr.completed }
           }
-          const doneCount = mergedRotes.filter(r => r.completed).length
-          const mergedData = {
-            ...serverData,
-            rotes: mergedRotes,
-            stats: { ...serverData.stats, total_rotes: mergedRotes.length, completed_rotes: doneCount }
-          }
-          cacheRef.current[dateStr] = mergedData
-          persistRotes(dateStr, mergedData)
-          if (dateStr === todayStr && onRotesChanged) {
-            onRotesChanged(mergedData)
-          }
-          return mergedData
+          return sr
         })
+        const pendingTemps = localRotes.filter(r => String(r.id).startsWith('temp-'))
+        for (const temp of pendingTemps) {
+          if (!mergedRotes.some(m => m.title === temp.title || m.id === temp.id)) {
+            mergedRotes.push(temp)
+          }
+        }
+        const doneCount = mergedRotes.filter(r => r.completed).length
+        const mergedData = {
+          ...serverData,
+          rotes: mergedRotes,
+          stats: { ...serverData.stats, total_rotes: mergedRotes.length, completed_rotes: doneCount }
+        }
+        cacheRef.current[dateStr] = mergedData
+        persistRotes(dateStr, mergedData)
+        setRotesData(mergedData)
         setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+        if (dateStr === todayStr && onRotesChanged) {
+          onRotesChanged(mergedData)
+        }
       }
     } catch (err) {
       console.error('Failed to fetch rotes:', err)
@@ -1368,39 +1375,36 @@ function RotePage({ user, onRotesChanged }) {
     fetchRotes(selectedDate)
   }, [selectedDate])
 
-  const [syncingRoteIds, setSyncingRoteIds] = useState({})
-
   const toggleRote = async (roteId) => {
     const targetIdStr = String(roteId)
-    if (syncingRoteIds[targetIdStr]) return
     
     // Determine target completed status
-    const currentItem = rotesData.rotes.find(r => String(r.id) === targetIdStr)
+    const currentRotes = rotesData?.rotes || []
+    const currentItem = currentRotes.find(r => String(r.id) === targetIdStr)
     const targetStatus = currentItem ? !currentItem.completed : true
+
+    // Optimistically update instantly
+    const updated = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: targetStatus } : r)
+    const doneCount = updated.filter(r => r.completed).length
+    const nextState = {
+      ...rotesData,
+      rotes: updated,
+      stats: { ...(rotesData?.stats || {}), completed_rotes: doneCount }
+    }
+    setRotesData(nextState)
+    cacheRef.current[selectedDate] = nextState
+    persistRotes(selectedDate, nextState)
+
+    if (selectedDate === todayStr && onRotesChanged) {
+      onRotesChanged(nextState)
+    }
 
     if (targetIdStr.startsWith('temp-')) {
       pendingTempTogglesRef.current.add(targetIdStr)
-      setRotesData(prev => {
-        const updated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: targetStatus } : r)
-        const doneCount = updated.filter(r => r.completed).length
-        const nextState = {
-          ...prev,
-          rotes: updated,
-          stats: { ...prev.stats, completed_rotes: doneCount }
-        }
-        cacheRef.current[selectedDate] = nextState
-        persistRotes(selectedDate, nextState)
-        if (selectedDate === todayStr && onRotesChanged) {
-          onRotesChanged(nextState)
-        }
-        return nextState
-      })
       return
     }
 
-    setSyncingRoteIds(prev => ({ ...prev, [targetIdStr]: true }))
-
-    // 1. Send system update request to backend database
+    // Send update request to backend in background
     try {
       const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
       const res = await apiFetch(`/api/rotes/${roteId}/toggle`, {
@@ -1415,31 +1419,43 @@ function RotePage({ user, onRotesChanged }) {
       if (res.ok) {
         const result = await res.json()
         const confirmedStatus = Boolean(result.completed)
-        
-        // 2. System update confirmed — update state, cache & broadcast dependent alerts
-        setRotesData(prev => {
-          const updated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
-          const doneCount = updated.filter(r => r.completed).length
-          const nextState = {
-            ...prev,
-            rotes: updated,
-            stats: { ...prev.stats, completed_rotes: doneCount }
-          }
-          cacheRef.current[selectedDate] = nextState
-          persistRotes(selectedDate, nextState)
-          if (selectedDate === todayStr && onRotesChanged) {
-            onRotesChanged(nextState)
-          }
-          return nextState
-        })
+        if (confirmedStatus !== targetStatus) {
+          setRotesData(prev => {
+            const reUpdated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
+            const reDoneCount = reUpdated.filter(r => r.completed).length
+            const reNextState = {
+              ...prev,
+              rotes: reUpdated,
+              stats: { ...prev.stats, completed_rotes: reDoneCount }
+            }
+            cacheRef.current[selectedDate] = reNextState
+            persistRotes(selectedDate, reNextState)
+            if (selectedDate === todayStr && onRotesChanged) {
+              onRotesChanged(reNextState)
+            }
+            return reNextState
+          })
+        }
+      } else {
+        throw new Error('Toggle request failed')
       }
     } catch (err) {
       console.error('Failed to update rote in system database:', err)
-    } finally {
-      setSyncingRoteIds(prev => {
-        const copy = { ...prev }
-        delete copy[targetIdStr]
-        return copy
+      // Revert optimistic update on failure
+      setRotesData(prev => {
+        const revUpdated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: !targetStatus } : r)
+        const revDoneCount = revUpdated.filter(r => r.completed).length
+        const revNextState = {
+          ...prev,
+          rotes: revUpdated,
+          stats: { ...prev.stats, completed_rotes: revDoneCount }
+        }
+        cacheRef.current[selectedDate] = revNextState
+        persistRotes(selectedDate, revNextState)
+        if (selectedDate === todayStr && onRotesChanged) {
+          onRotesChanged(revNextState)
+        }
+        return revNextState
       })
     }
   }
@@ -1448,25 +1464,21 @@ function RotePage({ user, onRotesChanged }) {
 
   const deleteRote = async (roteId) => {
     const targetIdStr = String(roteId)
-    let nextStateToBroadcast = null
-    setRotesData(prev => {
-      const updated = prev.rotes.filter(r => String(r.id) !== targetIdStr)
-      const doneCount = updated.filter(r => r.completed).length
-      const nextState = {
-        ...prev,
-        rotes: updated,
-        stats: { total_rotes: updated.length, completed_rotes: doneCount }
-      }
-      cacheRef.current[selectedDate] = nextState
-      persistRotes(selectedDate, nextState)
-      nextStateToBroadcast = nextState
-      return nextState
-    })
-
-    if (selectedDate === todayStr && onRotesChanged && nextStateToBroadcast) {
-      onRotesChanged(nextStateToBroadcast)
+    const currentRotes = rotesData?.rotes || []
+    const updated = currentRotes.filter(r => String(r.id) !== targetIdStr)
+    const doneCount = updated.filter(r => r.completed).length
+    const nextState = {
+      ...rotesData,
+      rotes: updated,
+      stats: { ...(rotesData?.stats || {}), total_rotes: updated.length, completed_rotes: doneCount }
     }
+    setRotesData(nextState)
+    cacheRef.current[selectedDate] = nextState
+    persistRotes(selectedDate, nextState)
 
+    if (selectedDate === todayStr && onRotesChanged) {
+      onRotesChanged(nextState)
+    }
 
     if (String(roteId).startsWith('temp-')) return
 
@@ -1495,22 +1507,20 @@ function RotePage({ user, onRotesChanged }) {
       completed_at: null
     }
 
-    let nextStateToBroadcast = null
-    setRotesData(prev => {
-      const updated = [...prev.rotes, tempItem]
-      const nextState = {
-        ...prev,
-        rotes: updated,
-        stats: { total_rotes: updated.length, completed_rotes: prev.stats.completed_rotes }
-      }
-      cacheRef.current[todayStr] = nextState
-      persistRotes(todayStr, nextState)
-      nextStateToBroadcast = nextState
-      return nextState
-    })
+    const currentRotes = rotesData?.rotes || []
+    const updated = [...currentRotes, tempItem]
+    const doneCount = updated.filter(r => r.completed).length
+    const nextState = {
+      ...rotesData,
+      rotes: updated,
+      stats: { ...(rotesData?.stats || {}), total_rotes: updated.length, completed_rotes: doneCount }
+    }
+    setRotesData(nextState)
+    cacheRef.current[todayStr] = nextState
+    persistRotes(todayStr, nextState)
 
-    if (onRotesChanged && nextStateToBroadcast) {
-      onRotesChanged(nextStateToBroadcast)
+    if (onRotesChanged) {
+      onRotesChanged(nextState)
     }
 
     try {
@@ -1525,26 +1535,24 @@ function RotePage({ user, onRotesChanged }) {
       })
       if (res.ok) {
         const newItem = await res.json()
-        let updatedNextState = null
         setRotesData(prev => {
           const wasCompleted = pendingTempTogglesRef.current.has(tempId)
           pendingTempTogglesRef.current.delete(tempId)
 
-          const updated = prev.rotes.map(r => r.id === tempId ? { ...newItem, completed: wasCompleted || r.completed } : r)
-          const doneCount = updated.filter(r => r.completed).length
-          const nextState = {
+          const reUpdated = prev.rotes.map(r => r.id === tempId ? { ...newItem, completed: wasCompleted || r.completed } : r)
+          const reDoneCount = reUpdated.filter(r => r.completed).length
+          const updatedNextState = {
             ...prev,
-            rotes: updated,
-            stats: { total_rotes: updated.length, completed_rotes: doneCount }
+            rotes: reUpdated,
+            stats: { ...prev.stats, total_rotes: reUpdated.length, completed_rotes: reDoneCount }
           }
-          cacheRef.current[todayStr] = nextState
-          persistRotes(todayStr, nextState)
-          updatedNextState = nextState
-          return nextState
+          cacheRef.current[todayStr] = updatedNextState
+          persistRotes(todayStr, updatedNextState)
+          if (onRotesChanged) {
+            onRotesChanged(updatedNextState)
+          }
+          return updatedNextState
         })
-        if (onRotesChanged && updatedNextState) {
-          onRotesChanged(updatedNextState)
-        }
         if (pendingTempTogglesRef.current.has(tempId)) {
           toggleRote(newItem.id)
         }
@@ -1734,13 +1742,12 @@ function RotePage({ user, onRotesChanged }) {
               </div>
             ) : rotesData.rotes && rotesData.rotes.length > 0 ? (
               rotesData.rotes.map(rote => {
-                const isSyncing = Boolean(syncingRoteIds[String(rote.id)])
                 return (
                   <div
                     key={rote.id}
-                    className={`rote-row ${rote.completed ? 'completed' : ''} ${isSyncing ? 'syncing' : ''}`}
-                    onClick={() => !isSyncing && toggleRote(rote.id)}
-                    style={{ cursor: isSyncing ? 'wait' : 'pointer', touchAction: 'manipulation' }}
+                    className={`rote-row ${rote.completed ? 'completed' : ''}`}
+                    onClick={() => toggleRote(rote.id)}
+                    style={{ cursor: 'pointer', touchAction: 'manipulation' }}
                   >
                     <div className="rote-checkbox" aria-hidden="true">
                       {rote.completed ? '✓' : ''}
@@ -1749,16 +1756,10 @@ function RotePage({ user, onRotesChanged }) {
                       <span className="rote-title">{rote.title}</span>
                     </div>
                     <div className="rote-meta">
-                      {isSyncing && (
-                        <svg className="rote-spin-icon" viewBox="0 0 24 24" width="14" height="14" stroke="#c9f36a" strokeWidth="2.5" fill="none">
-                          <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
-                          <path d="M12 2 a10 10 0 0 1 10 10" />
-                        </svg>
-                      )}
-                      <span className={`rote-status-tag ${isSyncing ? 'syncing' : (rote.completed ? 'done' : 'pending')}`}>
-                        {isSyncing ? 'SAVING…' : (rote.completed ? 'DONE' : 'PENDING')}
+                      <span className={`rote-status-tag ${rote.completed ? 'done' : 'pending'}`}>
+                        {rote.completed ? 'DONE' : 'PENDING'}
                       </span>
-                      <button className="rote-delete-btn" disabled={isSyncing} onClick={(e) => { e.stopPropagation(); deleteRote(rote.id); }}>
+                      <button className="rote-delete-btn" onClick={(e) => { e.stopPropagation(); deleteRote(rote.id); }}>
                         Delete
                       </button>
                     </div>
@@ -1828,7 +1829,7 @@ function AppFooter({ year = 2026 }) {
   )
 }
 
-function WorkspacePage({ active, data, user, goals, profile, history, historyModal, selectedYear, availableYears, onSelectYear, onOpenSprint, onCloseSprint, onProgress, onComplete, onDelete, onAdd, onShowGoalDetails, onUpdateProfile, showToast, onLogout, onRotesChanged, editModalOpen, setEditModalOpen }) {
+function WorkspacePage({ active, data, user, goals, profile, history, historyModal, selectedYear, availableYears, onSelectYear, onOpenSprint, onCloseSprint, onProgress, onComplete, onDelete, onAdd, onShowGoalDetails, onUpdateProfile, showToast, onLogout, onRotesChanged, editModalOpen, setEditModalOpen, roteStats }) {
   const completed = goals.filter(goal => goal.done).length
 
   // Profile image cropping state
@@ -2061,12 +2062,18 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
     const yearProgress = profile?.year || data
     const profileUser = profile?.user || user || {}
     const stats = profile?.stats || {
-      goals_completed: 0,
-      total_goals: 0,
-      completion_rate: 0,
       current_streak: 0,
       longest_streak: 0,
     }
+
+    // Direct instant calculation matching Overview containers
+    const goalsCompleted = (goals || []).filter(g => g.done).length
+    const totalGoals = (goals || []).length
+    const goalRate = totalGoals > 0 ? Math.round((goalsCompleted / totalGoals) * 100) : 0
+
+    const rotesCompleted = roteStats?.completed || 0
+    const totalRotes = roteStats?.total || 0
+    const roteRate = roteStats?.percentage ?? (totalRotes > 0 ? Math.round((rotesCompleted / totalRotes) * 100) : 0)
 
     return (
       <div className="workspace-page profile-page-custom">
@@ -2232,10 +2239,10 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
         </div>
 
         <div className="profile-stats compact-stats">
-          <div className="metric card"><small>GOALS COMPLETED</small><b>{stats.goals_completed}</b><span>out of {stats.total_goals} unique</span></div>
-          <div className="metric card"><small>GOAL RATE</small><b>{stats.completion_rate}%</b><span>completion performance</span></div>
-          <div className="metric card"><small>ROTE RATE</small><b>{stats.rote_rate || 0}%</b><span>{stats.rote_completed || 0}/{stats.total_rotes || 0} tasks done</span></div>
-          <div className="metric card"><small>STREAK</small><b>{stats.current_streak} <small className="best-streak-tag">Best: {stats.longest_streak}</small></b><span>sprints streak</span></div>
+          <div className="metric card"><small>GOALS COMPLETED</small><b>{goalsCompleted}</b><span>out of {totalGoals} unique</span></div>
+          <div className="metric card"><small>GOAL RATE</small><b>{goalRate}%</b><span>completion performance</span></div>
+          <div className="metric card"><small>ROTE RATE</small><b>{roteRate}%</b><span>{rotesCompleted}/{totalRotes} tasks done</span></div>
+          <div className="metric card"><small>STREAK</small><b>{stats.current_streak || 0} <small className="best-streak-tag">Best: {stats.longest_streak || 0}</small></b><span>sprints streak</span></div>
         </div>
 
         <section className="reminders-card card">
@@ -3077,7 +3084,16 @@ function App() {
       }
     }
   }, [active])
-  const [goals, setGoals] = useState([])
+  const [goals, setGoals] = useState(() => {
+    try {
+      const stored = localStorage.getItem('opg.dashboard.goals')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed)) return parsed.map(presentGoal)
+      }
+    } catch {}
+    return []
+  })
   const [roteOverviewStats, setRoteOverviewStats] = useState(() => {
 
     const todayStr = getTodayYMD()
@@ -3095,8 +3111,6 @@ function App() {
     } catch {}
     return { total: 0, completed: 0, percentage: 0, rotes: [] }
   })
-  const [roteTick, setRoteTick] = useState(0)
-
   const handleRotesChanged = useCallback((updatedData) => {
     const todayStr = getTodayYMD()
     let dataToUse = updatedData
@@ -3115,41 +3129,11 @@ function App() {
 
       setRoteOverviewStats(nextStats)
 
-      setProfile(prev => {
-        if (!prev || !prev.stats) return prev
-        return {
-          ...prev,
-          stats: {
-            ...prev.stats,
-            total_rotes: total,
-            rote_completed: completed,
-            rote_rate: percentage
-          }
-        }
-      })
-
       try {
         localStorage.setItem(`opg.rotes.${todayStr}`, JSON.stringify(dataToUse))
       } catch {}
     }
-
-    setRoteTick(t => t + 1)
   }, [])
-
-  useEffect(() => {
-    const todayStr = getTodayYMD()
-    const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
-    apiFetch(`/api/rotes?date=${todayStr}`, {
-      headers: { Authorization: token ? `Bearer ${token}` : '' }
-    })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data && Array.isArray(data.rotes)) {
-          handleRotesChanged(data)
-        }
-      })
-      .catch(() => {})
-  }, [active, roteTick, handleRotesChanged])
 
   const toggleRoteFromOverview = async (roteId) => {
     const todayStr = getTodayYMD()
@@ -3158,8 +3142,19 @@ function App() {
     const currentItem = currentRotes.find(r => String(r.id) === targetIdStr)
     const targetStatus = currentItem ? !currentItem.completed : true
 
+    // 1. Instant optimistic update for the entire website
+    const updated = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: targetStatus } : r)
+    const doneCount = updated.filter(r => r.completed).length
+    const nextData = {
+      date: todayStr,
+      rotes: updated,
+      stats: { total_rotes: updated.length, completed_rotes: doneCount }
+    }
+    handleRotesChanged(nextData)
+
     if (targetIdStr.startsWith('temp-')) return
 
+    // 2. Sync to server in background
     try {
       const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
       const res = await apiFetch(`/api/rotes/${roteId}/toggle`, {
@@ -3174,17 +3169,28 @@ function App() {
       if (res.ok) {
         const result = await res.json()
         const confirmedStatus = Boolean(result.completed)
-        const updated = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
-        const doneCount = updated.filter(r => r.completed).length
-        const nextData = {
-          date: todayStr,
-          rotes: updated,
-          stats: { total_rotes: updated.length, completed_rotes: doneCount }
+        if (confirmedStatus !== targetStatus) {
+          const reUpdated = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
+          const reDoneCount = reUpdated.filter(r => r.completed).length
+          handleRotesChanged({
+            date: todayStr,
+            rotes: reUpdated,
+            stats: { total_rotes: reUpdated.length, completed_rotes: reDoneCount }
+          })
         }
-        handleRotesChanged(nextData)
+      } else {
+        throw new Error('Toggle failed')
       }
     } catch (err) {
       console.error('Failed to toggle rote from overview:', err)
+      // Revert optimistic update on failure
+      const reverted = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: !targetStatus } : r)
+      const revertedDone = reverted.filter(r => r.completed).length
+      handleRotesChanged({
+        date: todayStr,
+        rotes: reverted,
+        stats: { total_rotes: reverted.length, completed_rotes: revertedDone }
+      })
     }
   }
 
@@ -3464,20 +3470,7 @@ const exitPendingRef = useRef(false)
       ])
       if (!profileRes.ok) throw new Error('Unable to load profile')
       const profileData = await profileRes.json()
-      setProfile(prev => {
-        if (!profileData || !profileData.stats) return profileData
-        const curRote = roteOverviewStats
-        const hasLocal = curRote && curRote.total > 0
-        return {
-          ...profileData,
-          stats: {
-            ...profileData.stats,
-            total_rotes: hasLocal ? curRote.total : (profileData.stats.total_rotes || 0),
-            rote_completed: hasLocal ? curRote.completed : (profileData.stats.rote_completed || 0),
-            rote_rate: hasLocal ? curRote.percentage : (profileData.stats.rote_rate || 0)
-          }
-        }
-      })
+      setProfile(profileData)
       if (timelineRes.ok) setTimelineHistory(await timelineRes.json())
     } catch (err) {
       console.error('Failed to refresh profile:', err)
@@ -3490,20 +3483,74 @@ const exitPendingRef = useRef(false)
       const response = await apiFetch('/api/dashboard', { headers: { Authorization: `Bearer ${token}` } })
       if (!response.ok) throw new Error('Unable to load dashboard')
       const data = await response.json()
-      setGoals(data.goals.map(presentGoal))
+      const serverGoals = data.goals.map(presentGoal)
+      setGoals(prev => {
+        const pendingTemps = prev.filter(g => String(g.id).startsWith('temp-'))
+        const merged = [...serverGoals]
+        for (const tg of pendingTemps) {
+          if (!merged.some(m => m.id === tg.id || m.title === tg.title)) {
+            merged.push(tg)
+          }
+        }
+        try { localStorage.setItem('opg.dashboard.goals', JSON.stringify(merged)) } catch {}
+        return merged
+      })
     } catch {
-      setGoals([
-        presentGoal({ id: 1, title: 'Finish Palm Vein Recognition', description: 'Research project', progress_percent: 0, completed: false }),
-        presentGoal({ id: 2, title: 'Read deeply', progress_percent: 60, completed: false }),
-        presentGoal({ id: 3, title: 'LeetCode practice', progress_percent: 70, completed: false }),
-      ])
+      setGoals(prev => {
+        if (prev && prev.length > 0) return prev
+        const fallback = [
+          presentGoal({ id: 1, title: 'Finish Palm Vein Recognition', description: 'Research project', progress_percent: 0, completed: false }),
+          presentGoal({ id: 2, title: 'Read deeply', progress_percent: 60, completed: false }),
+          presentGoal({ id: 3, title: 'LeetCode practice', progress_percent: 70, completed: false }),
+        ]
+        return fallback
+      })
     }
+  }
+
+  const loadRotes = async token => {
+    const todayStr = getTodayYMD()
+    const activeToken = token || sessionToken || localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
+    if (!activeToken) return
+    try {
+      const res = await apiFetch(`/api/rotes?date=${todayStr}`, {
+        headers: { Authorization: `Bearer ${activeToken}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data && Array.isArray(data.rotes)) {
+          let localRotes = []
+          try {
+            const stored = localStorage.getItem(`opg.rotes.${todayStr}`)
+            if (stored) localRotes = JSON.parse(stored)?.rotes || []
+          } catch {}
+
+          const localMap = new Map(localRotes.map(r => [String(r.id), r]))
+          let merged = data.rotes.map(sr => {
+            const lr = localMap.get(String(sr.id))
+            if (lr && lr.completed !== sr.completed) {
+              return { ...sr, completed: lr.completed }
+            }
+            return sr
+          })
+
+          const pendingTemps = localRotes.filter(r => String(r.id).startsWith('temp-'))
+          for (const temp of pendingTemps) {
+            if (!merged.some(m => m.title === temp.title || m.id === temp.id)) {
+              merged.push(temp)
+            }
+          }
+          handleRotesChanged({ ...data, rotes: merged })
+        }
+      }
+    } catch {}
   }
 
   useEffect(() => {
     if (!currentUser || !sessionToken) return
     loadDashboard(sessionToken)
     refreshProfile(sessionToken, selectedTimelineYear)
+    loadRotes(sessionToken)
   }, [currentUser, sessionToken, data.year, selectedTimelineYear])
 
   useEffect(() => {
@@ -3521,11 +3568,6 @@ const exitPendingRef = useRef(false)
       })
       .catch(() => setTimelineHistory({ year: selectedTimelineYear, years: [], sprints: [] }))
   }, [selectedTimelineYear, currentUser, sessionToken])
-
-  useEffect(() => {
-    if (!currentUser || !sessionToken) return
-    refreshProfile(sessionToken, selectedTimelineYear)
-  }, [data.year, selectedTimelineYear, currentUser, sessionToken, roteTick])
 
   const handleGoogle = () => {
     const authUrl = apiUrl('/api/auth/google/start')
@@ -3585,6 +3627,7 @@ const exitPendingRef = useRef(false)
   }
 
   const updateGoal = async (goal, payload) => {
+    if (String(goal.id).startsWith('temp-')) return true
     try {
       const response = await apiFetch(`/api/goals/${goal.id}`, { method: 'PATCH', headers: buildHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) })
       if (!response.ok) throw new Error('Unable to update goal')
@@ -3615,6 +3658,14 @@ const exitPendingRef = useRef(false)
     if (!completionFlow) return
     const note = completionFlow.note.trim()
     const goal = completionFlow.goal
+    const tempCompleted = { ...goal, done: true, value: 100 }
+    setGoals(items => items.map(item => item.id === goal.id ? tempCompleted : item))
+    setCompletionFlow(null)
+    setCompletedShare({ goal: tempCompleted, note, image: null })
+    showToast('Goal Completed')
+
+    if (String(goal.id).startsWith('temp-')) return
+
     try {
       const response = await apiFetch(`/api/goals/${goal.id}`, {
         method: 'PATCH',
@@ -3624,9 +3675,6 @@ const exitPendingRef = useRef(false)
       if (!response.ok) throw new Error('Unable to complete goal')
       const saved = presentGoal(await response.json())
       setGoals(items => items.map(item => item.id === saved.id ? saved : item))
-      setCompletionFlow(null)
-      setCompletedShare({ goal: saved, note, image: null })
-      showToast('Goal Completed')
       refreshProfile()
       createCompletionCard(saved, note)
         .then(image => setCompletedShare(prev => prev && prev.goal.id === saved.id ? { ...prev, image } : prev))
@@ -3641,13 +3689,16 @@ const exitPendingRef = useRef(false)
   }
 
   const confirmDeleteGoal = async (goal) => {
+    setGoals(items => items.filter(item => item.id !== goal.id))
+
+    if (String(goal.id).startsWith('temp-')) return
+
     try {
       const response = await apiFetch(`/api/goals/${goal.id}`, {
         method: 'DELETE',
         headers: buildHeaders()
       })
       if (!response.ok) throw new Error('Unable to delete goal')
-      setGoals(items => items.filter(item => item.id !== goal.id))
       await refreshProfile()
     } catch (err) {
       console.error(err)
@@ -3656,17 +3707,41 @@ const exitPendingRef = useRef(false)
   }
 
   const addGoal = async (title) => {
-    if (!title?.trim()) return
-    setAddGoalLoading(true)
+    const cleanTitle = title?.trim()
+    if (!cleanTitle) return
+
+    // 1. Immediately close modal so user is never stuck waiting on "Saving..."
+    setAddGoalModalOpen(false)
+
+    // 2. Immediately create an optimistic goal and update entire website instantly
+    const tempId = 'temp-goal-' + Date.now()
+    const tempGoal = presentGoal({
+      id: tempId,
+      title: cleanTitle,
+      description: '',
+      progress_percent: 0,
+      completed: false,
+      created_at: new Date().toISOString()
+    })
+
+    setGoals(items => [...items, tempGoal])
+
+    // 3. Persist to server in background
     try {
-      const response = await apiFetch('/api/goals', { method: 'POST', headers: buildHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ title: title.trim() }) })
+      const response = await apiFetch('/api/goals', {
+        method: 'POST',
+        headers: buildHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ title: cleanTitle })
+      })
       if (!response.ok) throw new Error('Unable to add goal')
       const saved = presentGoal(await response.json())
-      setGoals(items => [...items, saved])
+      setGoals(items => items.map(item => item.id === tempId ? saved : item))
       await refreshProfile()
-      setAddGoalModalOpen(false)
-    } catch { window.alert('The goal could not be saved.') }
-    finally { setAddGoalLoading(false) }
+    } catch (err) {
+      console.error('Failed to create goal:', err)
+      setGoals(items => items.filter(item => item.id !== tempId))
+      window.alert('The goal could not be saved.')
+    }
   }
 
   const openSprintHistory = async sprintNumber => {
@@ -3955,7 +4030,7 @@ const exitPendingRef = useRef(false)
 
     <section className="content" id="top">
       {active !== 'Overview' ? (
-        <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onDelete={deleteGoal} onAdd={() => setAddGoalModalOpen(true)} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} showToast={showToast} onLogout={logout} onRotesChanged={handleRotesChanged} editModalOpen={editModalOpen} setEditModalOpen={setEditModalOpen} />
+        <WorkspacePage active={active} data={{ ...data, day, total: data.total }} user={currentUser} goals={goals} profile={profile} history={timelineHistory} historyModal={historyModal} selectedYear={selectedTimelineYear} availableYears={timelineHistory.years} onSelectYear={setSelectedTimelineYear} onOpenSprint={openSprintHistory} onCloseSprint={() => setHistoryModal(null)} onProgress={updateProgress} onComplete={startCompletion} onDelete={deleteGoal} onAdd={() => setAddGoalModalOpen(true)} onShowGoalDetails={showGoalDetails} onUpdateProfile={handleUpdateProfile} showToast={showToast} onLogout={logout} onRotesChanged={handleRotesChanged} editModalOpen={editModalOpen} setEditModalOpen={setEditModalOpen} roteStats={roteOverviewStats} />
 
       ) : (
         <>

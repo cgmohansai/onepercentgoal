@@ -2895,7 +2895,9 @@ a:focus-visible,
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 24px 8px !important;
+  padding: 20px 28px !important;
+  max-width: 90%;
+  margin: 0 auto;
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -2909,8 +2911,8 @@ a:focus-visible,
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 12px;
   max-width: 100%;
   flex-wrap: nowrap !important;
 }
@@ -2923,8 +2925,8 @@ a:focus-visible,
 }
 
 .profile-brand-logo-wrap {
-  width: clamp(68px, 16vw, 148px) !important;
-  height: clamp(68px, 16vw, 148px) !important;
+  width: clamp(40px, 8vw, 64px) !important;
+  height: clamp(40px, 8vw, 64px) !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2936,8 +2938,8 @@ a:focus-visible,
 }
 
 .profile-brand-logo-img {
-  width: clamp(48px, 11vw, 102px) !important;
-  height: clamp(48px, 11vw, 102px) !important;
+  width: clamp(26px, 5.5vw, 42px) !important;
+  height: clamp(26px, 5.5vw, 42px) !important;
   object-fit: contain !important;
   flex-shrink: 0 !important;
 }
@@ -2945,7 +2947,7 @@ a:focus-visible,
 .profile-brand-title {
   font-family: 'Instrument Serif', serif !important;
   font-style: italic !important;
-  font-size: clamp(28px, 8vw, 72px) !important;
+  font-size: clamp(22px, 4.5vw, 40px) !important;
   font-weight: 400 !important;
   letter-spacing: 0.01em !important;
   color: #c9f36a !important;
@@ -2960,15 +2962,15 @@ a:focus-visible,
 
 .profile-brand-subtitle {
   font-family: 'DM Mono', monospace;
-  font-size: 13px;
+  font-size: 11px;
   color: #8c9085;
-  letter-spacing: 0.12em;
-  margin-bottom: 10px;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
   word-break: break-word;
 }
 
 .profile-brand-tagline {
-  font-size: 16px;
+  font-size: 13px;
   color: #c9f36a;
   font-style: italic;
   margin: 0;
