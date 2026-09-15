@@ -158,6 +158,7 @@ const DAY = 24 * 60 * 60 * 1000
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || ''
 const apiUrl = path => `${API_BASE}${path}`
 const apiFetch = (path, options) => fetch(apiUrl(path), options)
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '420117390479-kjelftir7nr413rh3b7c9327ia27c6o2.apps.googleusercontent.com'
 
 function getSprintBoundary(year, N) {
   const start = new Date(year, 0, 1)
@@ -941,6 +942,46 @@ function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails }) {
 }
 
 function AuthScreen({ onGoogle, loading, error, onClose }) {
+  const googleBtnRef = useRef(null)
+  const [gisRendered, setGisRendered] = useState(false)
+
+  useEffect(() => {
+    let checkInterval
+    const initGisButton = () => {
+      if (window.google?.accounts?.id && googleBtnRef.current) {
+        try {
+          googleBtnRef.current.innerHTML = ''
+          window.google.accounts.id.renderButton(googleBtnRef.current, {
+            type: 'standard',
+            shape: 'rectangular',
+            theme: 'filled_black',
+            text: 'signin_with',
+            size: 'large',
+            logo_alignment: 'left',
+            width: 280,
+          })
+          setGisRendered(true)
+        } catch (e) {
+          console.warn('GIS render error:', e)
+        }
+      }
+    }
+
+    initGisButton()
+    if (!window.google?.accounts?.id) {
+      checkInterval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          initGisButton()
+          clearInterval(checkInterval)
+        }
+      }, 200)
+    }
+
+    return () => {
+      if (checkInterval) clearInterval(checkInterval)
+    }
+  }, [])
+
   return (
     <section className="auth-mini-card" onClick={event => event.stopPropagation()}>
       <button className="auth-mini-close-btn" onClick={onClose} aria-label="Close auth">×</button>
@@ -951,16 +992,20 @@ function AuthScreen({ onGoogle, loading, error, onClose }) {
         </h1>
       </div>
 
-      <div className="google-auth-container" style={{ width: '100%' }}>
-        <button className="google-button premium-google-btn large-google-btn" type="button" onClick={onGoogle} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 20px', borderRadius: '12px', fontSize: '15px', fontWeight: '600' }}>
-          <svg style={{ width: '20px', height: '20px', marginRight: '12px', verticalAlign: 'middle' }} viewBox="0 0 24 24">
-            <path fill="currentColor" d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.58h3.29c1.92,-1.77 3.02,-4.38 3.02,-7.38c0,-0.6 -0.05,-1.2 -0.15,-1.8z" />
-            <path fill="currentColor" d="M12,20.4c2.54,0 4.67,-0.84 6.23,-2.28l-3.29,-2.58c-0.91,0.61 -2.08,0.98 -2.94,0.98c-2.27,0 -4.2,-1.54 -4.89,-3.6H3.66v2.66c1.55,3.08 4.73,5.18 8.34,5.18z" />
-            <path fill="currentColor" d="M7.11,12.92a5.92,5.92 0 0 1 0,-1.84V8.42H3.66a9.92,9.92 0 0 0 0,7.16l3.45,-2.66z" fillOpacity="0.9" />
-            <path fill="currentColor" d="M12,5.28c1.38,0 2.62,0.47 3.59,1.4l2.69,-2.69C16.66,2.5 14.54,1.8 12,1.8c-3.61,0 -6.79,2.1 -8.34,5.18l3.45,2.66c0.69,-2.06 2.62,-3.6 4.89,-3.6z" />
-          </svg>
-          {loading ? 'Initializing Console...' : 'Continue with Google'}
-        </button>
+      <div className="google-auth-container" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+        <div ref={googleBtnRef} style={{ display: gisRendered ? 'flex' : 'none', justifyContent: 'center', width: '100%', minHeight: '44px' }} />
+
+        {!gisRendered && (
+          <button className="google-button premium-google-btn large-google-btn" type="button" onClick={onGoogle} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 20px', borderRadius: '12px', fontSize: '15px', fontWeight: '600' }}>
+            <svg style={{ width: '20px', height: '20px', marginRight: '12px', verticalAlign: 'middle' }} viewBox="0 0 24 24">
+              <path fill="currentColor" d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.58h3.29c1.92,-1.77 3.02,-4.38 3.02,-7.38c0,-0.6 -0.05,-1.2 -0.15,-1.8z" />
+              <path fill="currentColor" d="M12,20.4c2.54,0 4.67,-0.84 6.23,-2.28l-3.29,-2.58c-0.91,0.61 -2.08,0.98 -2.94,0.98c-2.27,0 -4.2,-1.54 -4.89,-3.6H3.66v2.66c1.55,3.08 4.73,5.18 8.34,5.18z" />
+              <path fill="currentColor" d="M7.11,12.92a5.92,5.92 0 0 1 0,-1.84V8.42H3.66a9.92,9.92 0 0 0 0,7.16l3.45,-2.66z" fillOpacity="0.9" />
+              <path fill="currentColor" d="M12,5.28c1.38,0 2.62,0.47 3.59,1.4l2.69,-2.69C16.66,2.5 14.54,1.8 12,1.8c-3.61,0 -6.79,2.1 -8.34,5.18l3.45,2.66c0.69,-2.06 2.62,-3.6 4.89,-3.6z" />
+            </svg>
+            Continue with Google
+          </button>
+        )}
       </div>
 
       {error && <p className="auth-error premium-auth-error">{error}</p>}
@@ -3311,12 +3356,6 @@ const exitPendingRef = useRef(false)
   const savedShareRef = useRef(new Set())
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState('')
-  const [minLoadElapsed, setMinLoadElapsed] = useState(false)
-
-  useEffect(() => {
-    const t = setTimeout(() => setMinLoadElapsed(true), 2000)
-    return () => clearTimeout(t)
-  }, [])
 
   useEffect(() => {
     if (!completedShare || !completedShare.image) return
@@ -3569,6 +3608,113 @@ const exitPendingRef = useRef(false)
       .catch(() => setTimelineHistory({ year: selectedTimelineYear, years: [], sprints: [] }))
   }, [selectedTimelineYear, currentUser, sessionToken])
 
+  const handleCredentialResponse = async (response) => {
+    if (!response || !response.credential) return
+    const encodedToken = response.credential
+
+    // Close the auth modal and show the pop message instantly with zero delay
+    setShowAuthModal(false)
+    showToast('Signed in with Google')
+
+    // Decode JWT client-side immediately to transition to dashboard without waiting for network round-trip
+    try {
+      const base64Url = encodedToken.split('.')[1]
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+      const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''))
+      const preview = JSON.parse(jsonPayload)
+      if (preview && preview.email) {
+        setCurrentUser({
+          id: 0,
+          name: preview.name || preview.email.split('@')[0],
+          email: preview.email,
+          display_name: preview.name || preview.email.split('@')[0],
+          profile_photo: preview.picture || '',
+          needs_profile: false,
+        })
+      }
+    } catch {}
+
+    setAuthError('')
+    try {
+      const res = await apiFetch('/api/auth/google/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: encodedToken }),
+      })
+      const result = await res.json()
+      if (!res.ok) {
+        throw new Error(result.detail || 'Google sign-in verification failed')
+      }
+      localStorage.setItem('onepercentgoal.token', result.token)
+      setSessionToken(result.token)
+      setCurrentUser(result.user)
+      setAuthError('')
+    } catch (err) {
+      console.error('Google One Tap error:', err)
+      setAuthError(err.message || 'Google authentication failed')
+      setShowAuthModal(true)
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    window.__handleGoogleCredentialResponse = handleCredentialResponse
+    if (window.__pendingCredentialResponse) {
+      const pending = window.__pendingCredentialResponse
+      window.__pendingCredentialResponse = null
+      handleCredentialResponse(pending)
+    }
+    return () => {
+      window.__handleGoogleCredentialResponse = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (currentUser || sessionToken || isNativeShell()) return
+
+    const initOneTap = () => {
+      if (!window.google?.accounts?.id) return
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (res) => {
+            if (window.__handleGoogleCredentialResponse) {
+              window.__handleGoogleCredentialResponse(res)
+            } else {
+              handleCredentialResponse(res)
+            }
+          },
+          auto_select: false,
+          itp_support: true,
+          cancel_on_tap_outside: false,
+        })
+        window.google.accounts.id.prompt((notification) => {
+          if (notification && notification.isNotDisplayed()) {
+            console.info('Google One Tap not displayed:', notification.getNotDisplayedReason())
+          }
+        })
+      } catch (e) {
+        console.warn('GIS One Tap prompt notice:', e)
+      }
+    }
+
+    initOneTap()
+    let checkInterval
+    if (!window.google?.accounts?.id) {
+      checkInterval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          initOneTap()
+          clearInterval(checkInterval)
+        }
+      }, 50)
+    }
+
+    return () => {
+      if (checkInterval) clearInterval(checkInterval)
+    }
+  }, [currentUser, sessionToken, authReady])
+
   const handleGoogle = () => {
     const authUrl = apiUrl('/api/auth/google/start')
     if (isNativeShell()) {
@@ -3602,6 +3748,9 @@ const exitPendingRef = useRef(false)
   }
 
   const logout = async () => {
+    if (window.google?.accounts?.id) {
+      try { window.google.accounts.id.disableAutoSelect() } catch {}
+    }
     // Clear the local session immediately so sign out does not depend on the
     // network or the API being available. Revoke the token on the server in
     // the background as a best-effort cleanup.
@@ -3797,13 +3946,6 @@ const exitPendingRef = useRef(false)
 
   if (!authReady) {
     if (isNativeApp()) return null
-    return (
-      <div className="ktl-fullscreen-overlay">
-        <KineticTextLoader text="Loading" />
-      </div>
-    )
-  }
-  if (!isNativeApp() && !minLoadElapsed) {
     return (
       <div className="ktl-fullscreen-overlay">
         <KineticTextLoader text="Loading" />

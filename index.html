@@ -15,7 +15,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Instrument+Serif:ital@0;1&family=Roboto:wght@300&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" />
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Instrument+Serif:ital@0;1&family=Roboto:wght@300&display=swap" /></noscript>
+  <link rel="preconnect" href="https://accounts.google.com" />
+  <link rel="preconnect" href="https://ssl.gstatic.com" crossorigin />
+  <link rel="dns-prefetch" href="https://accounts.google.com" />
+  <script src="https://accounts.google.com/gsi/client" async></script>
   <title>OnePercentGoal</title>
   <style>
     html, body { margin: 0; background: #141513; }
@@ -61,6 +64,31 @@
   </style>
 </head>
 <body>
+  <!-- Google One Tap Early Configuration & Global Callback Bridge -->
+  <div id="g_id_onload"
+       data-client_id="420117390479-kjelftir7nr413rh3b7c9327ia27c6o2.apps.googleusercontent.com"
+       data-context="signin"
+       data-callback="handleCredentialResponse"
+       data-auto_select="false"
+       data-itp_support="true">
+  </div>
+  <script>
+    (function() {
+      var token = localStorage.getItem('onepercentgoal.token');
+      if (token) {
+        var gLoad = document.getElementById('g_id_onload');
+        if (gLoad && gLoad.parentNode) gLoad.parentNode.removeChild(gLoad);
+      }
+    })();
+    function handleCredentialResponse(response) {
+      if (window.__handleGoogleCredentialResponse) {
+        window.__handleGoogleCredentialResponse(response);
+      } else {
+        window.__pendingCredentialResponse = response;
+      }
+    }
+    window.handleCredentialResponse = handleCredentialResponse;
+  </script>
   <div id="root"></div>
   <div id="boot-loader">
     <div class="boot-content">
@@ -101,7 +129,6 @@
       };
     })();
   </script>
-
 
   <script type="module" src="/src/main.jsx"></script>
 </body>

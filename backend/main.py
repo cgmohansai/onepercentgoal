@@ -29,6 +29,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
+try:
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+    _google_auth_request = google_requests.Request()
+except Exception:
+    google_id_token = None
+    _google_auth_request = None
+
 # Timezone Definition (India Standard Time UTC+5:30)
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -303,6 +311,10 @@ class RoteCreate(BaseModel):
 class RoteToggle(BaseModel):
     date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     completed: bool | None = None
+
+
+class GoogleVerifyPayload(BaseModel):
+    credential: str
 
 
 def goal_dict(row) -> dict:
@@ -859,6 +871,102 @@ async def auth_google_callback(background_tasks: BackgroundTasks, code: str | No
     redirect_target = state_dict.get("redirect") or FRONTEND_URL
     sep = "&" if "?" in redirect_target else "?"
     return RedirectResponse(f"{redirect_target}{sep}auth_token={token}")
+
+
+@app.post("/api/auth/google/verify")
+@app.post("/api/auth/google/onetap")
+async def auth_google_verify(payload: GoogleVerifyPayload, background_tasks: BackgroundTasks):
+    """Google Identity Services (One Tap & Branded Button) credential verification."""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Google auth is not configured")
+
+    credential = payload.credential.strip()
+    if not credential:
+        raise HTTPException(status_code=400, detail="Missing Google credential")
+
+    idinfo = None
+    # 1. Try google.oauth2.id_token verification with prewarmed session
+    if google_id_token and _google_auth_request:
+        try:
+            idinfo = google_id_token.verify_oauth2_token(
+                credential,
+                _google_auth_request,
+                GOOGLE_CLIENT_ID,
+            )
+        except Exception:
+            idinfo = None
+
+    # 2. Fallback to Google's public tokeninfo endpoint via httpx
+    if not idinfo:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    "https://oauth2.googleapis.com/tokeninfo",
+                    params={"id_token": credential},
+                )
+                if resp.status_code == 200:
+                    token_data = resp.json()
+                    aud = token_data.get("aud")
+                    if aud == GOOGLE_CLIENT_ID:
+                        idinfo = token_data
+                    else:
+                        raise HTTPException(status_code=400, detail="Token audience does not match client ID")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Google token verification failed: {e}")
+
+    if not idinfo:
+        raise HTTPException(status_code=400, detail="Invalid Google token")
+
+    email = str(idinfo.get("email", "")).strip().lower()
+    display_name = str(idinfo.get("name", "")).strip() or email.split("@")[0]
+    google_sub = str(idinfo.get("sub", "")).strip()
+    picture = str(idinfo.get("picture", "")).strip()
+
+    if not email or not google_sub:
+        raise HTTPException(status_code=400, detail="Google account data is incomplete")
+
+    with db() as conn:
+        user = execute(conn, "SELECT * FROM users WHERE google_sub = %s OR email = %s", (google_sub, email)).fetchone()
+        is_new = False
+        if user:
+            execute(
+                conn,
+                """
+                UPDATE users
+                SET google_sub = COALESCE(google_sub, %s),
+                    auth_provider = 'google',
+                    display_name = COALESCE(NULLIF(display_name, ''), %s),
+                    name = COALESCE(NULLIF(name, ''), %s),
+                    profile_photo = COALESCE(NULLIF(profile_photo, ''), NULLIF(%s, '')),
+                    last_login_at = %s
+                WHERE id = %s
+                """,
+                (google_sub, display_name, display_name, picture, current_timestamp(), user["id"]),
+            )
+            user_id = int(user["id"])
+        else:
+            row = execute(
+                conn,
+                """
+                INSERT INTO users (name, email, display_name, username, auth_provider, google_sub, profile_photo, created_at, last_login_at)
+                VALUES (%s, %s, %s, %s, 'google', %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (display_name, email, display_name, None, google_sub, picture or None, current_timestamp(), current_timestamp()),
+            ).fetchone()
+            user_id = int(row["id"])
+            is_new = True
+            background_tasks.add_task(send_welcome_email, email, display_name or "User")
+
+        user_row = execute(conn, "SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()
+        token = issue_session(conn, user_id)
+        return {
+            "token": token,
+            "user": user_to_dict(user_row),
+            "is_new": is_new,
+        }
 
 
 @app.get("/api/auth/me")
