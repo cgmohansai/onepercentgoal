@@ -310,7 +310,8 @@ class RoteToggle(BaseModel):
 
 
 class GoogleVerifyPayload(BaseModel):
-    credential: str
+    credential: str | None = None
+    access_token: str | None = None
 
 
 def goal_dict(row) -> dict:
@@ -744,25 +745,46 @@ async def auth_google_verify(payload: GoogleVerifyPayload, background_tasks: Bac
     if not GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=500, detail="Google auth is not configured")
 
-    credential = payload.credential.strip()
-    if not credential:
+    credential = (payload.credential or "").strip()
+    access_token = (payload.access_token or "").strip()
+    if credential:
+        if not google_id_token or not _google_auth_request:
+            raise HTTPException(status_code=500, detail="Google token verification is unavailable")
+        try:
+            idinfo = google_id_token.verify_oauth2_token(
+                credential, _google_auth_request, GOOGLE_CLIENT_ID,
+            )
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid or expired Google credential")
+    elif access_token:
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                token_response = await client.get(
+                    "https://oauth2.googleapis.com/tokeninfo",
+                    params={"access_token": access_token},
+                )
+                profile_response = await client.get(
+                    "https://openidconnect.googleapis.com/v1/userinfo",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+            token_info = token_response.json() if token_response.is_success else {}
+            idinfo = profile_response.json() if profile_response.is_success else {}
+            if token_info.get("aud") != GOOGLE_CLIENT_ID:
+                idinfo = {}
+        except (httpx.HTTPError, ValueError):
+            idinfo = {}
+        if not idinfo:
+            raise HTTPException(status_code=400, detail="Invalid or expired Google access token")
+    else:
         raise HTTPException(status_code=400, detail="Missing Google credential")
-
-    if not google_id_token or not _google_auth_request:
-        raise HTTPException(status_code=500, detail="Google token verification is unavailable")
-    try:
-        idinfo = google_id_token.verify_oauth2_token(
-            credential, _google_auth_request, GOOGLE_CLIENT_ID,
-        )
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid or expired Google credential")
 
     email = str(idinfo.get("email", "")).strip().lower()
     display_name = str(idinfo.get("name", "")).strip() or email.split("@")[0]
     google_sub = str(idinfo.get("sub", "")).strip()
     picture = str(idinfo.get("picture", "")).strip()
 
-    if not email or not google_sub or idinfo.get("email_verified") is not True:
+    email_verified = idinfo.get("email_verified") in (True, "true")
+    if not email or not google_sub or not email_verified:
         raise HTTPException(status_code=400, detail="Google account data is incomplete")
 
     with db() as conn:

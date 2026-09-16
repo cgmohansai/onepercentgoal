@@ -3339,14 +3339,27 @@ a:focus-visible,
 .auth-mini-card .auth-header-wrapper {
   margin-bottom: 20px;
 }
-.gis-button-slot {
+.google-oauth-button {
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 12px;
   width: 100%;
   min-height: 44px;
+  border: 1px solid #dadce0;
+  border-radius: 24px;
+  background: #fff;
+  color: #3c4043;
+  cursor: pointer;
+  font: 500 14px 'Roboto', 'DM Sans', sans-serif;
 }
-.gis-button-slot iframe {
-  max-width: 100%;
+.google-oauth-button svg {
+  width: 20px;
+  height: 20px;
+}
+.google-oauth-button:disabled {
+  cursor: wait;
+  opacity: .7;
 }
 .auth-mini-close-btn {
   position: absolute;
@@ -5114,7 +5127,6 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     margin-bottom: 20px !important;
   }
 }
-
 
 
 

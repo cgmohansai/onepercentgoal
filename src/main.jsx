@@ -168,13 +168,13 @@ const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client'
 
 let gisLoadPromise
 function loadGoogleIdentityServices() {
-  if (window.google?.accounts?.id) return Promise.resolve()
+  if (window.google?.accounts?.oauth2) return Promise.resolve()
   if (gisLoadPromise) return gisLoadPromise
   gisLoadPromise = new Promise((resolve, reject) => {
     const script = document.querySelector(`script[src="${GIS_SCRIPT_URL}"]`) || document.createElement('script')
     script.src = GIS_SCRIPT_URL
     script.async = true
-    script.onload = () => window.google?.accounts?.id ? resolve() : reject(new Error('Google sign-in did not load'))
+    script.onload = () => window.google?.accounts?.oauth2 ? resolve() : reject(new Error('Google sign-in did not load'))
     script.onerror = () => reject(new Error('Google sign-in could not be loaded'))
     if (!script.parentNode) document.head.appendChild(script)
   })
@@ -962,41 +962,7 @@ function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails }) {
   )
 }
 
-function AuthScreen({ onGoogle, onGoogleButtonClick, gisReady, loading, error, onClose }) {
-  const googleBtnRef = useRef(null)
-  const [gisRendered, setGisRendered] = useState(false)
-  const [renderAttempt, setRenderAttempt] = useState(0)
-
-  useEffect(() => {
-    if (!gisReady || !googleBtnRef.current) return
-    let checkTimer
-    try {
-      googleBtnRef.current.replaceChildren()
-      window.google.accounts.id.renderButton(googleBtnRef.current, {
-        type: 'standard', shape: 'pill', theme: 'outline', text: 'continue_with',
-        size: 'large', logo_alignment: 'left', width: Math.min(360, Math.max(240, googleBtnRef.current.clientWidth || 280)),
-        click_listener: onGoogleButtonClick,
-      })
-      setGisRendered(true)
-      checkTimer = window.setTimeout(() => {
-        const button = googleBtnRef.current
-        if (!button?.firstElementChild) setGisRendered(false)
-      }, 800)
-    } catch {
-      setGisRendered(false)
-    }
-    return () => window.clearTimeout(checkTimer)
-  }, [gisReady, renderAttempt])
-
-  const retryGoogleButton = () => {
-    if (gisReady) {
-      setGisRendered(false)
-      setRenderAttempt(attempt => attempt + 1)
-      return
-    }
-    onGoogle()
-  }
-
+function AuthScreen({ onGoogle, gisReady, native, loading, error, onClose }) {
   return (
     <section className="auth-mini-card" onClick={event => event.stopPropagation()}>
       <button className="auth-mini-close-btn" onClick={onClose} disabled={loading} aria-label="Close auth">×</button>
@@ -1008,19 +974,15 @@ function AuthScreen({ onGoogle, onGoogleButtonClick, gisReady, loading, error, o
       </div>
 
       <div className="google-auth-container" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-        <div ref={googleBtnRef} className={gisRendered ? 'gis-button-slot ready' : 'gis-button-slot'} />
-
-        {!gisRendered && (
-          <button className="google-button premium-google-btn large-google-btn" type="button" onClick={retryGoogleButton} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 20px', borderRadius: '12px', fontSize: '15px', fontWeight: '600' }}>
-            <svg style={{ width: '20px', height: '20px', marginRight: '12px', verticalAlign: 'middle' }} viewBox="0 0 24 24">
-              <path fill="currentColor" d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.58h3.29c1.92,-1.77 3.02,-4.38 3.02,-7.38c0,-0.6 -0.05,-1.2 -0.15,-1.8z" />
-              <path fill="currentColor" d="M12,20.4c2.54,0 4.67,-0.84 6.23,-2.28l-3.29,-2.58c-0.91,0.61 -2.08,0.98 -2.94,0.98c-2.27,0 -4.2,-1.54 -4.89,-3.6H3.66v2.66c1.55,3.08 4.73,5.18 8.34,5.18z" />
-              <path fill="currentColor" d="M7.11,12.92a5.92,5.92 0 0 1 0,-1.84V8.42H3.66a9.92,9.92 0 0 0 0,7.16l3.45,-2.66z" fillOpacity="0.9" />
-              <path fill="currentColor" d="M12,5.28c1.38,0 2.62,0.47 3.59,1.4l2.69,-2.69C16.66,2.5 14.54,1.8 12,1.8c-3.61,0 -6.79,2.1 -8.34,5.18l3.45,2.66c0.69,-2.06 2.62,-3.6 4.89,-3.6z" />
-            </svg>
-            {loading ? 'Opening Google…' : gisReady ? 'Reload Google sign-in' : 'Continue with Google'}
-          </button>
-        )}
+        <button className="google-oauth-button" type="button" onClick={onGoogle} disabled={loading || (!native && !gisReady)}>
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M21.35 11.1H12v2.7h5.38c-.24 1.28-.96 2.37-2.04 3.1v2.58h3.29c1.92-1.77 3.02-4.38 3.02-7.38 0-.6-.05-1.2-.15-1.8Z" />
+            <path fill="#34A853" d="M12 20.4c2.54 0 4.67-.84 6.23-2.28l-3.29-2.58c-.91.61-2.08.98-2.94.98-2.27 0-4.2-1.54-4.89-3.6H3.66v2.66A9.2 9.2 0 0 0 12 20.4Z" />
+            <path fill="#FBBC05" d="M7.11 12.92a5.92 5.92 0 0 1 0-1.84V8.42H3.66a9.92 9.92 0 0 0 0 7.16l3.45-2.66Z" />
+            <path fill="#EA4335" d="M12 5.28c1.38 0 2.62.47 3.59 1.4l2.69-2.69C16.66 2.5 14.54 1.8 12 1.8c-3.61 0-6.79 2.1-8.34 5.18l3.45 2.66c.69-2.06 2.62-3.6 4.89-3.6Z" />
+          </svg>
+          {loading ? 'Opening Google…' : native || gisReady ? 'Continue with Google' : 'Loading Google…'}
+        </button>
       </div>
 
       {error && <p className="auth-error premium-auth-error">{error}</p>}
@@ -3321,8 +3283,6 @@ function App() {
   const [authReady, setAuthReady] = useState(false)
   const [gisReady, setGisReady] = useState(false)
   const googleSignInInFlight = useRef(false)
-  const credentialHandlerRef = useRef(null)
-  const oneTapPromptedRef = useRef(false)
   const gisInitializedRef = useRef(false)
   const nativeAuthReturn = new URLSearchParams(window.location.search).get('auth_return') === 'com.onepercentgoal.app://auth'
     ? 'com.onepercentgoal.app://auth'
@@ -3667,10 +3627,9 @@ const exitPendingRef = useRef(false)
       .catch(() => setTimelineHistory({ year: selectedTimelineYear, years: [], sprints: [] }))
   }, [selectedTimelineYear, currentUser, sessionToken])
 
-  const handleCredentialResponse = async (response) => {
-    if (!response?.credential || googleSignInInFlight.current) return
+  const finishGoogleSignIn = async (payload) => {
+    if (!payload || googleSignInInFlight.current) return
     googleSignInInFlight.current = true
-    const encodedToken = response.credential
     setAuthLoading(true)
     setAuthStatus('Signing you in…')
     setAuthError('')
@@ -3680,7 +3639,7 @@ const exitPendingRef = useRef(false)
       const res = await apiFetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: encodedToken }),
+        body: JSON.stringify(payload),
       })
       const responseBody = await res.text()
       let result = {}
@@ -3719,22 +3678,10 @@ const exitPendingRef = useRef(false)
   }
 
   useEffect(() => {
-    credentialHandlerRef.current = handleCredentialResponse
-  })
-
-  useEffect(() => {
     if (currentUser || sessionToken || isNativeShell() || gisInitializedRef.current) return
     gisInitializedRef.current = true
     loadGoogleIdentityServices()
       .then(() => {
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: response => credentialHandlerRef.current?.(response),
-          ux_mode: 'popup',
-          auto_select: true,
-          itp_support: true,
-          cancel_on_tap_outside: false,
-        })
         setGisReady(true)
       })
       .catch(error => {
@@ -3742,12 +3689,6 @@ const exitPendingRef = useRef(false)
         setAuthError(error.message || 'Google sign-in is unavailable')
       })
   }, [currentUser, sessionToken, authReady])
-
-  useEffect(() => {
-    if (!gisReady || currentUser || sessionToken || oneTapPromptedRef.current) return
-    oneTapPromptedRef.current = true
-    window.google.accounts.id.prompt()
-  }, [gisReady, currentUser, sessionToken])
 
   const handleGoogle = () => {
     if (isNativeShell()) {
@@ -3763,13 +3704,28 @@ const exitPendingRef = useRef(false)
         setAuthLoading(false)
         setAuthError('Unable to open Google sign-in. Please try again.')
       })
-    } else {
-      window.google?.accounts?.id?.prompt()
+      return
     }
-  }
-
-  const handleGoogleButtonClick = () => {
-    window.setTimeout(() => showToast('Choose a Google account to continue', true), 0)
+    if (!window.google?.accounts?.oauth2) {
+      setAuthError('Google sign-in is still loading. Please try again.')
+      return
+    }
+    try {
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'openid email profile',
+        callback: response => {
+          if (response?.access_token) {
+            finishGoogleSignIn({ access_token: response.access_token })
+          } else if (response?.error) {
+            setAuthError(response.error_description || 'Google sign-in was cancelled. Please try again.')
+          }
+        },
+      })
+      client.requestAccessToken({ prompt: 'select_account' })
+    } catch (error) {
+      setAuthError(error.message || 'Unable to open Google sign-in. Please try again.')
+    }
   }
 
   const completeProfile = async form => {
@@ -4190,7 +4146,7 @@ const exitPendingRef = useRef(false)
 
         {showAuthModal && (
           <div className="modal-backdrop" onClick={() => setShowAuthModal(false)}>
-            <AuthScreen onGoogle={handleGoogle} onGoogleButtonClick={handleGoogleButtonClick} gisReady={gisReady} loading={authLoading} error={authError} onClose={() => setShowAuthModal(false)} />
+            <AuthScreen onGoogle={handleGoogle} gisReady={gisReady} native={isNativeShell()} loading={authLoading} error={authError} onClose={() => setShowAuthModal(false)} />
           </div>
         )}
 
