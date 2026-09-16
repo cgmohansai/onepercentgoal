@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "backend": "uvicorn backend.main:app --reload --port 8000",
+    "backend": "./.venv/bin/python -m uvicorn backend.main:app --reload --port 8000",
     "build": "vite build",
     "preview": "vite preview"
   },

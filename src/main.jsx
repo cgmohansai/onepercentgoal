@@ -155,10 +155,31 @@ if ('serviceWorker' in navigator) {
 }
 
 const DAY = 24 * 60 * 60 * 1000
-const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || ''
+// Website requests stay same-origin through Vercel's /api rewrite. This avoids
+// cross-origin login failures; the native shell still uses its configured API.
+const API_BASE = window.location.protocol === 'http:' || window.location.protocol === 'https:'
+  ? ''
+  : (import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '')
 const apiUrl = path => `${API_BASE}${path}`
 const apiFetch = (path, options) => fetch(apiUrl(path), options)
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '420117390479-kjelftir7nr413rh3b7c9327ia27c6o2.apps.googleusercontent.com'
+const WEB_APP_URL = import.meta.env.VITE_APP_URL?.replace(/\/$/, '') || (window.location.protocol.startsWith('http') ? window.location.origin : '')
+const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client'
+
+let gisLoadPromise
+function loadGoogleIdentityServices() {
+  if (window.google?.accounts?.id) return Promise.resolve()
+  if (gisLoadPromise) return gisLoadPromise
+  gisLoadPromise = new Promise((resolve, reject) => {
+    const script = document.querySelector(`script[src="${GIS_SCRIPT_URL}"]`) || document.createElement('script')
+    script.src = GIS_SCRIPT_URL
+    script.async = true
+    script.onload = () => window.google?.accounts?.id ? resolve() : reject(new Error('Google sign-in did not load'))
+    script.onerror = () => reject(new Error('Google sign-in could not be loaded'))
+    if (!script.parentNode) document.head.appendChild(script)
+  })
+  return gisLoadPromise
+}
 
 function getSprintBoundary(year, N) {
   const start = new Date(year, 0, 1)
@@ -941,50 +962,27 @@ function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails }) {
   )
 }
 
-function AuthScreen({ onGoogle, loading, error, onClose }) {
+function AuthScreen({ onGoogle, gisReady, loading, error, onClose }) {
   const googleBtnRef = useRef(null)
   const [gisRendered, setGisRendered] = useState(false)
 
   useEffect(() => {
-    let checkInterval
-    const initGisButton = () => {
-      if (window.google?.accounts?.id && googleBtnRef.current) {
-        try {
-          googleBtnRef.current.innerHTML = ''
-          window.google.accounts.id.renderButton(googleBtnRef.current, {
-            type: 'standard',
-            shape: 'rectangular',
-            theme: 'filled_black',
-            text: 'signin_with',
-            size: 'large',
-            logo_alignment: 'left',
-            width: 280,
-          })
-          setGisRendered(true)
-        } catch (e) {
-          console.warn('GIS render error:', e)
-        }
-      }
+    if (!gisReady || !googleBtnRef.current) return
+    try {
+      googleBtnRef.current.replaceChildren()
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        type: 'standard', shape: 'pill', theme: 'outline', text: 'continue_with',
+        size: 'large', logo_alignment: 'left', width: Math.min(360, Math.max(240, googleBtnRef.current.clientWidth || 280)),
+      })
+      setGisRendered(true)
+    } catch {
+      setGisRendered(false)
     }
-
-    initGisButton()
-    if (!window.google?.accounts?.id) {
-      checkInterval = setInterval(() => {
-        if (window.google?.accounts?.id) {
-          initGisButton()
-          clearInterval(checkInterval)
-        }
-      }, 200)
-    }
-
-    return () => {
-      if (checkInterval) clearInterval(checkInterval)
-    }
-  }, [])
+  }, [gisReady])
 
   return (
     <section className="auth-mini-card" onClick={event => event.stopPropagation()}>
-      <button className="auth-mini-close-btn" onClick={onClose} aria-label="Close auth">×</button>
+      <button className="auth-mini-close-btn" onClick={onClose} disabled={loading} aria-label="Close auth">×</button>
 
       <div className="auth-header-wrapper">
         <h1 className="auth-title">
@@ -996,20 +994,36 @@ function AuthScreen({ onGoogle, loading, error, onClose }) {
         <div ref={googleBtnRef} style={{ display: gisRendered ? 'flex' : 'none', justifyContent: 'center', width: '100%', minHeight: '44px' }} />
 
         {!gisRendered && (
-          <button className="google-button premium-google-btn large-google-btn" type="button" onClick={onGoogle} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 20px', borderRadius: '12px', fontSize: '15px', fontWeight: '600' }}>
+          <button className="google-button premium-google-btn large-google-btn" type="button" onClick={onGoogle} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 20px', borderRadius: '12px', fontSize: '15px', fontWeight: '600' }}>
             <svg style={{ width: '20px', height: '20px', marginRight: '12px', verticalAlign: 'middle' }} viewBox="0 0 24 24">
               <path fill="currentColor" d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.58h3.29c1.92,-1.77 3.02,-4.38 3.02,-7.38c0,-0.6 -0.05,-1.2 -0.15,-1.8z" />
               <path fill="currentColor" d="M12,20.4c2.54,0 4.67,-0.84 6.23,-2.28l-3.29,-2.58c-0.91,0.61 -2.08,0.98 -2.94,0.98c-2.27,0 -4.2,-1.54 -4.89,-3.6H3.66v2.66c1.55,3.08 4.73,5.18 8.34,5.18z" />
               <path fill="currentColor" d="M7.11,12.92a5.92,5.92 0 0 1 0,-1.84V8.42H3.66a9.92,9.92 0 0 0 0,7.16l3.45,-2.66z" fillOpacity="0.9" />
               <path fill="currentColor" d="M12,5.28c1.38,0 2.62,0.47 3.59,1.4l2.69,-2.69C16.66,2.5 14.54,1.8 12,1.8c-3.61,0 -6.79,2.1 -8.34,5.18l3.45,2.66c0.69,-2.06 2.62,-3.6 4.89,-3.6z" />
             </svg>
-            Continue with Google
+            {loading ? 'Opening Google…' : 'Continue with Google'}
           </button>
         )}
       </div>
 
       {error && <p className="auth-error premium-auth-error">{error}</p>}
     </section>
+  )
+}
+
+function AuthTransitionOverlay({ active, message }) {
+  if (!active) return null
+
+  return (
+    <div className="auth-transition-overlay" role="status" aria-live="polite" aria-label={message}>
+      <div className="auth-transition-panel">
+        <span className="auth-transition-spinner" aria-hidden="true" />
+        <div>
+          <strong>{message}</strong>
+          <span>Your dashboard is almost ready.</span>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -3288,6 +3302,14 @@ function App() {
   const [sessionToken, setSessionToken] = useState(() => localStorage.getItem('onepercentgoal.token') || '')
   const [currentUser, setCurrentUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
+  const [gisReady, setGisReady] = useState(false)
+  const googleSignInInFlight = useRef(false)
+  const credentialHandlerRef = useRef(null)
+  const oneTapPromptedRef = useRef(false)
+  const gisInitializedRef = useRef(false)
+  const nativeAuthReturn = new URLSearchParams(window.location.search).get('auth_return') === 'com.onepercentgoal.app://auth'
+    ? 'com.onepercentgoal.app://auth'
+    : ''
 
   useEffect(() => {
     if (window.hideBootLoader) {
@@ -3299,6 +3321,7 @@ function App() {
   }, [authReady])
 
   const [authLoading, setAuthLoading] = useState(false)
+  const [authStatus, setAuthStatus] = useState('Signing you in…')
   const [authError, setAuthError] = useState('')
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
@@ -3351,6 +3374,10 @@ const exitPendingRef = useRef(false)
       window.removeEventListener('orientationchange', onOrientation)
     }
   }, [])
+
+  useEffect(() => {
+    if (nativeAuthReturn && !sessionToken) setShowAuthModal(true)
+  }, [nativeAuthReturn, sessionToken])
   const [deleteConfirmFlow, setDeleteConfirmFlow] = useState(null)
   const [completedShare, setCompletedShare] = useState(null)
   const savedShareRef = useRef(new Set())
@@ -3428,15 +3455,25 @@ const exitPendingRef = useRef(false)
     if (!isNativeShell()) return
     const app = window.Capacitor.Plugins.App
     let activeHandle = null
-    const result = app.addListener('appUrlOpen', event => {
-      const url = event.url || ''
+    const restoreSession = url => {
       const token = new URLSearchParams(url.split('?')[1] || '').get('auth_token')
       if (token) {
         localStorage.setItem('onepercentgoal.token', token)
         setSessionToken(token)
-        window.location.href = '/'
+        Browser.close().catch(() => {})
+        apiFetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+          .then(response => response.ok ? response.json() : Promise.reject(response))
+          .then(data => setCurrentUser(data.user))
+          .catch(() => {
+            localStorage.removeItem('onepercentgoal.token')
+            setSessionToken('')
+            setAuthError('Your sign-in session could not be restored. Please try again.')
+            setShowAuthModal(true)
+          })
       }
-    })
+    }
+    const result = app.addListener('appUrlOpen', event => restoreSession(event.url || ''))
+    CapacitorApp.getLaunchUrl().then(result => restoreSession(result?.url || '')).catch(() => {})
     if (result && typeof result.then === 'function') {
       result.then(handle => { activeHandle = handle }).catch(() => {})
     } else {
@@ -3609,121 +3646,102 @@ const exitPendingRef = useRef(false)
   }, [selectedTimelineYear, currentUser, sessionToken])
 
   const handleCredentialResponse = async (response) => {
-    if (!response || !response.credential) return
+    if (!response?.credential || googleSignInInFlight.current) return
+    googleSignInInFlight.current = true
     const encodedToken = response.credential
-
-    // Close the auth modal and show the pop message instantly with zero delay
-    setShowAuthModal(false)
-    showToast('Signed in with Google')
-
-    // Decode JWT client-side immediately to transition to dashboard without waiting for network round-trip
-    try {
-      const base64Url = encodedToken.split('.')[1]
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-      const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''))
-      const preview = JSON.parse(jsonPayload)
-      if (preview && preview.email) {
-        setCurrentUser({
-          id: 0,
-          name: preview.name || preview.email.split('@')[0],
-          email: preview.email,
-          display_name: preview.name || preview.email.split('@')[0],
-          profile_photo: preview.picture || '',
-          needs_profile: false,
-        })
-      }
-    } catch {}
-
+    setAuthLoading(true)
+    setAuthStatus('Signing you in…')
     setAuthError('')
+    setShowAuthModal(false)
     try {
+      await new Promise(resolve => requestAnimationFrame(resolve))
       const res = await apiFetch('/api/auth/google/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential: encodedToken }),
       })
-      const result = await res.json()
+      const responseBody = await res.text()
+      let result = {}
+      if (responseBody) {
+        try {
+          result = JSON.parse(responseBody)
+        } catch {
+          throw new Error(res.ok
+            ? 'Google sign-in returned an invalid response. Please try again.'
+            : `Google sign-in service is unavailable (${res.status}). Please try again shortly.`)
+        }
+      }
       if (!res.ok) {
-        throw new Error(result.detail || 'Google sign-in verification failed')
+        throw new Error(result.detail || `Google sign-in verification failed (${res.status})`)
+      }
+      if (!result.token || !result.user) {
+        throw new Error('Google sign-in did not return a session. Please try again.')
+      }
+      if (nativeAuthReturn) {
+        window.location.replace(`${nativeAuthReturn}?auth_token=${encodeURIComponent(result.token)}`)
+        return
       }
       localStorage.setItem('onepercentgoal.token', result.token)
       setSessionToken(result.token)
       setCurrentUser(result.user)
+      setShowAuthModal(false)
+      showToast('Welcome to OnePercentGoal')
       setAuthError('')
     } catch (err) {
-      console.error('Google One Tap error:', err)
       setAuthError(err.message || 'Google authentication failed')
       setShowAuthModal(true)
     } finally {
       setAuthLoading(false)
+      googleSignInInFlight.current = false
     }
   }
 
   useEffect(() => {
-    window.__handleGoogleCredentialResponse = handleCredentialResponse
-    if (window.__pendingCredentialResponse) {
-      const pending = window.__pendingCredentialResponse
-      window.__pendingCredentialResponse = null
-      handleCredentialResponse(pending)
-    }
-    return () => {
-      window.__handleGoogleCredentialResponse = null
-    }
-  }, [])
+    credentialHandlerRef.current = handleCredentialResponse
+  })
 
   useEffect(() => {
-    if (currentUser || sessionToken || isNativeShell()) return
-
-    const initOneTap = () => {
-      if (!window.google?.accounts?.id) return
-      try {
+    if (currentUser || sessionToken || isNativeShell() || gisInitializedRef.current) return
+    gisInitializedRef.current = true
+    loadGoogleIdentityServices()
+      .then(() => {
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
-          callback: (res) => {
-            if (window.__handleGoogleCredentialResponse) {
-              window.__handleGoogleCredentialResponse(res)
-            } else {
-              handleCredentialResponse(res)
-            }
-          },
-          auto_select: false,
+          callback: response => credentialHandlerRef.current?.(response),
+          auto_select: true,
           itp_support: true,
           cancel_on_tap_outside: false,
         })
-        window.google.accounts.id.prompt((notification) => {
-          if (notification && notification.isNotDisplayed()) {
-            console.info('Google One Tap not displayed:', notification.getNotDisplayedReason())
-          }
-        })
-      } catch (e) {
-        console.warn('GIS One Tap prompt notice:', e)
-      }
-    }
-
-    initOneTap()
-    let checkInterval
-    if (!window.google?.accounts?.id) {
-      checkInterval = setInterval(() => {
-        if (window.google?.accounts?.id) {
-          initOneTap()
-          clearInterval(checkInterval)
-        }
-      }, 50)
-    }
-
-    return () => {
-      if (checkInterval) clearInterval(checkInterval)
-    }
+        setGisReady(true)
+      })
+      .catch(error => {
+        gisInitializedRef.current = false
+        setAuthError(error.message || 'Google sign-in is unavailable')
+      })
   }, [currentUser, sessionToken, authReady])
 
+  useEffect(() => {
+    if (!gisReady || currentUser || sessionToken || oneTapPromptedRef.current) return
+    oneTapPromptedRef.current = true
+    window.google.accounts.id.prompt()
+  }, [gisReady, currentUser, sessionToken])
+
   const handleGoogle = () => {
-    const authUrl = apiUrl('/api/auth/google/start')
     if (isNativeShell()) {
-      const startUrl = `${authUrl}${authUrl.includes('?') ? '&' : '?'}redirect=${encodeURIComponent('com.onepercentgoal.app://auth')}`
-      Browser.open({ url: startUrl, windowName: '_blank' }).catch(() => {
-        window.location.href = startUrl
+      setAuthLoading(true)
+      setAuthStatus('Opening secure Google sign-in…')
+      if (!WEB_APP_URL) {
+        setAuthLoading(false)
+        setAuthError('Mobile sign-in needs VITE_APP_URL to point to the deployed website.')
+        return
+      }
+      const signInUrl = `${WEB_APP_URL}/?auth_return=${encodeURIComponent('com.onepercentgoal.app://auth')}`
+      Browser.open({ url: signInUrl, windowName: '_blank' }).catch(() => {
+        setAuthLoading(false)
+        setAuthError('Unable to open Google sign-in. Please try again.')
       })
     } else {
-      window.location.href = authUrl
+      window.google?.accounts?.id?.prompt()
     }
   }
 
@@ -4145,13 +4163,15 @@ const exitPendingRef = useRef(false)
 
         {showAuthModal && (
           <div className="modal-backdrop" onClick={() => setShowAuthModal(false)}>
-            <AuthScreen onGoogle={handleGoogle} loading={authLoading} error={authError} onClose={() => setShowAuthModal(false)} />
+            <AuthScreen onGoogle={handleGoogle} gisReady={gisReady} loading={authLoading} error={authError} onClose={() => setShowAuthModal(false)} />
           </div>
         )}
 
+        <AuthTransitionOverlay active={authLoading} message={authStatus} />
+
         {toastMsg && (
           <div className="bottom-toast-notification">
-            <span className="toast-tick">✓</span>
+            {!toastNoTick && <span className="toast-tick">✓</span>}
             <span className="toast-text">{toastMsg}</span>
           </div>
         )}
@@ -4676,6 +4696,7 @@ const exitPendingRef = useRef(false)
           <span className="toast-text">{toastMsg}</span>
         </div>
       )}
+      <AuthTransitionOverlay active={authLoading} message={authStatus} />
     </section>
   </main>
   )

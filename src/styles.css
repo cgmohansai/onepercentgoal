@@ -3355,6 +3355,57 @@ a:focus-visible,
 .auth-mini-close-btn:hover {
   color: #c9f36a;
 }
+.auth-mini-close-btn:disabled {
+  cursor: default;
+  opacity: .45;
+}
+.auth-transition-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 11, 10, .82);
+  backdrop-filter: blur(8px);
+}
+.auth-transition-panel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(360px, 100%);
+  padding: 18px 20px;
+  border: 1px solid rgba(201, 243, 106, .38);
+  border-radius: 12px;
+  background: #191c18;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, .55);
+  color: #f6f5f1;
+}
+.auth-transition-panel strong,
+.auth-transition-panel span {
+  display: block;
+}
+.auth-transition-panel strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.auth-transition-panel div > span {
+  margin-top: 4px;
+  color: #a8aca1;
+  font-size: 13px;
+}
+.auth-transition-spinner {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border: 2px solid rgba(201, 243, 106, .25);
+  border-top-color: #c9f36a;
+  border-radius: 50%;
+  animation: authTransitionSpin .7s linear infinite;
+}
+@keyframes authTransitionSpin {
+  to { transform: rotate(360deg); }
+}
 .auth-modal-content .auth-aurora-glow {
   display: none;
 }
@@ -5054,7 +5105,6 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     margin-bottom: 20px !important;
   }
 }
-
 
 
 

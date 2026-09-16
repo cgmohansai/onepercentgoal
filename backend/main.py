@@ -20,13 +20,11 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlencode
 
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 try:
@@ -52,8 +50,6 @@ SQLITE_DATABASE = ROOT / "onepercentgoal.db"
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").strip().rstrip("/")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback").strip()
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
 BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "").strip()
 EMAIL_LOGO_URL = os.getenv("EMAIL_LOGO_URL", "").strip()
@@ -606,11 +602,6 @@ def setup_database():
                     created_at TIMESTAMPTZ NOT NULL, expires_at TIMESTAMPTZ NOT NULL
                 )""")
             execute(conn, """
-                CREATE TABLE IF NOT EXISTS oauth_states (
-                    state TEXT PRIMARY KEY, provider TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL,
-                    redirect TEXT NOT NULL DEFAULT ''
-                )""")
-            execute(conn, """
                 CREATE TABLE IF NOT EXISTS goals (
                     id BIGSERIAL PRIMARY KEY,
                     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -663,11 +654,6 @@ def setup_database():
                     token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
                     created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-                )""")
-            execute(conn, """
-                CREATE TABLE IF NOT EXISTS oauth_states (
-                    state TEXT PRIMARY KEY, provider TEXT NOT NULL, created_at TEXT NOT NULL,
-                    redirect TEXT NOT NULL DEFAULT ''
                 )""")
             execute(conn, """
                 CREATE TABLE IF NOT EXISTS goals (
@@ -728,7 +714,6 @@ def setup_database():
             ("goals", "rolled_from_goal_id", "ALTER TABLE goals ADD COLUMN rolled_from_goal_id BIGINT" if USE_POSTGRES else "ALTER TABLE goals ADD COLUMN rolled_from_goal_id INTEGER"),
             ("goals", "source_goal_id", "ALTER TABLE goals ADD COLUMN source_goal_id BIGINT" if USE_POSTGRES else "ALTER TABLE goals ADD COLUMN source_goal_id INTEGER"),
             ("rotes", "rote_date", "ALTER TABLE rotes ADD COLUMN rote_date TEXT NOT NULL DEFAULT ''"),
-            ("oauth_states", "redirect", "ALTER TABLE oauth_states ADD COLUMN redirect TEXT NOT NULL DEFAULT ''"),
         ]
         for table, column, ddl in alter_columns:
             ensure_column(conn, table, column, ddl)
@@ -751,128 +736,6 @@ def health():
     return {"status": "ok"}
 
 
-# --- GOOGLE OAUTH AUTHENTICATION ENDPOINTS ---
-
-def _sanitize_redirect(redirect: str | None) -> str:
-    """Restrict OAuth completion redirects to trusted destinations (open-redirect guard)."""
-    if not redirect:
-        return FRONTEND_URL
-    allowed_prefixes = (
-        "com.onepercentgoal.app://",
-        "http://localhost",
-        "https://localhost",
-        "capacitor://localhost",
-    )
-    if redirect.startswith(allowed_prefixes) or redirect.startswith(FRONTEND_URL):
-        return redirect
-    return FRONTEND_URL
-
-
-@app.get("/api/auth/google/start")
-def auth_google_start(redirect: str | None = None):
-    """Initiate Google OAuth 2.0 PKCE flow: generates state token and redirects to Google login consent."""
-    if not GOOGLE_CLIENT_ID:
-        raise HTTPException(status_code=500, detail="Google auth is not configured")
-    state = secrets.token_urlsafe(24)
-    redirect_target = _sanitize_redirect(redirect)
-    with db() as conn:
-        execute(
-            conn,
-            "INSERT INTO oauth_states (state, provider, created_at, redirect) VALUES (%s, 'google', %s, %s) ON CONFLICT (state) DO UPDATE SET created_at = EXCLUDED.created_at, redirect = EXCLUDED.redirect",
-            (state, current_timestamp(), redirect_target),
-        )
-    params = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": GOOGLE_REDIRECT_URI,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "state": state,
-        "access_type": "offline",
-        "prompt": "consent",
-        "include_granted_scopes": "true",
-    }
-    return RedirectResponse(f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}")
-
-
-@app.get("/api/auth/google/callback")
-async def auth_google_callback(background_tasks: BackgroundTasks, code: str | None = None, state: str | None = None):
-    """Google OAuth Callback: exchanges authorization code for user info, provisions user record, and issues session token."""
-    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-        raise HTTPException(status_code=500, detail="Google auth is not configured")
-    if not code or not state:
-        raise HTTPException(status_code=400, detail="Missing authorization code")
-
-    with db() as conn:
-        state_row = execute(conn, "SELECT * FROM oauth_states WHERE state = %s AND provider = 'google'", (state,)).fetchone()
-        if not state_row:
-            raise HTTPException(status_code=400, detail="Invalid Google state")
-        execute(conn, "DELETE FROM oauth_states WHERE state = %s", (state,))
-
-    async with httpx.AsyncClient(timeout=20) as client:
-        token_response = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": code,
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": GOOGLE_REDIRECT_URI,
-                "grant_type": "authorization_code",
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
-        if token_response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Google token exchange failed")
-        token_data = token_response.json()
-        userinfo_response = await client.get(
-            "https://openidconnect.googleapis.com/v1/userinfo",
-            headers={"Authorization": f"Bearer {token_data['access_token']}"},
-        )
-        if userinfo_response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Google profile lookup failed")
-        google_user = userinfo_response.json()
-
-    email = str(google_user.get("email", "")).strip().lower()
-    display_name = str(google_user.get("name", "")).strip() or email.split("@")[0]
-    google_sub = str(google_user.get("sub", "")).strip()
-    if not email or not google_sub:
-        raise HTTPException(status_code=400, detail="Google account data is incomplete")
-
-    with db() as conn:
-        user = execute(conn, "SELECT * FROM users WHERE google_sub = %s OR email = %s", (google_sub, email)).fetchone()
-        if user:
-            execute(
-                conn,
-                """
-                UPDATE users
-                SET google_sub = COALESCE(google_sub, %s),
-                    auth_provider = 'google',
-                    display_name = COALESCE(NULLIF(display_name, ''), %s),
-                    name = COALESCE(NULLIF(name, ''), %s),
-                    last_login_at = %s
-                WHERE id = %s
-                """,
-                (google_sub, display_name, display_name, current_timestamp(), user["id"]),
-            )
-            user_id = int(user["id"])
-        else:
-            row = execute(
-                conn,
-                """
-                INSERT INTO users (name, email, display_name, username, auth_provider, google_sub, created_at, last_login_at)
-                VALUES (%s, %s, %s, %s, 'google', %s, %s, %s)
-                RETURNING id
-                """,
-                (display_name, email, display_name, None, google_sub, current_timestamp(), current_timestamp()),
-            ).fetchone()
-            user_id = int(row["id"])
-            background_tasks.add_task(send_welcome_email, email, display_name or "User")
-        token = issue_session(conn, user_id)
-    state_dict = row_dict(state_row) or {}
-    redirect_target = state_dict.get("redirect") or FRONTEND_URL
-    sep = "&" if "?" in redirect_target else "?"
-    return RedirectResponse(f"{redirect_target}{sep}auth_token={token}")
-
-
 @app.post("/api/auth/google/verify")
 @app.post("/api/auth/google/onetap")
 async def auth_google_verify(payload: GoogleVerifyPayload, background_tasks: BackgroundTasks):
@@ -884,47 +747,21 @@ async def auth_google_verify(payload: GoogleVerifyPayload, background_tasks: Bac
     if not credential:
         raise HTTPException(status_code=400, detail="Missing Google credential")
 
-    idinfo = None
-    # 1. Try google.oauth2.id_token verification with prewarmed session
-    if google_id_token and _google_auth_request:
-        try:
-            idinfo = google_id_token.verify_oauth2_token(
-                credential,
-                _google_auth_request,
-                GOOGLE_CLIENT_ID,
-            )
-        except Exception:
-            idinfo = None
-
-    # 2. Fallback to Google's public tokeninfo endpoint via httpx
-    if not idinfo:
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(
-                    "https://oauth2.googleapis.com/tokeninfo",
-                    params={"id_token": credential},
-                )
-                if resp.status_code == 200:
-                    token_data = resp.json()
-                    aud = token_data.get("aud")
-                    if aud == GOOGLE_CLIENT_ID:
-                        idinfo = token_data
-                    else:
-                        raise HTTPException(status_code=400, detail="Token audience does not match client ID")
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Google token verification failed: {e}")
-
-    if not idinfo:
-        raise HTTPException(status_code=400, detail="Invalid Google token")
+    if not google_id_token or not _google_auth_request:
+        raise HTTPException(status_code=500, detail="Google token verification is unavailable")
+    try:
+        idinfo = google_id_token.verify_oauth2_token(
+            credential, _google_auth_request, GOOGLE_CLIENT_ID,
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid or expired Google credential")
 
     email = str(idinfo.get("email", "")).strip().lower()
     display_name = str(idinfo.get("name", "")).strip() or email.split("@")[0]
     google_sub = str(idinfo.get("sub", "")).strip()
     picture = str(idinfo.get("picture", "")).strip()
 
-    if not email or not google_sub:
+    if not email or not google_sub or idinfo.get("email_verified") is not True:
         raise HTTPException(status_code=400, detail="Google account data is incomplete")
 
     with db() as conn:
