@@ -3339,6 +3339,20 @@ a:focus-visible,
 .auth-mini-card .auth-header-wrapper {
   margin-bottom: 20px;
 }
+.gis-button-slot {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+}
+.gis-button-slot:not(.ready) {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+}
+.gis-button-slot iframe {
+  max-width: 100%;
+}
 .auth-mini-close-btn {
   position: absolute;
   top: 12px;
@@ -5105,7 +5119,6 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     margin-bottom: 20px !important;
   }
 }
-
 
 
 

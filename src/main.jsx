@@ -974,7 +974,12 @@ function AuthScreen({ onGoogle, gisReady, loading, error, onClose }) {
         type: 'standard', shape: 'pill', theme: 'outline', text: 'continue_with',
         size: 'large', logo_alignment: 'left', width: Math.min(360, Math.max(240, googleBtnRef.current.clientWidth || 280)),
       })
-      setGisRendered(true)
+      requestAnimationFrame(() => {
+        const button = googleBtnRef.current
+        const frame = button?.querySelector('iframe')
+        const rect = frame?.getBoundingClientRect()
+        setGisRendered(Boolean(rect && rect.width > 0 && rect.height > 0))
+      })
     } catch {
       setGisRendered(false)
     }
@@ -991,7 +996,7 @@ function AuthScreen({ onGoogle, gisReady, loading, error, onClose }) {
       </div>
 
       <div className="google-auth-container" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-        <div ref={googleBtnRef} style={{ display: gisRendered ? 'flex' : 'none', justifyContent: 'center', width: '100%', minHeight: '44px' }} />
+        <div ref={googleBtnRef} className={gisRendered ? 'gis-button-slot ready' : 'gis-button-slot'} />
 
         {!gisRendered && (
           <button className="google-button premium-google-btn large-google-btn" type="button" onClick={onGoogle} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 20px', borderRadius: '12px', fontSize: '15px', fontWeight: '600' }}>
@@ -3453,11 +3458,15 @@ const exitPendingRef = useRef(false)
 
   useEffect(() => {
     if (!isNativeShell()) return
-    const app = window.Capacitor.Plugins.App
     let activeHandle = null
     const restoreSession = url => {
-      const token = new URLSearchParams(url.split('?')[1] || '').get('auth_token')
+      let token = ''
+      try {
+        token = new URL(url).searchParams.get('auth_token') || ''
+      } catch {}
       if (token) {
+        setAuthLoading(true)
+        setAuthStatus('Finishing sign-in…')
         localStorage.setItem('onepercentgoal.token', token)
         setSessionToken(token)
         Browser.close().catch(() => {})
@@ -3470,9 +3479,10 @@ const exitPendingRef = useRef(false)
             setAuthError('Your sign-in session could not be restored. Please try again.')
             setShowAuthModal(true)
           })
+          .finally(() => setAuthLoading(false))
       }
     }
-    const result = app.addListener('appUrlOpen', event => restoreSession(event.url || ''))
+    const result = CapacitorApp.addListener('appUrlOpen', event => restoreSession(event.url || ''))
     CapacitorApp.getLaunchUrl().then(result => restoreSession(result?.url || '')).catch(() => {})
     if (result && typeof result.then === 'function') {
       result.then(handle => { activeHandle = handle }).catch(() => {})
