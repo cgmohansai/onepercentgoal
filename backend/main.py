@@ -738,6 +738,7 @@ def health():
 
 @app.post("/api/auth/google/verify")
 @app.post("/api/auth/google/onetap")
+@app.post("/api/auth/google")
 async def auth_google_verify(payload: GoogleVerifyPayload, background_tasks: BackgroundTasks):
     """Google Identity Services (One Tap & Branded Button) credential verification."""
     if not GOOGLE_CLIENT_ID:

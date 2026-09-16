@@ -3677,7 +3677,7 @@ const exitPendingRef = useRef(false)
     setShowAuthModal(false)
     try {
       await new Promise(resolve => requestAnimationFrame(resolve))
-      const res = await apiFetch('/api/auth/google/verify', {
+      const res = await apiFetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential: encodedToken }),
