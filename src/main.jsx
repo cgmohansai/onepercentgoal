@@ -962,28 +962,40 @@ function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails }) {
   )
 }
 
-function AuthScreen({ onGoogle, gisReady, loading, error, onClose }) {
+function AuthScreen({ onGoogle, onGoogleButtonClick, gisReady, loading, error, onClose }) {
   const googleBtnRef = useRef(null)
   const [gisRendered, setGisRendered] = useState(false)
+  const [renderAttempt, setRenderAttempt] = useState(0)
 
   useEffect(() => {
     if (!gisReady || !googleBtnRef.current) return
+    let checkTimer
     try {
       googleBtnRef.current.replaceChildren()
       window.google.accounts.id.renderButton(googleBtnRef.current, {
         type: 'standard', shape: 'pill', theme: 'outline', text: 'continue_with',
         size: 'large', logo_alignment: 'left', width: Math.min(360, Math.max(240, googleBtnRef.current.clientWidth || 280)),
+        click_listener: onGoogleButtonClick,
       })
-      requestAnimationFrame(() => {
+      setGisRendered(true)
+      checkTimer = window.setTimeout(() => {
         const button = googleBtnRef.current
-        const frame = button?.querySelector('iframe')
-        const rect = frame?.getBoundingClientRect()
-        setGisRendered(Boolean(rect && rect.width > 0 && rect.height > 0))
-      })
+        if (!button?.firstElementChild) setGisRendered(false)
+      }, 800)
     } catch {
       setGisRendered(false)
     }
-  }, [gisReady])
+    return () => window.clearTimeout(checkTimer)
+  }, [gisReady, renderAttempt])
+
+  const retryGoogleButton = () => {
+    if (gisReady) {
+      setGisRendered(false)
+      setRenderAttempt(attempt => attempt + 1)
+      return
+    }
+    onGoogle()
+  }
 
   return (
     <section className="auth-mini-card" onClick={event => event.stopPropagation()}>
@@ -999,14 +1011,14 @@ function AuthScreen({ onGoogle, gisReady, loading, error, onClose }) {
         <div ref={googleBtnRef} className={gisRendered ? 'gis-button-slot ready' : 'gis-button-slot'} />
 
         {!gisRendered && (
-          <button className="google-button premium-google-btn large-google-btn" type="button" onClick={onGoogle} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 20px', borderRadius: '12px', fontSize: '15px', fontWeight: '600' }}>
+          <button className="google-button premium-google-btn large-google-btn" type="button" onClick={retryGoogleButton} disabled={loading} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 20px', borderRadius: '12px', fontSize: '15px', fontWeight: '600' }}>
             <svg style={{ width: '20px', height: '20px', marginRight: '12px', verticalAlign: 'middle' }} viewBox="0 0 24 24">
               <path fill="currentColor" d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.58h3.29c1.92,-1.77 3.02,-4.38 3.02,-7.38c0,-0.6 -0.05,-1.2 -0.15,-1.8z" />
               <path fill="currentColor" d="M12,20.4c2.54,0 4.67,-0.84 6.23,-2.28l-3.29,-2.58c-0.91,0.61 -2.08,0.98 -2.94,0.98c-2.27,0 -4.2,-1.54 -4.89,-3.6H3.66v2.66c1.55,3.08 4.73,5.18 8.34,5.18z" />
               <path fill="currentColor" d="M7.11,12.92a5.92,5.92 0 0 1 0,-1.84V8.42H3.66a9.92,9.92 0 0 0 0,7.16l3.45,-2.66z" fillOpacity="0.9" />
               <path fill="currentColor" d="M12,5.28c1.38,0 2.62,0.47 3.59,1.4l2.69,-2.69C16.66,2.5 14.54,1.8 12,1.8c-3.61,0 -6.79,2.1 -8.34,5.18l3.45,2.66c0.69,-2.06 2.62,-3.6 4.89,-3.6z" />
             </svg>
-            {loading ? 'Opening Google…' : 'Continue with Google'}
+            {loading ? 'Opening Google…' : gisReady ? 'Reload Google sign-in' : 'Continue with Google'}
           </button>
         )}
       </div>
@@ -3718,6 +3730,7 @@ const exitPendingRef = useRef(false)
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
           callback: response => credentialHandlerRef.current?.(response),
+          ux_mode: 'popup',
           auto_select: true,
           itp_support: true,
           cancel_on_tap_outside: false,
@@ -3753,6 +3766,10 @@ const exitPendingRef = useRef(false)
     } else {
       window.google?.accounts?.id?.prompt()
     }
+  }
+
+  const handleGoogleButtonClick = () => {
+    window.setTimeout(() => showToast('Choose a Google account to continue', true), 0)
   }
 
   const completeProfile = async form => {
@@ -4173,7 +4190,7 @@ const exitPendingRef = useRef(false)
 
         {showAuthModal && (
           <div className="modal-backdrop" onClick={() => setShowAuthModal(false)}>
-            <AuthScreen onGoogle={handleGoogle} gisReady={gisReady} loading={authLoading} error={authError} onClose={() => setShowAuthModal(false)} />
+            <AuthScreen onGoogle={handleGoogle} onGoogleButtonClick={handleGoogleButtonClick} gisReady={gisReady} loading={authLoading} error={authError} onClose={() => setShowAuthModal(false)} />
           </div>
         )}
 

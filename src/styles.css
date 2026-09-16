@@ -3345,11 +3345,6 @@ a:focus-visible,
   width: 100%;
   min-height: 44px;
 }
-.gis-button-slot:not(.ready) {
-  position: absolute;
-  visibility: hidden;
-  pointer-events: none;
-}
 .gis-button-slot iframe {
   max-width: 100%;
 }
@@ -5119,7 +5114,6 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     margin-bottom: 20px !important;
   }
 }
-
 
 
 
