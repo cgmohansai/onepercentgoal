@@ -3284,9 +3284,12 @@ function App() {
   const [gisReady, setGisReady] = useState(false)
   const googleSignInInFlight = useRef(false)
   const gisInitializedRef = useRef(false)
-  const nativeAuthReturn = new URLSearchParams(window.location.search).get('auth_return') === 'com.onepercentgoal.app://auth'
-    ? 'com.onepercentgoal.app://auth'
-    : ''
+  const [nativeAuthReturn, setNativeAuthReturn] = useState(() => {
+    return new URLSearchParams(window.location.search).get('auth_return') === 'com.onepercentgoal.app://auth'
+      ? 'com.onepercentgoal.app://auth'
+      : ''
+  })
+  const [appReturnFlow, setAppReturnFlow] = useState(null)
 
   useEffect(() => {
     if (window.hideBootLoader) {
@@ -3353,8 +3356,8 @@ const exitPendingRef = useRef(false)
   }, [])
 
   useEffect(() => {
-    if (nativeAuthReturn && !sessionToken) setShowAuthModal(true)
-  }, [nativeAuthReturn, sessionToken])
+    if (nativeAuthReturn && !sessionToken && !currentUser) setShowAuthModal(true)
+  }, [nativeAuthReturn, sessionToken, currentUser])
   const [deleteConfirmFlow, setDeleteConfirmFlow] = useState(null)
   const [completedShare, setCompletedShare] = useState(null)
   const savedShareRef = useRef(new Set())
@@ -3380,10 +3383,18 @@ const exitPendingRef = useRef(false)
   }, [])
 
   useEffect(() => {
-    const tokenFromUrl = new URLSearchParams(window.location.search).get('auth_token')
+    const searchParams = new URLSearchParams(window.location.search)
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const tokenFromUrl = searchParams.get('auth_token')
+    const accessTokenFromUrl = searchParams.get('access_token') || hashParams.get('access_token')
+
     if (tokenFromUrl) {
       localStorage.setItem('onepercentgoal.token', tokenFromUrl)
       window.history.replaceState({}, document.title, window.location.pathname)
+    } else if (accessTokenFromUrl) {
+      window.history.replaceState({}, document.title, window.location.pathname)
+      finishGoogleSignIn({ access_token: accessTokenFromUrl })
+      return
     }
     const token = tokenFromUrl || localStorage.getItem('onepercentgoal.token')
     if (!token) {
@@ -3391,7 +3402,7 @@ const exitPendingRef = useRef(false)
       return
     }
     setSessionToken(token)
-      apiFetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+    apiFetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
       .then(response => response.ok ? response.json() : Promise.reject(response))
       .then(data => {
         setCurrentUser(data.user)
@@ -3419,14 +3430,14 @@ const exitPendingRef = useRef(false)
 
   useEffect(() => {
     const isMobileBrowser = /Android|iPhone|iPad|iPod|Mobile|wv/i.test(navigator.userAgent)
-    if (isNativeShell() || !isMobileBrowser) return
+    if (isNativeShell() || !isMobileBrowser || !currentUser) return
     const handler = event => {
       event.preventDefault()
       event.returnValue = ''
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [])
+  }, [currentUser])
 
   useEffect(() => {
     if (!isNativeShell()) return
@@ -3436,15 +3447,26 @@ const exitPendingRef = useRef(false)
       try {
         token = new URL(url).searchParams.get('auth_token') || ''
       } catch {}
+      if (!token && typeof url === 'string') {
+        const match = url.match(/[?&]auth_token=([^&#]+)/)
+        if (match) token = decodeURIComponent(match[1])
+      }
       if (token) {
         setAuthLoading(true)
         setAuthStatus('Finishing sign-in…')
         localStorage.setItem('onepercentgoal.token', token)
         setSessionToken(token)
+        setActive('Overview')
+        setShowAuthModal(false)
         Browser.close().catch(() => {})
         apiFetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
           .then(response => response.ok ? response.json() : Promise.reject(response))
-          .then(data => setCurrentUser(data.user))
+          .then(data => {
+            setCurrentUser(data.user)
+            setActive('Overview')
+            setShowAuthModal(false)
+            showToast('Welcome to OnePercentGoal')
+          })
           .catch(() => {
             localStorage.removeItem('onepercentgoal.token')
             setSessionToken('')
@@ -3658,16 +3680,35 @@ const exitPendingRef = useRef(false)
       if (!result.token || !result.user) {
         throw new Error('Google sign-in did not return a session. Please try again.')
       }
-      if (nativeAuthReturn) {
-        window.location.replace(`${nativeAuthReturn}?auth_token=${encodeURIComponent(result.token)}`)
-        return
-      }
+
+      // Always save session and log into the website Overview page first
       localStorage.setItem('onepercentgoal.token', result.token)
       setSessionToken(result.token)
       setCurrentUser(result.user)
+      setActive('Overview')
       setShowAuthModal(false)
       showToast('Welcome to OnePercentGoal')
       setAuthError('')
+
+      // If launched from native app with auth_return, provide seamless transition
+      if (nativeAuthReturn) {
+        const appReturnUrl = `${nativeAuthReturn}?auth_token=${encodeURIComponent(result.token)}`
+        setAppReturnFlow({
+          appUrl: appReturnUrl,
+        })
+        try {
+          window.history.replaceState({}, document.title, window.location.pathname)
+        } catch {}
+
+        // Attempt direct intent / scheme navigation to switch to the app
+        try {
+          const a = document.createElement('a')
+          a.href = appReturnUrl
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+        } catch {}
+      }
     } catch (err) {
       setAuthError(err.message || 'Google authentication failed')
       setShowAuthModal(true)
@@ -3710,6 +3751,9 @@ const exitPendingRef = useRef(false)
       setAuthError('Google sign-in is still loading. Please try again.')
       return
     }
+    setAuthLoading(true)
+    setAuthStatus('Opening Google…')
+    setAuthError('')
     try {
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
@@ -3718,12 +3762,30 @@ const exitPendingRef = useRef(false)
           if (response?.access_token) {
             finishGoogleSignIn({ access_token: response.access_token })
           } else if (response?.error) {
+            setAuthLoading(false)
+            googleSignInInFlight.current = false
             setAuthError(response.error_description || 'Google sign-in was cancelled. Please try again.')
+          } else {
+            setAuthLoading(false)
+            googleSignInInFlight.current = false
+          }
+        },
+        error_callback: error => {
+          setAuthLoading(false)
+          googleSignInInFlight.current = false
+          if (error?.type === 'popup_closed') {
+            setAuthError('Google sign-in window was closed. Please try again.')
+          } else if (error?.type === 'popup_failed_to_open') {
+            setAuthError('Sign-in popup was blocked. Please allow popups and try again.')
+          } else {
+            setAuthError(error?.message || 'Google sign-in could not be completed. Please try again.')
           }
         },
       })
       client.requestAccessToken({ prompt: 'select_account' })
     } catch (error) {
+      setAuthLoading(false)
+      googleSignInInFlight.current = false
       setAuthError(error.message || 'Unable to open Google sign-in. Please try again.')
     }
   }
@@ -4145,8 +4207,8 @@ const exitPendingRef = useRef(false)
         </section>
 
         {showAuthModal && (
-          <div className="modal-backdrop" onClick={() => setShowAuthModal(false)}>
-            <AuthScreen onGoogle={handleGoogle} gisReady={gisReady} native={isNativeShell()} loading={authLoading} error={authError} onClose={() => setShowAuthModal(false)} />
+          <div className="modal-backdrop" onClick={() => !authLoading && setShowAuthModal(false)}>
+            <AuthScreen onGoogle={handleGoogle} gisReady={gisReady} native={isNativeShell()} loading={authLoading} error={authError} onClose={() => !authLoading && setShowAuthModal(false)} />
           </div>
         )}
 
@@ -4677,6 +4739,54 @@ const exitPendingRef = useRef(false)
         <div className="bottom-toast-notification">
           {!toastNoTick && <span className="toast-tick">✓</span>}
           <span className="toast-text">{toastMsg}</span>
+        </div>
+      )}
+      {appReturnFlow && (
+        <div className="modal-backdrop" role="presentation" style={{ zIndex: 9999 }}>
+          <div className="completion-modal confirm-modal" onClick={event => event.stopPropagation()} style={{ maxWidth: '440px', padding: '28px', textAlign: 'center' }}>
+            <p className="eyebrow" style={{ color: '#c9f36a' }}>SIGN-IN COMPLETE</p>
+            <h2 style={{ fontSize: '24px', marginBottom: '12px', fontWeight: '500', letterSpacing: '-.035em' }}>Welcome to OnePercentGoal!</h2>
+            <p style={{ color: '#a5a79e', fontSize: '14px', lineHeight: 1.5, margin: '0 0 24px' }}>
+              Your Google account is verified. Tap below to return to the Android app, or continue in your browser.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+              <a
+                href={appReturnFlow.appUrl}
+                className="add-button"
+                onClick={() => setAppReturnFlow(null)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '100%',
+                  textDecoration: 'none',
+                  background: '#c9f36a',
+                  color: '#141513',
+                  borderRadius: '24px',
+                  padding: '12px 24px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  boxSizing: 'border-box'
+                }}
+              >
+                Open OnePercentGoal App
+              </a>
+              <button
+                type="button"
+                onClick={() => setAppReturnFlow(null)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#8e9189',
+                  padding: '8px',
+                  cursor: 'pointer',
+                  fontSize: '13px'
+                }}
+              >
+                Continue in Browser
+              </button>
+            </div>
+          </div>
         </div>
       )}
       <AuthTransitionOverlay active={authLoading} message={authStatus} />
