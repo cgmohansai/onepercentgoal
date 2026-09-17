@@ -23,7 +23,7 @@ from typing import Literal
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException, status, BackgroundTasks
+from fastapi import FastAPI, Header, Cookie, Response, Request, HTTPException, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -53,7 +53,6 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
 BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "").strip()
 EMAIL_LOGO_URL = os.getenv("EMAIL_LOGO_URL", "").strip()
-DEMO_USER_ID = 1
 SESSION_DAYS = 30
 
 app = FastAPI(title="OnePercentGoal API", version="0.3.0")
@@ -189,11 +188,16 @@ def issue_session(conn, user_id: int) -> str:
     return token
 
 
-def current_user_id(conn, authorization: str | None) -> int:
-    """Validate Bearer session token header and return authenticated user ID."""
-    if not authorization or not authorization.startswith("Bearer "):
+def current_user_id(conn, authorization: str | None = None, opg_session: str | None = None) -> int:
+    """Validate Bearer session token header or HttpOnly opg_session cookie and return authenticated user ID."""
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.removeprefix("Bearer ").strip()
+    elif opg_session:
+        token = opg_session.strip()
+
+    if not token:
         raise HTTPException(status_code=401, detail="Authentication required")
-    token = authorization.removeprefix("Bearer ").strip()
     row = execute(
         conn,
         """
@@ -213,9 +217,9 @@ def current_user_id(conn, authorization: str | None) -> int:
     return int(row["id"])
 
 
-def current_user(conn, authorization: str | None):
-    """Retrieve full database user record from Bearer session token."""
-    user_id = current_user_id(conn, authorization)
+def current_user(conn, authorization: str | None = None, opg_session: str | None = None):
+    """Retrieve full database user record from Bearer session token or HttpOnly cookie."""
+    user_id = current_user_id(conn, authorization, opg_session)
     return execute(conn, "SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()
 
 
@@ -338,7 +342,7 @@ def resolve_source_goal_id(conn, row) -> int:
     return int(data["id"])
 
 
-def sprint_summary(conn, year: int, sprint_number: int, user_id: int = DEMO_USER_ID) -> dict:
+def sprint_summary(conn, year: int, sprint_number: int, user_id: int) -> dict:
     """Compute sprint completion metrics, goal counts, and goal arrays for a specific sprint cycle."""
     rows = execute(
         conn,
@@ -366,7 +370,7 @@ def sprint_summary(conn, year: int, sprint_number: int, user_id: int = DEMO_USER
     }
 
 
-def user_created_at(conn, user_id: int = DEMO_USER_ID) -> datetime:
+def user_created_at(conn, user_id: int) -> datetime:
     """Retrieve user creation timestamp."""
     row = execute(conn, "SELECT created_at FROM users WHERE id = %s", (user_id,)).fetchone()
     created_at = row["created_at"] if row else current_timestamp()
@@ -382,7 +386,7 @@ def previous_sprint(year: int, sprint_number: int) -> tuple[int, int] | None:
     return None
 
 
-def ensure_sprint_rollover(conn, year: int, sprint_number: int, user_id: int = DEMO_USER_ID) -> None:
+def ensure_sprint_rollover(conn, year: int, sprint_number: int, user_id: int) -> None:
     """Automatic Rollover Engine: copies uncompleted goals from prior sprints into current active sprint."""
     joined = user_created_at(conn, user_id)
     joined_progress = year_progress(joined)
@@ -453,8 +457,10 @@ def ensure_sprint_rollover(conn, year: int, sprint_number: int, user_id: int = D
         execute(conn, "UPDATE goals SET source_goal_id = %s WHERE id = %s", (source_goal_id, inserted_id))
 
 
-def profile_stats(conn, year: int | None = None, user_id: int = DEMO_USER_ID) -> dict:
+def profile_stats(conn, year: int | None = None, user_id: int | None = None) -> dict:
     """Calculate user streak metrics, sprint completion heatmaps, and total goal statistics."""
+    if user_id is None:
+        raise ValueError("user_id is required for profile_stats")
     progress = year_progress()
     selected_year = year or progress["year"]
     joined = user_created_at(conn, user_id)
@@ -603,6 +609,12 @@ def setup_database():
                     created_at TIMESTAMPTZ NOT NULL, expires_at TIMESTAMPTZ NOT NULL
                 )""")
             execute(conn, """
+                CREATE TABLE IF NOT EXISTS auth_codes (
+                    code TEXT PRIMARY KEY,
+                    token TEXT NOT NULL,
+                    expires_at TIMESTAMPTZ NOT NULL
+                )""")
+            execute(conn, """
                 CREATE TABLE IF NOT EXISTS goals (
                     id BIGSERIAL PRIMARY KEY,
                     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -655,6 +667,12 @@ def setup_database():
                     token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
                     created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS auth_codes (
+                    code TEXT PRIMARY KEY,
+                    token TEXT NOT NULL,
+                    expires_at TEXT NOT NULL
                 )""")
             execute(conn, """
                 CREATE TABLE IF NOT EXISTS goals (
@@ -740,7 +758,7 @@ def health():
 @app.post("/api/auth/google/verify")
 @app.post("/api/auth/google/onetap")
 @app.post("/api/auth/google")
-async def auth_google_verify(payload: GoogleVerifyPayload, background_tasks: BackgroundTasks):
+async def auth_google_verify(payload: GoogleVerifyPayload, response: Response, background_tasks: BackgroundTasks):
     """Google Identity Services (One Tap & Branded Button) credential verification."""
     if not GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=500, detail="Google auth is not configured")
@@ -822,6 +840,15 @@ async def auth_google_verify(payload: GoogleVerifyPayload, background_tasks: Bac
 
         user_row = execute(conn, "SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()
         token = issue_session(conn, user_id)
+        response.set_cookie(
+            key="opg_session",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=SESSION_DAYS * 86400,
+            path="/"
+        )
         return {
             "token": token,
             "user": user_to_dict(user_row),
@@ -830,15 +857,17 @@ async def auth_google_verify(payload: GoogleVerifyPayload, background_tasks: Bac
 
 
 @app.get("/api/auth/me")
-def auth_me(authorization: str | None = Header(default=None)):
+def auth_me(authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Retrieve current authenticated user metadata."""
     with db() as conn:
-        user = current_user(conn, authorization)
+        user = current_user(conn, authorization, opg_session)
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
         return {"user": user_to_dict(user)}
 
 
 @app.post("/api/auth/profile")
-def auth_complete_profile(payload: ProfileUpdate, authorization: str | None = Header(default=None)):
+def auth_complete_profile(payload: ProfileUpdate, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Update profile handle, display name, photo, and bio."""
     username = normalize_username(payload.username)
     if len(username) < 3:
@@ -850,7 +879,7 @@ def auth_complete_profile(payload: ProfileUpdate, authorization: str | None = He
         raise HTTPException(status_code=400, detail="Profile photo is too large (max 1.5MB)")
 
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         existing = execute(conn, "SELECT id FROM users WHERE username = %s AND id <> %s", (username, user_id)).fetchone()
         if existing:
             raise HTTPException(status_code=409, detail="Username already exists")
@@ -864,22 +893,87 @@ def auth_complete_profile(payload: ProfileUpdate, authorization: str | None = He
 
 
 @app.post("/api/auth/logout")
-def auth_logout(authorization: str | None = Header(default=None)):
-    """Revoke active session token on sign out."""
+def auth_logout(response: Response, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
+    """Revoke active session token on sign out and clear HttpOnly cookie."""
     with db() as conn:
+        token = None
         if authorization and authorization.startswith("Bearer "):
-            execute(conn, "DELETE FROM sessions WHERE token_hash = %s", (token_hash(authorization.removeprefix("Bearer ").strip()),))
+            token = authorization.removeprefix("Bearer ").strip()
+        elif opg_session:
+            token = opg_session.strip()
+        if token:
+            execute(conn, "DELETE FROM sessions WHERE token_hash = %s", (token_hash(token),))
+    response.delete_cookie(key="opg_session", path="/")
     return {"ok": True}
+
+
+class CodeExchangePayload(BaseModel):
+    code: str
+
+
+@app.post("/api/auth/create-exchange-code")
+def create_exchange_code(authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
+    """Generate a short-lived (60s) single-use authorization code for secure deep-link handover."""
+    with db() as conn:
+        user_id = current_user_id(conn, authorization, opg_session)
+        token = issue_session(conn, user_id)
+        code = secrets.token_urlsafe(24)
+        expires_at = datetime.now(IST) + timedelta(seconds=60)
+        expires_str = expires_at.isoformat() if not USE_POSTGRES else expires_at
+        execute(
+            conn,
+            "INSERT INTO auth_codes (code, token, expires_at) VALUES (%s, %s, %s)",
+            (code, token, expires_str)
+        )
+        return {"code": code}
+
+
+@app.post("/api/auth/exchange-code")
+def exchange_code(payload: CodeExchangePayload, response: Response):
+    """Exchange a single-use authorization code for session credentials."""
+    code = (payload.code or "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+    with db() as conn:
+        row = execute(conn, "SELECT token, expires_at FROM auth_codes WHERE code = %s", (code,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=400, detail="Invalid or expired authorization code")
+        # Consume immediately (single-use)
+        execute(conn, "DELETE FROM auth_codes WHERE code = %s", (code,))
+        expires_at = as_utc(row["expires_at"])
+        if expires_at <= datetime.now(IST):
+            raise HTTPException(status_code=400, detail="Authorization code expired")
+        token = row["token"]
+        user_row = execute(conn, """
+            SELECT users.* FROM users
+            JOIN sessions ON sessions.user_id = users.id
+            WHERE sessions.token_hash = %s
+        """, (token_hash(token),)).fetchone()
+        if not user_row:
+            raise HTTPException(status_code=400, detail="User session not found")
+        response.set_cookie(
+            key="opg_session",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=SESSION_DAYS * 86400,
+            path="/"
+        )
+        return {
+            "token": token,
+            "user": user_to_dict(user_row)
+        }
 
 
 # --- DASHBOARD & GOALS ENDPOINTS ---
 
 @app.get("/api/dashboard")
-def dashboard(authorization: str | None = Header(default=None)):
+def dashboard(authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Overview dashboard endpoint: returns year progress, user profile, and active sprint goals."""
     progress = year_progress()
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         ensure_sprint_rollover(conn, progress["year"], progress["sprint_number"], user_id)
         goals = execute(
             conn,
@@ -895,12 +989,12 @@ def dashboard(authorization: str | None = Header(default=None)):
 
 
 @app.get("/api/goals")
-def list_goals(sprint_number: int | None = None, authorization: str | None = Header(default=None)):
+def list_goals(sprint_number: int | None = None, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """List goals for active sprint or requested sprint cycle."""
     progress = year_progress()
     number = sprint_number or progress["sprint_number"]
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         if number == progress["sprint_number"]:
             ensure_sprint_rollover(conn, progress["year"], number, user_id)
         rows = execute(
@@ -916,12 +1010,12 @@ def list_goals(sprint_number: int | None = None, authorization: str | None = Hea
 
 
 @app.post("/api/goals", status_code=status.HTTP_201_CREATED)
-def create_goal(payload: GoalCreate, authorization: str | None = Header(default=None)):
+def create_goal(payload: GoalCreate, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Create a new goal for the active sprint."""
     sprint = year_progress()
     completed = int(payload.progress_percent >= 100)
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         row = execute(
             conn,
             """
@@ -939,10 +1033,10 @@ def create_goal(payload: GoalCreate, authorization: str | None = Header(default=
 
 
 @app.patch("/api/goals/{goal_id}")
-def update_goal(goal_id: int, payload: GoalUpdate, authorization: str | None = Header(default=None)):
+def update_goal(goal_id: int, payload: GoalUpdate, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Update goal title, progress, completion status, or reflection notes."""
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         existing = execute(conn, "SELECT * FROM goals WHERE id = %s AND user_id = %s", (goal_id, user_id)).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Goal not found")
@@ -978,10 +1072,10 @@ def update_goal(goal_id: int, payload: GoalUpdate, authorization: str | None = H
 
 
 @app.delete("/api/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_goal(goal_id: int, authorization: str | None = Header(default=None)):
+def delete_goal(goal_id: int, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Delete goal and clean up all rolled-over instances across sprint cycles."""
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         goal = execute(conn, "SELECT * FROM goals WHERE id = %s AND user_id = %s", (goal_id, user_id)).fetchone()
         if not goal:
             raise HTTPException(status_code=404, detail="Goal not found")
@@ -992,11 +1086,11 @@ def delete_goal(goal_id: int, authorization: str | None = Header(default=None)):
 # --- ROTE DAILY HABIT ENDPOINTS ---
 
 @app.get("/api/rotes")
-def get_rotes(date: str | None = None, authorization: str | None = Header(default=None)):
+def get_rotes(date: str | None = None, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Retrieve daily rote habits and completion logs for a given date."""
     target_date = date or datetime.now(IST).strftime("%Y-%m-%d")
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         joined_dt = user_created_at(conn, user_id)
         joined_date = joined_dt.strftime("%Y-%m-%d")
         
@@ -1052,10 +1146,10 @@ def get_rotes(date: str | None = None, authorization: str | None = Header(defaul
 
 
 @app.post("/api/rotes")
-def create_rote(payload: RoteCreate, authorization: str | None = Header(default=None)):
+def create_rote(payload: RoteCreate, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Create a new daily habit / rote routine."""
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         rote_date = payload.date or datetime.now(IST).strftime("%Y-%m-%d")
         now_iso = current_timestamp()
         row = execute(
@@ -1075,10 +1169,10 @@ def create_rote(payload: RoteCreate, authorization: str | None = Header(default=
 
 
 @app.post("/api/rotes/{rote_id}/toggle")
-def toggle_rote(rote_id: int, payload: RoteToggle, authorization: str | None = Header(default=None)):
+def toggle_rote(rote_id: int, payload: RoteToggle, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Toggle daily completion status of a rote habit for a specific date."""
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         rote = execute(conn, "SELECT * FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id)).fetchone()
         if not rote:
             raise HTTPException(status_code=404, detail="Rote not found")
@@ -1114,10 +1208,10 @@ def toggle_rote(rote_id: int, payload: RoteToggle, authorization: str | None = H
 
 
 @app.delete("/api/rotes/{rote_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_rote(rote_id: int, authorization: str | None = Header(default=None)):
+def delete_rote(rote_id: int, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Delete a rote habit and its associated completion logs."""
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         rote = execute(conn, "SELECT * FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id)).fetchone()
         if not rote:
             raise HTTPException(status_code=404, detail="Rote not found")
@@ -1128,18 +1222,18 @@ def delete_rote(rote_id: int, authorization: str | None = Header(default=None)):
 # --- STATS, PROFILE & TIMELINE ENDPOINTS ---
 
 @app.get("/api/stats")
-def stats(authorization: str | None = Header(default=None)):
+def stats(authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Retrieve overall goal and streak statistics for current user."""
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         return profile_stats(conn, user_id=user_id)["stats"]
 
 
 @app.get("/api/profile")
-def profile(year: int | None = None, authorization: str | None = Header(default=None)):
+def profile(year: int | None = None, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Profile endpoint: returns heatmaps, streaks, user info, and sprint completion stats."""
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         progress = year_progress()
         if year is None:
             ensure_sprint_rollover(conn, progress["year"], progress["sprint_number"], user_id)
@@ -1147,11 +1241,11 @@ def profile(year: int | None = None, authorization: str | None = Header(default=
 
 
 @app.get("/api/timeline")
-def timeline(year: int | None = None, authorization: str | None = Header(default=None)):
+def timeline(year: int | None = None, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Timeline history endpoint: lists all past sprint summaries for the selected year."""
     progress = year_progress()
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         ensure_sprint_rollover(conn, progress["year"], progress["sprint_number"], user_id)
         joined = user_created_at(conn, user_id)
         selected_year = year or progress["year"]
@@ -1170,13 +1264,13 @@ def timeline(year: int | None = None, authorization: str | None = Header(default
 
 
 @app.get("/api/timeline/{sprint_number}")
-def timeline_sprint(sprint_number: int, year: int | None = None, authorization: str | None = Header(default=None)):
+def timeline_sprint(sprint_number: int, year: int | None = None, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Retrieve detailed goal breakdown for a specific sprint in the timeline history."""
     progress = year_progress()
     if sprint_number < 1 or sprint_number > 100:
         raise HTTPException(status_code=404, detail="Sprint not found")
     with db() as conn:
-        user_id = current_user_id(conn, authorization)
+        user_id = current_user_id(conn, authorization, opg_session)
         selected_year = year or progress["year"]
         joined = user_created_at(conn, user_id)
         if selected_year < joined.year or selected_year > progress["year"]:

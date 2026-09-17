@@ -161,7 +161,10 @@ const API_BASE = window.location.protocol === 'http:' || window.location.protoco
   ? ''
   : (import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '')
 const apiUrl = path => `${API_BASE}${path}`
-const apiFetch = (path, options) => fetch(apiUrl(path), options)
+const apiFetch = (path, options = {}) => fetch(apiUrl(path), {
+  ...options,
+  credentials: 'include',
+})
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '420117390479-kjelftir7nr413rh3b7c9327ia27c6o2.apps.googleusercontent.com'
 const WEB_APP_URL = import.meta.env.VITE_APP_URL?.replace(/\/$/, '') || (window.location.protocol.startsWith('http') ? window.location.origin : '')
 const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client'
@@ -3397,20 +3400,23 @@ const exitPendingRef = useRef(false)
       return
     }
     const token = tokenFromUrl || localStorage.getItem('onepercentgoal.token')
-    if (!token) {
-      setAuthReady(true)
-      return
+    if (token) {
+      setSessionToken(token)
     }
-    setSessionToken(token)
-    apiFetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
+    apiFetch('/api/auth/me', { headers })
       .then(response => response.ok ? response.json() : Promise.reject(response))
       .then(data => {
-        setCurrentUser(data.user)
+        if (data?.user) {
+          setCurrentUser(data.user)
+        }
         setAuthReady(true)
       })
       .catch(() => {
-        localStorage.removeItem('onepercentgoal.token')
-        setSessionToken('')
+        if (token) {
+          localStorage.removeItem('onepercentgoal.token')
+          setSessionToken('')
+        }
         setCurrentUser(null)
         setAuthReady(true)
       })
@@ -3442,15 +3448,39 @@ const exitPendingRef = useRef(false)
   useEffect(() => {
     if (!isNativeShell()) return
     let activeHandle = null
-    const restoreSession = url => {
+    const restoreSession = async url => {
       let token = ''
+      let code = ''
       try {
-        token = new URL(url).searchParams.get('auth_token') || ''
+        const parsed = new URL(url)
+        code = parsed.searchParams.get('code') || ''
+        token = parsed.searchParams.get('auth_token') || ''
       } catch {}
-      if (!token && typeof url === 'string') {
-        const match = url.match(/[?&]auth_token=([^&#]+)/)
-        if (match) token = decodeURIComponent(match[1])
+      if (!code && !token && typeof url === 'string') {
+        const matchCode = url.match(/[?&]code=([^&#]+)/)
+        if (matchCode) code = decodeURIComponent(matchCode[1])
+        const matchToken = url.match(/[?&]auth_token=([^&#]+)/)
+        if (matchToken) token = decodeURIComponent(matchToken[1])
       }
+
+      if (code) {
+        setAuthLoading(true)
+        setAuthStatus('Verifying secure handover…')
+        try {
+          const exchangeRes = await apiFetch('/api/auth/exchange-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code }),
+          })
+          if (exchangeRes.ok) {
+            const data = await exchangeRes.json()
+            if (data?.token) {
+              token = data.token
+            }
+          }
+        } catch {}
+      }
+
       if (token) {
         setAuthLoading(true)
         setAuthStatus('Finishing sign-in…')
@@ -3692,7 +3722,24 @@ const exitPendingRef = useRef(false)
 
       // If launched from native app with auth_return, provide seamless transition
       if (nativeAuthReturn) {
-        const appReturnUrl = `${nativeAuthReturn}?auth_token=${encodeURIComponent(result.token)}`
+        let appReturnUrl = ''
+        try {
+          const codeRes = await apiFetch('/api/auth/create-exchange-code', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${result.token}` },
+          })
+          if (codeRes.ok) {
+            const { code } = await codeRes.json()
+            if (code) {
+              appReturnUrl = `${nativeAuthReturn}?code=${encodeURIComponent(code)}`
+            }
+          }
+        } catch {}
+
+        if (!appReturnUrl) {
+          appReturnUrl = `${nativeAuthReturn}?auth_token=${encodeURIComponent(result.token)}`
+        }
+
         setAppReturnFlow({
           appUrl: appReturnUrl,
         })
