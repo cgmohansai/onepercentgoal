@@ -1,0 +1,46 @@
+import React, { useState } from 'react'
+
+export function AddRoteModal({ isOpen, onClose, onSubmit }) {
+  const [title, setTitle] = useState('')
+
+  if (!isOpen) return null
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <form 
+        className="completion-modal" 
+        onClick={event => event.stopPropagation()} 
+        onSubmit={event => { 
+          event.preventDefault()
+          if (!title.trim()) return
+          onSubmit(title)
+          setTitle('')
+        }}
+      >
+        <p className="eyebrow" style={{ color: '#c9f36a' }}>FORCEFUL TASKS</p>
+        <h2>Create a New Routine Rote</h2>
+        <p className="auth-copy" style={{ marginBottom: '20px' }}>
+          Completing unwanted tasks that you feel don't develop yourself (e.g. record writing, mandatory paperwork).
+        </p>
+        
+        <label style={{ display: 'block', marginBottom: '24px' }}>
+          Rote Title
+          <input 
+            autoFocus 
+            required 
+            maxLength={140} 
+            value={title} 
+            onChange={event => setTitle(event.target.value)} 
+          />
+        </label>
+
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+          <button type="button" className="ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="add-button">Create Rote</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+export default AddRoteModal
