@@ -54,7 +54,7 @@ def profile_stats(conn, year: int | None = None, user_id: int | None = None) -> 
             "goal_count": summary["goal_count"],
         })
 
-    rows = execute(conn, "SELECT * FROM goals WHERE user_id = %s", (user_id,)).fetchall()
+    rows = execute(conn, "SELECT id, completed, source_goal_id, rolled_from_goal_id FROM goals WHERE user_id = %s", (user_id,)).fetchall()
     source_ids: list[int] = []
     completed_sources: set[int] = set()
     for row in rows:
@@ -100,19 +100,19 @@ def profile_stats(conn, year: int | None = None, user_id: int | None = None) -> 
 
     # Calculate Rote completion stats for today
     today_str = datetime.now(IST).strftime("%Y-%m-%d")
-    rote_rows = execute(
+    total_rotes_res = execute(
         conn,
-        "SELECT * FROM rotes WHERE user_id = %s AND (rote_date = %s OR rote_date = '' OR rote_date IS NULL)",
+        "SELECT COUNT(*) as c FROM rotes WHERE user_id = %s AND (rote_date = %s OR rote_date = '' OR rote_date IS NULL)",
         (user_id, today_str),
-    ).fetchall()
-    total_rotes = len(rote_rows)
+    ).fetchone()
+    total_rotes = int(total_rotes_res["c"]) if total_rotes_res else 0
     if total_rotes > 0:
-        logs_rows = execute(
+        completed_rotes_res = execute(
             conn,
-            "SELECT * FROM rote_logs WHERE user_id = %s AND log_date = %s AND completed = 1",
+            "SELECT COUNT(*) as c FROM rote_logs WHERE user_id = %s AND log_date = %s AND completed = 1",
             (user_id, today_str),
-        ).fetchall()
-        completed_rotes = len(logs_rows)
+        ).fetchone()
+        completed_rotes = int(completed_rotes_res["c"]) if completed_rotes_res else 0
         rote_rate = round(completed_rotes / total_rotes * 100)
     else:
         all_logs = execute(

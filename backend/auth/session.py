@@ -42,11 +42,25 @@ def user_to_dict(row) -> dict | None:
     }
 
 
+def cleanup_expired_sessions(conn, user_id: int | None = None) -> int:
+    """Safe periodic or scoped cleanup of expired session records.
+
+    If user_id is specified, only that user's expired sessions are pruned.
+    If user_id is None, all expired sessions across the table are pruned.
+    """
+    now_iso = as_iso(datetime.now(IST))
+    if user_id is not None:
+        cur = execute(conn, "DELETE FROM sessions WHERE user_id = %s AND expires_at < %s", (user_id, now_iso))
+    else:
+        cur = execute(conn, "DELETE FROM sessions WHERE expires_at < %s", (now_iso,))
+    return cur.rowcount if hasattr(cur, "rowcount") and cur.rowcount is not None else 0
+
+
 def issue_session(conn, user_id: int) -> str:
     """Generate and store secure 30-day session token for authenticated user."""
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(IST) + timedelta(days=SESSION_DAYS)
-    execute(conn, "DELETE FROM sessions WHERE user_id = %s AND expires_at < %s", (user_id, as_iso(datetime.now(IST))))
+    cleanup_expired_sessions(conn, user_id=user_id)
     execute(
         conn,
         "INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (%s, %s, %s, %s)",

@@ -13,6 +13,7 @@ from backend.config import (
     GOOGLE_CLIENT_ID,
     SESSION_DAYS,
     as_utc,
+    as_iso,
     current_timestamp,
 )
 from backend.db.connection import db, execute
@@ -191,10 +192,18 @@ def auth_logout(response: Response, authorization: str | None = Header(default=N
     return {"ok": True}
 
 
+def cleanup_expired_auth_codes(conn) -> int:
+    """Safe cleanup of expired single-use authorization codes."""
+    now_iso = as_iso(datetime.now(IST))
+    cur = execute(conn, "DELETE FROM auth_codes WHERE expires_at < %s", (now_iso,))
+    return cur.rowcount if hasattr(cur, "rowcount") and cur.rowcount is not None else 0
+
+
 @router.post("/api/auth/create-exchange-code")
 def create_exchange_code(authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
     """Generate a short-lived (60s) single-use authorization code for secure deep-link handover."""
     with db() as conn:
+        cleanup_expired_auth_codes(conn)
         user_id = current_user_id(conn, authorization, opg_session)
         token = issue_session(conn, user_id)
         code = secrets.token_urlsafe(24)
@@ -222,6 +231,7 @@ def exchange_code(payload: CodeExchangePayload, response: Response):
         execute(conn, "DELETE FROM auth_codes WHERE code = %s", (code,))
         expires_at = as_utc(row["expires_at"])
         if expires_at <= datetime.now(IST):
+            cleanup_expired_auth_codes(conn)
             raise HTTPException(status_code=400, detail="Authorization code expired")
         token = row["token"]
         user_row = execute(conn, """

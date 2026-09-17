@@ -48,6 +48,7 @@ from backend.auth.session import (
     normalize_username,
     user_to_dict,
     issue_session,
+    cleanup_expired_sessions,
     current_user_id,
     current_user,
     user_created_at,
@@ -64,12 +65,13 @@ from backend.services.goals import (
 )
 from backend.services.timeline import sprint_summary
 from backend.services.profile import ProfileUpdate, profile_stats
-from backend.services.rotes import RoteCreate, RoteToggle
+from backend.services.rotes import RoteCreate, RoteToggle, toggle_rote_log
 from backend.services.email import (
     send_email_via_brevo,
     send_welcome_email,
     log_sent_reminder,
 )
+from backend.api.auth import cleanup_expired_auth_codes
 
 # API Routers
 from backend.api import api_router

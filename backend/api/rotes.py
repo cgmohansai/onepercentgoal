@@ -7,7 +7,7 @@ from fastapi import APIRouter, Header, Cookie, HTTPException, status
 from backend.config import IST, current_timestamp
 from backend.db.connection import db, execute, row_dict
 from backend.auth.session import current_user_id, user_created_at
-from backend.services.rotes import RoteCreate, RoteToggle
+from backend.services.rotes import RoteCreate, RoteToggle, toggle_rote_log
 
 router = APIRouter(tags=["rotes"])
 
@@ -100,38 +100,12 @@ def toggle_rote(rote_id: int, payload: RoteToggle, authorization: str | None = H
     """Toggle daily completion status of a rote habit for a specific date."""
     with db() as conn:
         user_id = current_user_id(conn, authorization, opg_session)
-        rote = execute(conn, "SELECT * FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id)).fetchone()
+        rote = execute(conn, "SELECT id FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id)).fetchone()
         if not rote:
             raise HTTPException(status_code=404, detail="Rote not found")
 
-        log = execute(
-            conn,
-            "SELECT * FROM rote_logs WHERE user_id = %s AND rote_id = %s AND log_date = %s",
-            (user_id, rote_id, payload.date)
-        ).fetchone()
-
-        if log:
-            current_status = bool(log["completed"])
-            new_status = not current_status if payload.completed is None else bool(payload.completed)
-            now_iso = current_timestamp() if new_status else None
-            execute(
-                conn,
-                "UPDATE rote_logs SET completed = %s, completed_at = %s WHERE id = %s",
-                (int(new_status), now_iso, log["id"])
-            )
-        else:
-            new_status = True if payload.completed is None else bool(payload.completed)
-            now_iso = current_timestamp() if new_status else None
-            execute(
-                conn,
-                """
-                INSERT INTO rote_logs (user_id, rote_id, log_date, completed, completed_at)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (user_id, rote_id, payload.date, int(new_status), now_iso)
-            )
-
-        return {"rote_id": rote_id, "date": payload.date, "completed": new_status}
+        final_status = toggle_rote_log(conn, user_id, rote_id, payload.date, payload.completed)
+        return {"rote_id": rote_id, "date": payload.date, "completed": final_status}
 
 
 @router.delete("/api/rotes/{rote_id}", status_code=status.HTTP_204_NO_CONTENT)

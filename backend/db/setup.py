@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from backend.config import USE_POSTGRES
 from backend.db.connection import db, execute, ensure_column
+from backend.db.migrations import run_migrations
 
 
 def setup_database():
@@ -152,7 +153,7 @@ def setup_database():
             ensure_column(conn, table, column, ddl)
 
         execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)")
-        execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub)")
+        execute(conn, "DROP INDEX IF EXISTS idx_users_google_sub")
 
         # Deduplicate historical concurrent rollover duplicates if any exist
         execute(conn, """
@@ -165,3 +166,10 @@ def setup_database():
         """)
         execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_goals_rolled_from_unique ON goals(rolled_from_goal_id)")
         execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_goals_user_sprint_source ON goals(user_id, sprint_year, sprint_number, source_goal_id)")
+        execute(conn, "CREATE INDEX IF NOT EXISTS idx_rotes_user_id ON rotes(user_id)")
+        execute(conn, "CREATE INDEX IF NOT EXISTS idx_rote_logs_user_date ON rote_logs(user_id, log_date)")
+        execute(conn, "CREATE INDEX IF NOT EXISTS idx_sessions_user_expires ON sessions(user_id, expires_at)")
+        execute(conn, "CREATE INDEX IF NOT EXISTS idx_auth_codes_expires_at ON auth_codes(expires_at)")
+
+        # Run dedicated historical migrations
+        run_migrations(conn)
