@@ -1,0 +1,106 @@
+"""Profile statistics and public profile gateway endpoints."""
+from __future__ import annotations
+
+from fastapi import APIRouter, Header, Cookie, HTTPException
+
+from backend.db.connection import db, execute, row_dict
+from backend.auth.session import (
+    current_user_id,
+    user_created_at,
+    normalize_username,
+)
+from backend.sprint_engine import year_progress
+from backend.services.goals import ensure_sprint_rollover
+from backend.services.timeline import sprint_summary
+from backend.services.profile import profile_stats
+
+router = APIRouter(tags=["profile"])
+
+
+@router.get("/api/stats")
+def stats(authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
+    """Retrieve overall goal and streak statistics for current user."""
+    with db() as conn:
+        user_id = current_user_id(conn, authorization, opg_session)
+        return profile_stats(conn, user_id=user_id)["stats"]
+
+
+@router.get("/api/profile")
+def profile(year: int | None = None, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
+    """Profile endpoint: returns heatmaps, streaks, user info, and sprint completion stats."""
+    with db() as conn:
+        user_id = current_user_id(conn, authorization, opg_session)
+        progress = year_progress()
+        if year is None:
+            ensure_sprint_rollover(conn, progress["year"], progress["sprint_number"], user_id)
+        return profile_stats(conn, year, user_id)
+
+
+@router.get("/api/u/{username}")
+def get_public_profile(username: str, year: int | None = None):
+    """Public Profile Gateway: returns public user details, active goals, stats, and timeline history."""
+    username = normalize_username(username)
+    with db() as conn:
+        user_row = execute(conn, "SELECT id, name, username, display_name, created_at, profile_photo, bio FROM users WHERE username = %s", (username,)).fetchone()
+        if not user_row:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        user_data = row_dict(user_row)
+        user_id = user_data["id"]
+
+        progress = year_progress()
+        current_year = progress["year"]
+        current_sprint = progress["sprint_number"]
+
+        # Get active goals
+        goals_rows = execute(
+            conn,
+            "SELECT id, title, target, progress, completed, sprint_year, sprint_number FROM goals WHERE user_id = %s AND sprint_year = %s AND sprint_number = %s ORDER BY id",
+            (user_id, current_year, current_sprint)
+        ).fetchall()
+
+        goals = []
+        for row in goals_rows:
+            d = row_dict(row)
+            d["completed"] = bool(d["completed"])
+            d["done"] = d["completed"]
+            goals.append(d)
+
+        # Get stats
+        stats_data = profile_stats(conn, year, user_id)
+
+        # Get timeline history
+        joined = user_created_at(conn, user_id)
+        selected_year = year or progress["year"]
+        start_sprint = year_progress(joined)["sprint_number"] if selected_year == joined.year else 1
+        end_sprint = progress["sprint_number"] if selected_year == progress["year"] else 100
+        history_items = [sprint_summary(conn, selected_year, sprint_number, user_id) for sprint_number in range(start_sprint, end_sprint + 1)]
+
+        history = {
+            "year": selected_year,
+            "years": list(range(joined.year, progress["year"] + 1)),
+            "start_sprint": start_sprint,
+            "end_sprint": end_sprint,
+            "sprints": history_items,
+        }
+
+        joined_date = user_created_at(conn, user_id)
+        joined_progress = year_progress(joined_date)
+
+        return {
+            "user": {
+                "username": user_data["username"],
+                "display_name": user_data["display_name"] or user_data["name"] or user_data["username"],
+                "profile_photo": user_data["profile_photo"] or "",
+                "bio": user_data["bio"] or "",
+                "active_since": {
+                    "year": joined_progress["year"],
+                    "sprint_number": joined_progress["sprint_number"]
+                }
+            },
+            "goals": goals,
+            "stats": stats_data["stats"],
+            "history": history,
+            "sprint": current_sprint,
+            "year": current_year
+        }
