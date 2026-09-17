@@ -1,6 +1,7 @@
-import React, { lazy, Suspense } from 'react'
+import React, { Suspense } from 'react'
 import { Target, Repeat } from '@phosphor-icons/react'
-const Silk = lazy(() => import('../Silk'))
+import { lazyWithStaleRetry } from '../utils/lazyStaleRetry'
+const Silk = lazyWithStaleRetry(() => import('../Silk'))
 import SpecularButton from '../SpecularButton'
 import AnimatedPlusButton from '../AnimatedPlusButton'
 import MorphText from './MorphText'

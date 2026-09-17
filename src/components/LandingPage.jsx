@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react'
-const Silk = lazy(() => import('../Silk'))
+import React, { useState, useEffect, useMemo, Suspense } from 'react'
+import { lazyWithStaleRetry } from '../utils/lazyStaleRetry'
+const Silk = lazyWithStaleRetry(() => import('../Silk'))
 import SpecularButton from '../SpecularButton'
 import MorphText from './MorphText'
 import LiquidMetalButton from './LiquidMetalButton'
