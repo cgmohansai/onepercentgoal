@@ -52,6 +52,20 @@ import {
   downloadImage,
   saveImageToGallery,
 } from './features/goals/goalUtils'
+import {
+  fetchRotes as fetchRotesApi,
+  createRote as createRoteApi,
+  toggleRote as toggleRoteApi,
+  deleteRote as deleteRoteApi,
+} from './features/rotes/roteService'
+import {
+  getStoredRotes,
+  persistRotes,
+  createOptimisticRote,
+  computeRoteStats,
+  mergeRotes,
+  reconcileRotesData,
+} from './features/rotes/roteUtils'
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -1187,68 +1201,31 @@ function RotePage({ user, onRotesChanged }) {
   const [rotesData, setRotesData] = useState({ date: todayStr, user_joined_date: todayStr, rotes: [], completed_dates: [], stats: { total_rotes: 0, completed_rotes: 0 } })
   const [addModalOpen, setAddModalOpen] = useState(false)
 
-  const persistRotes = (dateStr, state) => {
-    try { localStorage.setItem(`opg.rotes.${dateStr}`, JSON.stringify(state)) } catch {}
-  }
-
   const fetchRotes = async (dateStr) => {
     if (cacheRef.current[dateStr]) {
       setRotesData(cacheRef.current[dateStr])
       setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
     } else {
-      try {
-        const stored = localStorage.getItem(`opg.rotes.${dateStr}`)
-        if (stored) {
-          const data = JSON.parse(stored)
-          if (data && Array.isArray(data.rotes)) {
-            cacheRef.current[dateStr] = data
-            setRotesData(data)
-            setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
-          }
-        }
-      } catch {}
+      const stored = getStoredRotes(dateStr)
+      if (stored && Array.isArray(stored.rotes)) {
+        cacheRef.current[dateStr] = stored
+        setRotesData(stored)
+        setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+      }
     }
 
     try {
-      const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
-      const res = await apiFetch(`/api/rotes?date=${dateStr}`, {
-        headers: { Authorization: token ? `Bearer ${token}` : '' }
-      })
-      if (res.ok) {
-        const serverData = await res.json()
-        let localRotes = []
-        try {
-          const stored = localStorage.getItem(`opg.rotes.${dateStr}`)
-          if (stored) localRotes = JSON.parse(stored)?.rotes || []
-        } catch {}
-        const localMap = new Map(localRotes.map(r => [String(r.id), r]))
+      const serverData = await fetchRotesApi(dateStr)
+      const stored = getStoredRotes(dateStr)
+      const localRotes = stored?.rotes || []
+      const mergedData = reconcileRotesData(serverData, localRotes, pendingTempTogglesRef.current)
 
-        let mergedRotes = serverData.rotes.map(sr => {
-          const lr = localMap.get(String(sr.id))
-          if (lr && (pendingTempTogglesRef.current.has(String(sr.id)) || lr.completed !== sr.completed)) {
-            return { ...sr, completed: lr.completed }
-          }
-          return sr
-        })
-        const pendingTemps = localRotes.filter(r => String(r.id).startsWith('temp-'))
-        for (const temp of pendingTemps) {
-          if (!mergedRotes.some(m => m.title === temp.title || m.id === temp.id)) {
-            mergedRotes.push(temp)
-          }
-        }
-        const doneCount = mergedRotes.filter(r => r.completed).length
-        const mergedData = {
-          ...serverData,
-          rotes: mergedRotes,
-          stats: { ...serverData.stats, total_rotes: mergedRotes.length, completed_rotes: doneCount }
-        }
-        cacheRef.current[dateStr] = mergedData
-        persistRotes(dateStr, mergedData)
-        setRotesData(mergedData)
-        setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
-        if (dateStr === todayStr && onRotesChanged) {
-          onRotesChanged(mergedData)
-        }
+      cacheRef.current[dateStr] = mergedData
+      persistRotes(dateStr, mergedData)
+      setRotesData(mergedData)
+      setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+      if (dateStr === todayStr && onRotesChanged) {
+        onRotesChanged(mergedData)
       }
     } catch (err) {
       console.error('Failed to fetch rotes:', err)
@@ -1291,38 +1268,24 @@ function RotePage({ user, onRotesChanged }) {
 
     // Send update request to backend in background
     try {
-      const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
-      const res = await apiFetch(`/api/rotes/${roteId}/toggle`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify({ date: selectedDate, completed: targetStatus })
-      })
-
-      if (res.ok) {
-        const result = await res.json()
-        const confirmedStatus = Boolean(result.completed)
-        if (confirmedStatus !== targetStatus) {
-          setRotesData(prev => {
-            const reUpdated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
-            const reDoneCount = reUpdated.filter(r => r.completed).length
-            const reNextState = {
-              ...prev,
-              rotes: reUpdated,
-              stats: { ...prev.stats, completed_rotes: reDoneCount }
-            }
-            cacheRef.current[selectedDate] = reNextState
-            persistRotes(selectedDate, reNextState)
-            if (selectedDate === todayStr && onRotesChanged) {
-              onRotesChanged(reNextState)
-            }
-            return reNextState
-          })
-        }
-      } else {
-        throw new Error('Toggle request failed')
+      const result = await toggleRoteApi(roteId, { date: selectedDate, completed: targetStatus })
+      const confirmedStatus = Boolean(result.completed)
+      if (confirmedStatus !== targetStatus) {
+        setRotesData(prev => {
+          const reUpdated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
+          const reDoneCount = reUpdated.filter(r => r.completed).length
+          const reNextState = {
+            ...prev,
+            rotes: reUpdated,
+            stats: { ...prev.stats, completed_rotes: reDoneCount }
+          }
+          cacheRef.current[selectedDate] = reNextState
+          persistRotes(selectedDate, reNextState)
+          if (selectedDate === todayStr && onRotesChanged) {
+            onRotesChanged(reNextState)
+          }
+          return reNextState
+        })
       }
     } catch (err) {
       console.error('Failed to update rote in system database:', err)
@@ -1368,11 +1331,7 @@ function RotePage({ user, onRotesChanged }) {
     if (String(roteId).startsWith('temp-')) return
 
     try {
-      const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
-      await apiFetch(`/api/rotes/${roteId}`, {
-        method: 'DELETE',
-        headers: { Authorization: token ? `Bearer ${token}` : '' }
-      })
+      await deleteRoteApi(roteId)
     } catch (err) {
       console.error('Failed to delete rote:', err)
     }
@@ -1381,16 +1340,8 @@ function RotePage({ user, onRotesChanged }) {
   const createRote = async (title) => {
     setAddModalOpen(false)
 
-    const tempId = 'temp-' + Date.now()
-    const tempItem = {
-      id: tempId,
-      title: title.trim(),
-      description: '',
-      created_at: new Date().toISOString(),
-      rote_date: todayStr,
-      completed: false,
-      completed_at: null
-    }
+    const tempItem = createOptimisticRote(title, todayStr)
+    const tempId = tempItem.id
 
     const currentRotes = rotesData?.rotes || []
     const updated = [...currentRotes, tempItem]
@@ -1409,38 +1360,27 @@ function RotePage({ user, onRotesChanged }) {
     }
 
     try {
-      const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
-      const res = await apiFetch('/api/rotes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify({ title, description: '', date: todayStr })
-      })
-      if (res.ok) {
-        const newItem = await res.json()
-        setRotesData(prev => {
-          const wasCompleted = pendingTempTogglesRef.current.has(tempId)
-          pendingTempTogglesRef.current.delete(tempId)
+      const newItem = await createRoteApi({ title, description: '', date: todayStr })
+      setRotesData(prev => {
+        const wasCompleted = pendingTempTogglesRef.current.has(tempId)
+        pendingTempTogglesRef.current.delete(tempId)
 
-          const reUpdated = prev.rotes.map(r => r.id === tempId ? { ...newItem, completed: wasCompleted || r.completed } : r)
-          const reDoneCount = reUpdated.filter(r => r.completed).length
-          const updatedNextState = {
-            ...prev,
-            rotes: reUpdated,
-            stats: { ...prev.stats, total_rotes: reUpdated.length, completed_rotes: reDoneCount }
-          }
-          cacheRef.current[todayStr] = updatedNextState
-          persistRotes(todayStr, updatedNextState)
-          if (onRotesChanged) {
-            onRotesChanged(updatedNextState)
-          }
-          return updatedNextState
-        })
-        if (pendingTempTogglesRef.current.has(tempId)) {
-          toggleRote(newItem.id)
+        const reUpdated = prev.rotes.map(r => r.id === tempId ? { ...newItem, completed: wasCompleted || r.completed } : r)
+        const reDoneCount = reUpdated.filter(r => r.completed).length
+        const updatedNextState = {
+          ...prev,
+          rotes: reUpdated,
+          stats: { ...prev.stats, total_rotes: reUpdated.length, completed_rotes: reDoneCount }
         }
+        cacheRef.current[todayStr] = updatedNextState
+        persistRotes(todayStr, updatedNextState)
+        if (onRotesChanged) {
+          onRotesChanged(updatedNextState)
+        }
+        return updatedNextState
+      })
+      if (pendingTempTogglesRef.current.has(tempId)) {
+        toggleRote(newItem.id)
       }
     } catch (err) {
       console.error('Failed to create rote:', err)
@@ -2998,43 +2938,27 @@ function App() {
     return []
   })
   const [roteOverviewStats, setRoteOverviewStats] = useState(() => {
-
     const todayStr = getTodayYMD()
-    try {
-      const stored = localStorage.getItem(`opg.rotes.${todayStr}`)
-      if (stored) {
-        const data = JSON.parse(stored)
-        if (data && Array.isArray(data.rotes)) {
-          const total = data.rotes.length
-          const completed = data.rotes.filter(r => r.completed).length
-          const percentage = total > 0 ? Math.round((completed / total) * 100) : 0
-          return { total, completed, percentage, rotes: data.rotes }
-        }
-      }
-    } catch {}
+    const data = getStoredRotes(todayStr)
+    if (data && Array.isArray(data.rotes)) {
+      const { total, completed, percentage } = computeRoteStats(data.rotes)
+      return { total, completed, percentage, rotes: data.rotes }
+    }
     return { total: 0, completed: 0, percentage: 0, rotes: [] }
   })
   const handleRotesChanged = useCallback((updatedData) => {
     const todayStr = getTodayYMD()
     let dataToUse = updatedData
     if (!dataToUse || !Array.isArray(dataToUse.rotes)) {
-      try {
-        const stored = localStorage.getItem(`opg.rotes.${todayStr}`)
-        if (stored) dataToUse = JSON.parse(stored)
-      } catch {}
+      dataToUse = getStoredRotes(todayStr)
     }
 
     if (dataToUse && Array.isArray(dataToUse.rotes)) {
-      const total = dataToUse.rotes.length
-      const completed = dataToUse.rotes.filter(r => r.completed).length
-      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0
+      const { total, completed, percentage } = computeRoteStats(dataToUse.rotes)
       const nextStats = { total, completed, percentage, rotes: dataToUse.rotes }
 
       setRoteOverviewStats(nextStats)
-
-      try {
-        localStorage.setItem(`opg.rotes.${todayStr}`, JSON.stringify(dataToUse))
-      } catch {}
+      persistRotes(todayStr, dataToUse)
     }
   }, [])
 
@@ -3059,30 +2983,16 @@ function App() {
 
     // 2. Sync to server in background
     try {
-      const token = localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
-      const res = await apiFetch(`/api/rotes/${roteId}/toggle`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify({ date: todayStr, completed: targetStatus })
-      })
-
-      if (res.ok) {
-        const result = await res.json()
-        const confirmedStatus = Boolean(result.completed)
-        if (confirmedStatus !== targetStatus) {
-          const reUpdated = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
-          const reDoneCount = reUpdated.filter(r => r.completed).length
-          handleRotesChanged({
-            date: todayStr,
-            rotes: reUpdated,
-            stats: { total_rotes: reUpdated.length, completed_rotes: reDoneCount }
-          })
-        }
-      } else {
-        throw new Error('Toggle failed')
+      const result = await toggleRoteApi(roteId, { date: todayStr, completed: targetStatus })
+      const confirmedStatus = Boolean(result.completed)
+      if (confirmedStatus !== targetStatus) {
+        const reUpdated = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
+        const reDoneCount = reUpdated.filter(r => r.completed).length
+        handleRotesChanged({
+          date: todayStr,
+          rotes: reUpdated,
+          stats: { total_rotes: reUpdated.length, completed_rotes: reDoneCount }
+        })
       }
     } catch (err) {
       console.error('Failed to toggle rote from overview:', err)
@@ -3468,35 +3378,12 @@ const exitPendingRef = useRef(false)
     const activeToken = token || sessionToken || localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
     if (!activeToken) return
     try {
-      const res = await apiFetch(`/api/rotes?date=${todayStr}`, {
-        headers: { Authorization: `Bearer ${activeToken}` }
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data && Array.isArray(data.rotes)) {
-          let localRotes = []
-          try {
-            const stored = localStorage.getItem(`opg.rotes.${todayStr}`)
-            if (stored) localRotes = JSON.parse(stored)?.rotes || []
-          } catch {}
-
-          const localMap = new Map(localRotes.map(r => [String(r.id), r]))
-          let merged = data.rotes.map(sr => {
-            const lr = localMap.get(String(sr.id))
-            if (lr && lr.completed !== sr.completed) {
-              return { ...sr, completed: lr.completed }
-            }
-            return sr
-          })
-
-          const pendingTemps = localRotes.filter(r => String(r.id).startsWith('temp-'))
-          for (const temp of pendingTemps) {
-            if (!merged.some(m => m.title === temp.title || m.id === temp.id)) {
-              merged.push(temp)
-            }
-          }
-          handleRotesChanged({ ...data, rotes: merged })
-        }
+      const data = await fetchRotesApi(todayStr, activeToken)
+      if (data && Array.isArray(data.rotes)) {
+        const stored = getStoredRotes(todayStr)
+        const localRotes = stored?.rotes || []
+        const merged = mergeRotes(data.rotes, localRotes)
+        handleRotesChanged({ ...data, rotes: merged })
       }
     } catch {}
   }
