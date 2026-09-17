@@ -4,6 +4,7 @@ import './styles.css'
 import { isNativeApp } from './reminders'
 
 import { Browser } from '@capacitor/browser'
+import { SocialLogin } from '@capgo/capacitor-social-login'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Keyboard as CapacitorKeyboard } from '@capacitor/keyboard'
 import { apiFetch, getStoredToken, setStoredToken, removeStoredToken } from './services/apiClient'
@@ -18,13 +19,11 @@ import {
 } from './features/auth/authService'
 import {
   GOOGLE_CLIENT_ID,
-  WEB_APP_URL,
   isNativeShell,
   loadGoogleIdentityServices,
   parseAuthUrl,
   getNativeAuthReturn,
   cleanAuthUrlParams,
-  buildNativeOAuthUrl,
   buildNativeReturnUrl,
 } from './features/auth/authUtils'
 import {
@@ -73,6 +72,8 @@ import {
 import { useEscapeKey } from './hooks/useEscapeKey'
 import KineticTextLoader from './components/KineticTextLoader'
 import SpotlightNavbar from './components/SpotlightNavbar'
+import ToastPopup from './components/ToastPopup'
+import MobileTopToast from './components/MobileTopToast'
 import LandingPage from './components/LandingPage'
 import OverviewPage from './components/OverviewPage'
 import WorkspacePage from './components/WorkspacePage'
@@ -305,6 +306,22 @@ function App() {
       if (el && el.parentNode) el.parentNode.removeChild(el)
     }
   }, [authReady])
+
+  useEffect(() => {
+    // Mark the native shell so it gets the same end-of-page clearance as
+    // the mobile website, regardless of WebView viewport width.
+    if (isNativeShell()) document.body.classList.add('capacitor-native')
+  }, [])
+
+  useEffect(() => {
+    // Web: drop the static boot loader as soon as React mounts so the
+    // KineticTextLoader takes over. Native keeps it until auth is ready
+    // (faded by the effect below) so there is never a blank screen.
+    if (!isNativeShell()) {
+      const node = document.getElementById('boot-loader')
+      if (node && node.parentNode) node.parentNode.removeChild(node)
+    }
+  }, [])
 
   const [authLoading, setAuthLoading] = useState(false)
   const [authStatus, setAuthStatus] = useState('Signing you in…')
@@ -710,30 +727,30 @@ function App() {
   }, [currentUser, sessionToken, authReady])
 
   const handleNativeGoogle = async () => {
-    // Native sign-in runs through the production website's Google GIS flow
-    // inside an in-app browser tab (@capacitor/browser + @capacitor/app are
-    // both Capacitor 8 core plugins, so there is no peer conflict). The web
-    // app verifies the Google credential with the existing backend endpoint
-    // and hands a short-lived single-use exchange code back via the
-    // com.onepercentgoal.app://auth deep link, which the appUrlOpen /
-    // getLaunchUrl restore above exchanges for a session. No backend or
-    // protocol changes are involved, and no native SDK plugin is required.
+    // Native Android account chooser via Credential Manager
+    // (@capgo/capacitor-social-login, Capacitor 8 compatible). The returned
+    // ID token is verified by the existing backend endpoint, so no backend
+    // or protocol changes are involved.
     setAuthLoading(true)
-    setAuthStatus('Opening Google…')
+    setAuthStatus('Choose your Google account…')
     setAuthError('')
     try {
-      const oauthUrl = buildNativeOAuthUrl()
-      const isUsableWebUrl = oauthUrl && /^https:\/\//i.test(oauthUrl)
-      if (!isUsableWebUrl) {
-        throw new Error('Google sign-in is unavailable in this build. Please update the app and try again.')
-      }
-      await Browser.open({ url: oauthUrl })
-      // Loading clears via `browserFinished` (user backs out) or via the
-      // appUrlOpen deep-link restore on success.
+      await SocialLogin.initialize({ google: { webClientId: GOOGLE_CLIENT_ID } })
+      const { result } = await SocialLogin.login({
+        provider: 'google',
+        options: { scopes: ['email', 'profile'] },
+      })
+      const idToken = result?.idToken || ''
+      if (!idToken) throw new Error('Google sign-in returned no credential.')
+      await finishGoogleSignIn({ credential: idToken })
     } catch (error) {
       setAuthLoading(false)
       googleSignInInFlight.current = false
-      setAuthError(error?.message || 'Unable to open Google sign-in. Please try again.')
+      const message = String(error?.message || '')
+      // User dismissing the chooser is not an error — just stop loading.
+      if (/cancel/i.test(message) || /USER_CANCELLED/i.test(message)) return
+      // [28444] = app SHA-1 / package not registered in Google Cloud Console.
+      setAuthError(message || 'Unable to sign in with Google. Please try again.')
     }
   }
 
@@ -787,9 +804,14 @@ function App() {
   const logout = async () => {
     const token = sessionToken
     authLogout(token).catch(() => {})
-    // Native sign-in runs through the web GIS flow, so there is no native
-    // SDK account cache to clear — revoking the server session above plus
-    // removing the local token completes logout on every platform.
+    if (isNativeShell()) {
+      try {
+        await SocialLogin.logout({ provider: 'google' })
+      } catch {
+        // Native credential clear is best-effort; server session is
+        // already revoked above so logout always completes.
+      }
+    }
     showToast('Logged Out')
     setActive('Overview')
     setShowAuthModal(false)
@@ -987,12 +1009,9 @@ function App() {
 
         <AuthTransitionOverlay active={authLoading} message={authStatus} />
 
-        {toastMsg && (
-          <div className="bottom-toast-notification" role="status" aria-live="polite">
-            {!toastNoTick && <span className="toast-tick" aria-hidden="true">✓</span>}
-            <span className="toast-text">{toastMsg}</span>
-          </div>
-        )}
+        {toastMsg && (isNativeShell()
+          ? <MobileTopToast message={toastMsg} showTick={!toastNoTick} />
+          : <ToastPopup message={toastMsg} showTick={!toastNoTick} />)}
       </main>
     )
   }
@@ -1090,12 +1109,9 @@ function App() {
           onCancel={() => setDeleteConfirmFlow(null)}
           onConfirm={confirmDeleteGoal}
         />
-        {toastMsg && (
-          <div className="dock-toast" role="status" aria-live="polite">
-            {!toastNoTick && <span className="dock-toast-tick" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 12 12" focusable="false"><path d="M2 6.4 4.8 9.2 10 3.2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></span>}
-            <span className="dock-toast-text">{toastMsg}</span>
-          </div>
-        )}
+        {toastMsg && (isNativeShell()
+          ? <MobileTopToast message={toastMsg} showTick={!toastNoTick} />
+          : <ToastPopup message={toastMsg} showTick={!toastNoTick} />)}
         <AppReturnModal
           appReturnFlow={appReturnFlow}
           onClose={() => setAppReturnFlow(null)}

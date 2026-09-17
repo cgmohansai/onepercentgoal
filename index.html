@@ -84,12 +84,10 @@
   </div>
   <script>
     (function() {
-      var isNative = Boolean(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-      var el = document.getElementById('boot-loader');
-      if (!isNative && el && el.parentNode) {
-        // In browser / website: remove boot-loader element immediately so older KineticTextLoader renders
-        el.parentNode.removeChild(el);
-      }
+      // Never remove the boot loader at parse time: on native the Capacitor
+      // bridge may not exist yet, which would hide the loader before React
+      // mounts and leave a blank screen. React removes it on mount (web) or
+      // fades it once the app is ready (native) — see main.jsx.
       window.hideBootLoader = function() {
         var node = document.getElementById('boot-loader');
         if (node && node.parentNode) {

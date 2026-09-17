@@ -3416,17 +3416,11 @@ a:focus-visible,
   color: #a8aca1;
   font-size: 13px;
 }
-.auth-transition-spinner {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-  border: 2px solid rgba(201, 243, 106, .25);
-  border-top-color: #c9f36a;
-  border-radius: 50%;
-  animation: authTransitionSpin .7s linear infinite;
-}
-@keyframes authTransitionSpin {
-  to { transform: rotate(360deg); }
+.auth-transition-ripple {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  color: #c9f36a;
 }
 .auth-modal-content .auth-aurora-glow {
   display: none;
@@ -4942,56 +4936,11 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   }
 }
 
-/* Bottom Center Toast Notification */
-.bottom-toast-notification {
-  position: fixed;
-  bottom: calc(104px + var(--safe-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 99999;
-  background: #191c18;
-  border: 1px solid rgba(201, 243, 106, 0.4);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 24px rgba(201, 243, 106, 0.2);
-  border-radius: 30px;
-  padding: 16px 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  color: #f6f5f1;
-  pointer-events: none;
-  animation: toastFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.toast-tick {
-  color: #c9f36a;
-  font-weight: 800;
-  font-size: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  min-height: 22px;
-  flex: 0 0 22px;
-  line-height: 1;
-  border-radius: 50%;
-  background: rgba(201, 243, 106, 0.18);
-  border: 1px solid rgba(201, 243, 106, 0.3);
-}
-
-.toast-text {
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
-/* Dock-screen toast: used only where the bottom navbar is present.
-   Fresh implementation (not a patch trail): lifted clear of the dock,
-   vector tick, calibrated text. The legacy toast above is untouched. */
-.dock-toast {
+/* ToastPopup — the single unified toast popup for every use case.
+   Responsive: wraps long content (e.g. share-profile URLs) inside the
+   popup instead of overflowing off-screen. Tick stays pinned to the
+   first line when the text wraps to multiple lines. */
+.toast-popup {
   position: fixed;
   bottom: calc(104px + var(--safe-bottom, 0px));
   left: 50%;
@@ -5000,21 +4949,23 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   background: #191c18;
   border: 1px solid rgba(201, 243, 106, 0.4);
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 24px rgba(201, 243, 106, 0.2);
-  border-radius: 30px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 12px 16px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   font-weight: 500;
   color: #f6f5f1;
   pointer-events: none;
-  max-width: calc(100vw - 48px);
-  animation: toastFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  width: max-content;
+  max-width: min(480px, calc(100vw - 32px));
+  box-sizing: border-box;
+  animation: toastPopupIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.dock-toast-tick {
+.toast-popup-tick {
   color: #c9f36a;
   display: inline-flex;
   align-items: center;
@@ -5024,6 +4975,7 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   min-width: 22px;
   min-height: 22px;
   flex: 0 0 22px;
+  margin-top: 1px;
   line-height: 0;
   border-radius: 50%;
   background: rgba(201, 243, 106, 0.18);
@@ -5031,30 +4983,23 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   box-sizing: border-box;
 }
 
-.dock-toast-tick svg {
+.toast-popup-tick svg {
   display: block;
   flex: none;
 }
 
-.dock-toast-text {
+.toast-popup-text {
   letter-spacing: 0.02em;
-  white-space: nowrap;
-  line-height: 22px;
-  display: inline-flex;
-  align-items: center;
-  transform: translateY(-2px);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 
-@media (max-width: 768px) {
-  .dock-toast {
-    bottom: calc(160px + var(--safe-bottom, 0px));
-  }
-}
-
-@keyframes toastFadeIn {
+@keyframes toastPopupIn {
   from {
     opacity: 0;
-    transform: translate(-50%, 20px) scale(0.92);
+    transform: translate(-50%, 16px) scale(0.96);
   }
   to {
     opacity: 1;
@@ -5063,8 +5008,90 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
 }
 
 @media (max-width: 768px) {
-  .bottom-toast-notification {
-    bottom: calc(112px + var(--safe-bottom));
+  .toast-popup {
+    bottom: calc(160px + var(--safe-bottom, 0px));
+    font-size: 13px;
+    padding: 11px 14px;
+  }
+}
+
+/* MobileTopToast — mobile-app-only top toast. Desktop keeps ToastPopup.
+   Slick glass card sliding down from under the status bar. */
+.mobile-top-toast {
+  position: fixed;
+  top: calc(var(--safe-top, 0px) + 12px);
+  left: 12px;
+  right: 12px;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 15px;
+  overflow: hidden;
+  background: rgba(22, 25, 21, 0.92);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(201, 243, 106, 0.45);
+  border-radius: 18px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6), 0 0 22px rgba(201, 243, 106, 0.14);
+  color: #f6f5f1;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  pointer-events: none;
+  box-sizing: border-box;
+  animation: mobileTopToastIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.mobile-top-toast-tick {
+  color: #182013;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  height: 23px;
+  min-width: 23px;
+  min-height: 23px;
+  flex: 0 0 23px;
+  line-height: 0;
+  border-radius: 50%;
+  background: #c9f36a;
+  box-shadow: 0 0 14px rgba(201, 243, 106, 0.55);
+  box-sizing: border-box;
+}
+
+.mobile-top-toast-tick svg {
+  display: block;
+  flex: none;
+}
+
+.mobile-top-toast-text {
+  flex: 1;
+  min-width: 0;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.mobile-top-toast-glow {
+  position: absolute;
+  top: -40px;
+  right: -30px;
+  width: 120px;
+  height: 90px;
+  background: radial-gradient(closest-side, rgba(201, 243, 106, 0.22), transparent);
+  pointer-events: none;
+}
+
+@keyframes mobileTopToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -5120,12 +5147,13 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   }
   /* Dock clearance: the floating glass dock (60px tall, 20px above the
      shell bottom) overlays this scroll container, so the last content
-     needs exactly that much scrollable room: 20 + 60 - 10 + 26 = 96px.
+     needs exactly that much scrollable room, plus 40px visible void:
+     20 + 60 - 10 + 26 + 40 = 136px.
      The logged-in shell carries no logged-out marker; the dock is only
      rendered there, so :not(.logged-out) scopes this precisely. */
   .app-shell:not(.logged-out) > .content,
   .app-shell:not(.logged-out) .content {
-    padding-bottom: 96px !important;
+    padding-bottom: 136px !important;
   }
   /* Logged-out pages have no dock, but Android's gesture pill / system
      navigation bar overlays the bottom of the viewport while Chrome
@@ -5213,6 +5241,14 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     min-height: calc(100dvh - 20px - var(--safe-top, 0px) - var(--safe-bottom, 0px)) !important;
     margin-bottom: 20px !important;
   }
+}
+
+/* Native app shell: same end-of-page clearance as the mobile website on
+   logged-in pages (136px dock clearance + visible void), regardless of
+   WebView viewport width — foldables, tablets and landscape exceed the
+   768px query above. */
+body.capacitor-native .app-shell:not(.logged-out) .content {
+  padding-bottom: 136px !important;
 }
 
 /* ── #8.2 mobile-first patch: touch, overflow, modal/keyboard, hierarchy ── */

@@ -125,6 +125,46 @@ export function WorkspacePage({
     saveReminders(checked)
   }
 
+  const reminderRescheduleTimer = useRef(null)
+
+  // Whenever the time is changed while reminders are on, immediately follow
+  // the updated time: cancel the old alarms and schedule the new ones.
+  const handleReminderTimeChange = value => {
+    setReminderTime(value)
+    if (!isNativeApp() || !remindersEnabled || remindersBusy) return
+    if (reminderRescheduleTimer.current) clearTimeout(reminderRescheduleTimer.current)
+    reminderRescheduleTimer.current = setTimeout(async () => {
+      try {
+        const [hour, minute] = String(value || '').split(':').map(Number)
+        if (Number.isNaN(hour) || Number.isNaN(minute)) return
+        const granted = await checkNotificationPermission()
+        if (!granted) {
+          showToast('Permission denied — allow notifications in Settings')
+          return
+        }
+        await scheduleDailyReminders(hour, minute)
+        localStorage.setItem('opg.reminders.enabled', '1')
+        localStorage.setItem('opg.reminders.time', value)
+        // Without the system "Alarms & reminders" allowance, Android turns
+        // the alarm inexact and night-time alarms silently slip. Send the
+        // user straight to the toggle instead of pretending all is fine.
+        const exactAlarms = await areExactAlarmsAllowed()
+        if (!exactAlarms) {
+          requestExactAlarmAccess()
+          showToast(`Moved to ${value} — allow "Alarms & reminders" or it won't fire on time`)
+        } else {
+          showToast(`Reminders moved to ${value}`)
+        }
+      } catch (err) {
+        console.error('Failed to reschedule reminders:', err)
+      }
+    }, 800)
+  }
+
+  useEffect(() => () => {
+    if (reminderRescheduleTimer.current) clearTimeout(reminderRescheduleTimer.current)
+  }, [])
+
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (settingsMenuRef.current && !settingsMenuRef.current.contains(e.target)) {
@@ -518,7 +558,7 @@ export function WorkspacePage({
                 <input
                   type="time"
                   value={reminderTime}
-                  onChange={event => setReminderTime(event.target.value)}
+                  onChange={event => handleReminderTimeChange(event.target.value)}
                   disabled={remindersBusy}
                 />
               </div>

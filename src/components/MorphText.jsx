@@ -54,10 +54,10 @@ export const MorphText = React.memo(function MorphText({
   }, [words.length, interval])
   const filterId = "morph-threshold-filter"
   const currentWord = words[currentIndex]
-  const currentWidth = (widths[currentWord] || 60) + 24
+  const currentWidth = (widths[currentWord] || 60) + 8
 
   return (
-    <div ref={morphRootRef} className={className} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle', position: 'relative', margin: '0 0.12em', visibility: measured ? 'visible' : 'hidden' }}>
+    <div ref={morphRootRef} className={className} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle', position: 'relative', margin: '0 0.04em', visibility: measured ? 'visible' : 'hidden' }}>
       <svg
         aria-hidden="true"
         focusable="false"
@@ -68,7 +68,7 @@ export const MorphText = React.memo(function MorphText({
             <feColorMatrix
               in="SourceGraphic"
               type="matrix"
-              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 25 -9"
+              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -6"
               result="goo"
             />
             <feComposite in="SourceGraphic" in2="goo" operator="atop" />
@@ -94,13 +94,13 @@ export const MorphText = React.memo(function MorphText({
           style={{
             height: "1.2em",
             width: `${currentWidth}px`,
-            transition: 'width 1.6s cubic-bezier(0.25, 1, 0.5, 1)',
+            transition: 'width 2s cubic-bezier(0.25, 1, 0.5, 1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
             overflow: 'visible',
-            paddingRight: '0.15em'
+            paddingRight: '0'
           }}
         >
           {words.map((word, i) => {
@@ -109,19 +109,22 @@ export const MorphText = React.memo(function MorphText({
             
             let opacity = 0
             let scale = 0.8
-            let blur = '20px'
-            let transitionStr = 'opacity 1.4s ease-in-out, filter 1.6s ease-in-out, transform 1.6s ease-in-out'
+            let blur = '14px'
+            // Outgoing and incoming share the same duration and start on the
+            // same frame, so the old number dims while the new one sharpens
+            // simultaneously — no empty flash between numbers.
+            let transitionStr = 'opacity 2.2s ease-in-out, filter 2.2s ease-in-out, transform 2.2s ease-in-out'
 
             if (isActive) {
               opacity = 1
               scale = 1
               blur = '0px'
-              transitionStr = 'opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), filter 1.6s cubic-bezier(0.25, 1, 0.5, 1), transform 1.6s cubic-bezier(0.25, 1, 0.5, 1)'
+              transitionStr = 'opacity 2.2s cubic-bezier(0.16, 1, 0.3, 1), filter 2.2s cubic-bezier(0.25, 1, 0.5, 1), transform 2.2s cubic-bezier(0.25, 1, 0.5, 1)'
             } else if (isPrev) {
               opacity = 0
-              scale = 1.2
-              blur = '20px'
-              transitionStr = 'opacity 1.4s cubic-bezier(0.7, 0, 0.84, 0), filter 1.6s cubic-bezier(0.25, 1, 0.5, 1), transform 1.6s cubic-bezier(0.25, 1, 0.5, 1)'
+              scale = 1.08
+              blur = '14px'
+              transitionStr = 'opacity 2.2s cubic-bezier(0.7, 0, 0.84, 0), filter 2.2s cubic-bezier(0.25, 1, 0.5, 1), transform 2.2s cubic-bezier(0.25, 1, 0.5, 1)'
             }
 
             return (
