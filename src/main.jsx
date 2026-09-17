@@ -35,6 +35,23 @@ import {
   buildNativeOAuthUrl,
   buildNativeReturnUrl,
 } from './features/auth/authUtils'
+import {
+  fetchDashboard,
+  createGoal as createGoalApi,
+  updateGoal as updateGoalApi,
+  completeGoal as completeGoalApi,
+  deleteGoal as deleteGoalApi,
+} from './features/goals/goalService'
+import {
+  presentGoal,
+  createOptimisticGoal,
+  mergeGoals,
+  getFallbackGoals,
+  sanitizeFilename,
+  createCompletionCard,
+  downloadImage,
+  saveImageToGallery,
+} from './features/goals/goalUtils'
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -280,193 +297,9 @@ function formatDateOnly(dateObj) {
   return `${month} ${day}`
 }
 
-function presentGoal(goal) {
-  const percent = goal.progress_percent ?? Math.round((goal.progress / goal.target) * 100)
-  return {
-    ...goal,
-    done: Boolean(goal.completed),
-    kind: 'bar',
-    value: percent,
-    max: 100,
-    label: `${percent}% progress`,
-  }
-}
-
-function sanitizeFilename(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'goal'
-}
-
-function wrapText(ctx, text, maxWidth) {
-  const words = String(text).split(/\s+/).filter(Boolean)
-  const lines = []
-  let line = ''
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word
-    if (ctx.measureText(next).width <= maxWidth || !line) {
-      line = next
-    } else {
-      lines.push(line)
-      line = word
-    }
-  }
-  if (line) lines.push(line)
-  return lines
-}
-
-async function createCompletionCard(goal, note) {
-  const canvas = document.createElement('canvas')
-  canvas.width = 1200
-  // Set temporary height to allow measuring text
-  canvas.height = 2000
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas unavailable')
-
-  const titleFontSize = goal.title.length > 48 ? 58 : goal.title.length > 30 ? 66 : 74
-  const noteFontSize = note.length > 170 ? 36 : note.length > 100 ? 40 : 44
-  const titleLineHeight = Math.round(titleFontSize * 1.14)
-  const noteLineHeight = Math.round(noteFontSize * 1.35)
-
-  // Measure title wrapping
-  ctx.font = `600 ${titleFontSize}px "DM Sans", sans-serif`
-  const titleLines = wrapText(ctx, goal.title, 900)
-
-  // Measure note wrapping
-  ctx.font = `italic 400 ${noteFontSize}px "Instrument Serif", serif`
-  const noteLines = wrapText(ctx, note, 860)
-
-  // Dynamic layout calculations
-  let y = 370
-  const titleStartY = y
-  y += titleLines.length * titleLineHeight
-  const reflectionLabelY = y + 60
-  const noteStartY = reflectionLabelY + 50
-  y = noteStartY + noteLines.length * noteLineHeight
-  const dateY = y + 60
-  const footerDoneY = dateY + 70
-  
-  // Total canvas height = footer position + bottom padding (120)
-  const canvasHeight = footerDoneY + 120
-  canvas.height = canvasHeight
-
-  const accent = '#c9f36a'
-  const base = '#111310'
-  const panel = '#1b1d1a'
-  const text = '#f5f5ef'
-  const muted = '#a4a89b'
-  const now = new Date()
-  const displayDate = `${now.toLocaleString('en-US', { month: 'short' })} ${now.getDate()}, ${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-
-  // Fill background
-  const bg = ctx.createLinearGradient(0, 0, 1200, canvasHeight)
-  bg.addColorStop(0, '#171916')
-  bg.addColorStop(1, '#22251f')
-  ctx.fillStyle = bg
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-  // Background orb decorations
-  ctx.fillStyle = 'rgba(201, 243, 106, 0.06)'
-  ctx.beginPath()
-  ctx.arc(600, canvasHeight / 2, 400, 0, Math.PI * 2)
-  ctx.fill()
-
-  // Inner panel card (Full container)
-  ctx.fillStyle = panel
-  ctx.strokeStyle = 'rgba(201, 243, 106, 0.22)'
-  ctx.lineWidth = 2
-  ctx.beginPath()
-  ctx.roundRect(72, 72, 1056, canvasHeight - 144, 36)
-  ctx.fill()
-  ctx.stroke()
-
-  // Center align text
-  ctx.textAlign = 'center'
-
-  // Header Brand
-  ctx.fillStyle = accent
-  ctx.font = '700 24px "DM Mono", monospace'
-  ctx.fillText('ONEPERCENTGOAL', 600, 138)
-  
-  ctx.beginPath()
-  ctx.arc(600, 216, 42, 0, Math.PI * 2)
-  ctx.strokeStyle = 'rgba(201, 243, 106, 0.55)'
-  ctx.lineWidth = 2
-  ctx.stroke()
-  
-  ctx.fillStyle = accent
-  ctx.font = '600 24px "Instrument Serif", serif'
-  ctx.fillText('1%', 600, 224)
-
-  // GOAL label
-  ctx.fillStyle = accent
-  ctx.font = '700 20px "DM Mono", monospace'
-  ctx.fillText('GOAL', 600, 310)
-
-  // Goal Name (Title)
-  ctx.fillStyle = '#f7f7f2'
-  ctx.font = `600 ${titleFontSize}px "DM Sans", sans-serif`
-  let currentTitleY = titleStartY
-  for (const line of titleLines) {
-    ctx.fillText(line, 600, currentTitleY)
-    currentTitleY += titleLineHeight
-  }
-
-  // REFLECTION label
-  ctx.fillStyle = accent
-  ctx.font = '700 20px "DM Mono", monospace'
-  ctx.fillText('REFLECTION', 600, reflectionLabelY)
-
-  // Reflection Message (Note)
-  ctx.fillStyle = text
-  ctx.font = `italic 400 ${noteFontSize}px "Instrument Serif", serif`
-  let currentNoteY = noteStartY
-  for (const line of noteLines) {
-    ctx.fillText(line, 600, currentNoteY)
-    currentNoteY += noteLineHeight
-  }
-
-  // Date
-  ctx.fillStyle = muted
-  ctx.font = '500 26px "DM Sans", sans-serif'
-  ctx.fillText(displayDate, 600, dateY)
-
-  // DONE. footer
-  ctx.fillStyle = accent
-  ctx.font = '700 22px "DM Mono", monospace'
-  ctx.fillText('DONE.', 600, footerDoneY)
-
-  return canvas.toDataURL('image/png')
-}
-
-function downloadImage(dataUrl, filename) {
-  const link = document.createElement('a')
-  link.href = dataUrl
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-}
-
-async function saveImageToGallery(dataUrl, filename) {
-  let albumsRes
-  try {
-    albumsRes = await Media.getAlbums()
-  } catch { albumsRes = { albums: [] } }
-  let album = (albumsRes.albums || []).find(a => a.name === 'OnePercentGoal')
-  if (!album) {
-    try { await Media.createAlbum({ name: 'OnePercentGoal' }) } catch {}
-    try {
-      const res = await Media.getAlbums()
-      album = (res.albums || []).find(a => a.name === 'OnePercentGoal')
-    } catch { album = null }
-  }
-  if (!album) return false
-  await Media.savePhoto({
-    path: dataUrl,
-    albumIdentifier: album.identifier,
-    fileName: filename.replace(/\.png$/, '')
-  })
-  return true
-}
+// Goal utilities (presentGoal, createOptimisticGoal, mergeGoals, getFallbackGoals,
+// sanitizeFilename, createCompletionCard, downloadImage, saveImageToGallery)
+// are provided by ./features/goals/goalUtils
 
 // ============================================================================
 // WebGL LiquidMetal Shader Wrapper Component
@@ -3612,33 +3445,20 @@ const exitPendingRef = useRef(false)
 
   const loadDashboard = async token => {
     try {
-      const response = await apiFetch('/api/dashboard', { headers: { Authorization: `Bearer ${token}` } })
-      if (!response.ok) throw new Error('Unable to load dashboard')
-      const data = await response.json()
+      const data = await fetchDashboard(token)
       if (data.year) {
         setServerSprint(data.year)
       }
-      const serverGoals = data.goals.map(presentGoal)
+      const serverGoals = (data.goals || []).map(presentGoal)
       setGoals(prev => {
-        const pendingTemps = prev.filter(g => String(g.id).startsWith('temp-'))
-        const merged = [...serverGoals]
-        for (const tg of pendingTemps) {
-          if (!merged.some(m => m.id === tg.id || m.title === tg.title)) {
-            merged.push(tg)
-          }
-        }
+        const merged = mergeGoals(prev, serverGoals)
         try { localStorage.setItem('opg.dashboard.goals', JSON.stringify(merged)) } catch {}
         return merged
       })
     } catch {
       setGoals(prev => {
         if (prev && prev.length > 0) return prev
-        const fallback = [
-          presentGoal({ id: 1, title: 'Finish Palm Vein Recognition', description: 'Research project', progress_percent: 0, completed: false }),
-          presentGoal({ id: 2, title: 'Read deeply', progress_percent: 60, completed: false }),
-          presentGoal({ id: 3, title: 'LeetCode practice', progress_percent: 70, completed: false }),
-        ]
-        return fallback
+        return getFallbackGoals()
       })
     }
   }
@@ -3842,9 +3662,8 @@ const exitPendingRef = useRef(false)
   const updateGoal = async (goal, payload) => {
     if (String(goal.id).startsWith('temp-')) return true
     try {
-      const response = await apiFetch(`/api/goals/${goal.id}`, { method: 'PATCH', headers: buildHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload) })
-      if (!response.ok) throw new Error('Unable to update goal')
-      const saved = presentGoal(await response.json())
+      const updated = await updateGoalApi(goal.id, payload, sessionToken)
+      const saved = presentGoal(updated)
       setGoals(items => items.map(item => item.id === goal.id ? saved : item))
       await refreshProfile()
       return true
@@ -3880,13 +3699,8 @@ const exitPendingRef = useRef(false)
     if (String(goal.id).startsWith('temp-')) return
 
     try {
-      const response = await apiFetch(`/api/goals/${goal.id}`, {
-        method: 'PATCH',
-        headers: buildHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ completed: true, completion_note: note })
-      })
-      if (!response.ok) throw new Error('Unable to complete goal')
-      const saved = presentGoal(await response.json())
+      const updated = await completeGoalApi(goal.id, note, sessionToken)
+      const saved = presentGoal(updated)
       setGoals(items => items.map(item => item.id === saved.id ? saved : item))
       refreshProfile()
       createCompletionCard(saved, note)
@@ -3907,11 +3721,7 @@ const exitPendingRef = useRef(false)
     if (String(goal.id).startsWith('temp-')) return
 
     try {
-      const response = await apiFetch(`/api/goals/${goal.id}`, {
-        method: 'DELETE',
-        headers: buildHeaders()
-      })
-      if (!response.ok) throw new Error('Unable to delete goal')
+      await deleteGoalApi(goal.id, sessionToken)
       await refreshProfile()
     } catch (err) {
       console.error(err)
@@ -3927,32 +3737,18 @@ const exitPendingRef = useRef(false)
     setAddGoalModalOpen(false)
 
     // 2. Immediately create an optimistic goal and update entire website instantly
-    const tempId = 'temp-goal-' + Date.now()
-    const tempGoal = presentGoal({
-      id: tempId,
-      title: cleanTitle,
-      description: '',
-      progress_percent: 0,
-      completed: false,
-      created_at: new Date().toISOString()
-    })
-
+    const tempGoal = createOptimisticGoal(cleanTitle)
     setGoals(items => [...items, tempGoal])
 
     // 3. Persist to server in background
     try {
-      const response = await apiFetch('/api/goals', {
-        method: 'POST',
-        headers: buildHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ title: cleanTitle })
-      })
-      if (!response.ok) throw new Error('Unable to add goal')
-      const saved = presentGoal(await response.json())
-      setGoals(items => items.map(item => item.id === tempId ? saved : item))
+      const created = await createGoalApi(cleanTitle, sessionToken)
+      const saved = presentGoal(created)
+      setGoals(items => items.map(item => item.id === tempGoal.id ? saved : item))
       await refreshProfile()
     } catch (err) {
       console.error('Failed to create goal:', err)
-      setGoals(items => items.filter(item => item.id !== tempId))
+      setGoals(items => items.filter(item => item.id !== tempGoal.id))
       window.alert('The goal could not be saved.')
     }
   }
