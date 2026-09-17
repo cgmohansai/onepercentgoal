@@ -12,6 +12,7 @@ export const MorphText = React.memo(function MorphText({
   const words = React.useMemo(() => Array.from({ length: 100 }, (_, i) => `${i + 1}%`), [])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [widths, setWidths] = useState({})
+  const [measured, setMeasured] = useState(false)
   const morphRootRef = useRef(null)
   
   // Measure word widths on mount/update to prevent jumps
@@ -35,6 +36,7 @@ export const MorphText = React.memo(function MorphText({
       document.body.removeChild(measureEl)
     })
     setWidths(newWidths)
+    setMeasured(true)
   }, [words, fontSize, fontFamily])
 
   // Cycle index smoothly and stop at 100%
@@ -55,7 +57,7 @@ export const MorphText = React.memo(function MorphText({
   const currentWidth = (widths[currentWord] || 60) + 24
 
   return (
-    <div ref={morphRootRef} className={className} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle', position: 'relative', margin: '0 0.12em' }}>
+    <div ref={morphRootRef} className={className} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle', position: 'relative', margin: '0 0.12em', visibility: measured ? 'visible' : 'hidden' }}>
       <svg
         aria-hidden="true"
         focusable="false"

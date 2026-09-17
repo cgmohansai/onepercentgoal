@@ -3537,14 +3537,18 @@ a:focus-visible,
     max-width: 100% !important;
   }
   
-  /* 4. Elegant Mobile Heading sizing - distinct, large, and premium */
+  /* 4. Mobile heading sizing — desktop morph animation stays universal
+     (nowrap / 0.38em gap / weight 700); only the size floor is lowered so
+     the single line fits 320px viewports. */
   .h1-scalingSize {
-    font-size: clamp(34px, 8.5vw, 42px) !important;
+    font-size: clamp(26px, 8.5vw, 42px) !important;
     line-height: 1.15 !important;
     margin: 10px 0 !important;
-    flex-wrap: wrap;
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+    gap: 0.38em !important;
     justify-content: center !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
     letter-spacing: -0.04em !important;
   }
   .billboard-subtitle {
@@ -4299,6 +4303,11 @@ footer.app-main-footer, footer {
     gap: 16px;
   }
 
+  /* Visible void below the footer social icons, mobile only */
+  footer.app-main-footer {
+    padding-bottom: 30px !important;
+  }
+
   .landing-hero .liquid-metal-btn-trigger .liquid-metal-btn-body {
     padding: 10px 22px 10px 10px !important;
     gap: 12px !important;
@@ -4740,16 +4749,10 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     justify-content: flex-start !important;
     text-align: center !important;
     width: 100% !important;
-    flex-wrap: wrap !important;
-    white-space: normal !important;
-    gap: 0.04em !important;
-  }
-  .h1-scalingSize > div {
-    margin-left: -0.04em !important;
-    margin-right: -0.04em !important;
-  }
-  .h1-scalingSize > span:last-child {
-    margin-left: 0 !important;
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+    gap: 0.38em !important;
+    font-weight: 700 !important;
   }
 
   .billboard-subtitle {
@@ -4985,6 +4988,69 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   white-space: nowrap;
 }
 
+/* Dock-screen toast: used only where the bottom navbar is present.
+   Fresh implementation (not a patch trail): lifted clear of the dock,
+   vector tick, calibrated text. The legacy toast above is untouched. */
+.dock-toast {
+  position: fixed;
+  bottom: calc(104px + var(--safe-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 99999;
+  background: #191c18;
+  border: 1px solid rgba(201, 243, 106, 0.4);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 24px rgba(201, 243, 106, 0.2);
+  border-radius: 30px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #f6f5f1;
+  pointer-events: none;
+  max-width: calc(100vw - 48px);
+  animation: toastFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.dock-toast-tick {
+  color: #c9f36a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  flex: 0 0 22px;
+  line-height: 0;
+  border-radius: 50%;
+  background: rgba(201, 243, 106, 0.18);
+  border: 1px solid rgba(201, 243, 106, 0.3);
+  box-sizing: border-box;
+}
+
+.dock-toast-tick svg {
+  display: block;
+  flex: none;
+}
+
+.dock-toast-text {
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  line-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .dock-toast {
+    bottom: calc(160px + var(--safe-bottom, 0px));
+  }
+}
+
 @keyframes toastFadeIn {
   from {
     opacity: 0;
@@ -5051,6 +5117,23 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     -webkit-overflow-scrolling: touch !important;
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;
+  }
+  /* Dock clearance: the floating glass dock (60px tall, 20px above the
+     shell bottom) overlays this scroll container, so the last content
+     needs exactly that much scrollable room: 20 + 60 - 10 + 26 = 96px.
+     The logged-in shell carries no logged-out marker; the dock is only
+     rendered there, so :not(.logged-out) scopes this precisely. */
+  .app-shell:not(.logged-out) > .content,
+  .app-shell:not(.logged-out) .content {
+    padding-bottom: 96px !important;
+  }
+  /* Logged-out pages have no dock, but Android's gesture pill / system
+     navigation bar overlays the bottom of the viewport while Chrome
+     reports safe-area-inset-bottom: 0 — so the footer needs its own
+     clearance: ~48px worst-case system overlay + 8px breathing. */
+  .app-shell.logged-out > .content,
+  .app-shell.logged-out .content {
+    padding-bottom: 56px !important;
   }
   .app-shell > .content::-webkit-scrollbar,
   .content::-webkit-scrollbar {

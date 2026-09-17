@@ -5,6 +5,7 @@ const Silk = lazyWithStaleRetry(() => import('../Silk'))
 import SpecularButton from '../SpecularButton'
 import AnimatedPlusButton from '../AnimatedPlusButton'
 import MorphText from './MorphText'
+import LiveYearNumber from './LiveYearNumber'
 import AppFooter from './AppFooter'
 import { MOTIVATIONAL_QUOTES } from '../constants/quotes'
 import { getSprintBoundary, formatDateWithTime } from '../utils/dateUtils'
@@ -175,9 +176,7 @@ export function OverviewPage({
           <div className="urgency-col left">
             <div className="urgency-system-status">SYS.ACTIVE // SPRINT #{String(data.sprint).padStart(2, '0')}</div>
             <div className="live-num">
-              <span style={{ fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum"', display: 'inline-block' }}>
-                {data.percentage.toFixed(6)}
-              </span>
+              <LiveYearNumber year={data.year} totalDays={data.total} />
               <em>%</em>
             </div>
             <div className="live-label">OF {data.year} COMPLETED</div>

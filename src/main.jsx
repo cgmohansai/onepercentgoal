@@ -4,6 +4,7 @@ import './styles.css'
 import { isNativeApp } from './reminders'
 
 import { Browser } from '@capacitor/browser'
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Keyboard as CapacitorKeyboard } from '@capacitor/keyboard'
 import { apiFetch, getStoredToken, setStoredToken, removeStoredToken } from './services/apiClient'
@@ -474,6 +475,18 @@ function App() {
           .finally(() => setAuthLoading(false))
       }
     }
+    // If the user backs out of the external sign-in browser without
+    // completing, clear the loading overlay — otherwise it stays forever.
+    // Idempotent: only ever clears the flag, never sets it.
+    let browserHandle = null
+    const browserResult = Browser.addListener('browserFinished', () => {
+      setAuthLoading(false)
+    })
+    if (browserResult && typeof browserResult.then === 'function') {
+      browserResult.then(handle => { browserHandle = handle }).catch(() => {})
+    } else {
+      browserHandle = browserResult
+    }
     const result = CapacitorApp.addListener('appUrlOpen', event => restoreSession(event.url || ''))
     CapacitorApp.getLaunchUrl().then(result => restoreSession(result?.url || '')).catch(() => {})
     if (result && typeof result.then === 'function') {
@@ -481,7 +494,7 @@ function App() {
     } else {
       activeHandle = result
     }
-    return () => { if (activeHandle) activeHandle.remove() }
+    return () => { if (activeHandle) activeHandle.remove(); if (browserHandle) browserHandle.remove() }
   }, [])
 
   useEffect(() => {
@@ -533,11 +546,15 @@ function App() {
     const checkpointEnd = new Date(serverSprint.sprint_end)
     const sprintStart = new Date(serverSprint.sprint_start)
     const startTs = Date.UTC(serverSprint.year, 0, 1, 0, 0, 0) - (5.5 * 3600 * 1000)
+    const elapsed = Math.max(0, now.getTime() - startTs)
+    // Live fraction (full precision) so the 6-decimal readout visibly ticks
+    // with the clock; the backend snapshot is rounded to 2 decimals and static.
+    const livePercentage = Math.min(100, Math.max(0, (elapsed / (serverSprint.days_in_year * DAY)) * 100))
     return {
       year: serverSprint.year,
       total: serverSprint.days_in_year,
-      elapsed: Math.max(0, now.getTime() - startTs),
-      percentage: serverSprint.percentage,
+      elapsed,
+      percentage: livePercentage,
       sprint: serverSprint.sprint_number,
       sprint_number: serverSprint.sprint_number,
       sprint_start: serverSprint.sprint_start,
@@ -693,20 +710,36 @@ function App() {
       })
   }, [currentUser, sessionToken, authReady])
 
+  const handleNativeGoogle = async () => {
+    // In-app native account chooser (stays inside the app — no browser).
+    // The returned ID token is verified by the existing backend endpoint,
+    // so no backend or protocol changes are involved.
+    setAuthLoading(true)
+    setAuthStatus('Choose your Google account…')
+    setAuthError('')
+    try {
+      await GoogleAuth.initialize({ clientId: GOOGLE_CLIENT_ID, scopes: ['profile', 'email'] })
+      const result = await GoogleAuth.signIn()
+      const idToken = result?.authentication?.idToken || ''
+      if (!idToken) throw new Error('Google sign-in returned no credential.')
+      await finishGoogleSignIn({ credential: idToken })
+    } catch (error) {
+      setAuthLoading(false)
+      googleSignInInFlight.current = false
+      const message = String(error?.message || '')
+      const code = error?.code !== undefined && error?.code !== null ? String(error.code) : ''
+      // User dismissing the chooser is not an error — just stop loading.
+      if (/cancel/i.test(message) || /cancel/i.test(code) || code === '12501') return
+      // Surface the plugin status code (e.g. 10 = app not registered in
+      // Google Cloud Console, 12500 = OAuth client misconfiguration,
+      // 7 = network) so the exact cause is diagnosable on-device.
+      setAuthError(code ? `${message} [${code}]` : (message || 'Unable to sign in with Google. Please try again.'))
+    }
+  }
+
   const handleGoogle = () => {
     if (isNativeShell()) {
-      setAuthLoading(true)
-      setAuthStatus('Opening secure Google sign-in…')
-      if (!WEB_APP_URL) {
-        setAuthLoading(false)
-        setAuthError('Mobile sign-in needs VITE_APP_URL to point to the deployed website.')
-        return
-      }
-      const signInUrl = buildNativeOAuthUrl(WEB_APP_URL)
-      Browser.open({ url: signInUrl, windowName: '_blank' }).catch(() => {
-        setAuthLoading(false)
-        setAuthError('Unable to open Google sign-in. Please try again.')
-      })
+      handleNativeGoogle()
       return
     }
     if (!window.google?.accounts?.oauth2) {
@@ -754,6 +787,14 @@ function App() {
   const logout = async () => {
     const token = sessionToken
     authLogout(token).catch(() => {})
+    if (isNativeShell()) {
+      try {
+        await GoogleAuth.signOut()
+      } catch {
+        // Native account cache clear is best-effort; server session is
+        // already revoked above so logout always completes.
+      }
+    }
     showToast('Logged Out')
     setActive('Overview')
     setShowAuthModal(false)
@@ -1055,9 +1096,9 @@ function App() {
           onConfirm={confirmDeleteGoal}
         />
         {toastMsg && (
-          <div className="bottom-toast-notification" role="status" aria-live="polite">
-            {!toastNoTick && <span className="toast-tick" aria-hidden="true">✓</span>}
-            <span className="toast-text">{toastMsg}</span>
+          <div className="dock-toast" role="status" aria-live="polite">
+            {!toastNoTick && <span className="dock-toast-tick" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 12 12" focusable="false"><path d="M2 6.4 4.8 9.2 10 3.2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></span>}
+            <span className="dock-toast-text">{toastMsg}</span>
           </div>
         )}
         <AppReturnModal

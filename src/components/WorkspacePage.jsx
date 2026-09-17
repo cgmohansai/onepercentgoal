@@ -438,13 +438,29 @@ export function WorkspacePage({
               <button className="profile-edit-btn" onClick={() => setEditModalOpen(true)}>
                 Edit Profile
               </button>
-              <button 
-                className="profile-edit-btn share-btn" 
+              <button
+                className="profile-edit-btn share-btn"
                 onClick={() => {
+                  if (!profileUser.username) {
+                    showToast('Set your username first')
+                    setEditModalOpen(true)
+                    return
+                  }
                   const shareUrl = `${window.location.origin}/u/${profileUser.username}`
-                  navigator.clipboard.writeText(shareUrl).then(() => {
-                    showToast('Copied')
-                  })
+                  try {
+                    const result = navigator.clipboard.writeText(shareUrl)
+                    if (result && typeof result.then === 'function') {
+                      result.then(() => {
+                        showToast('Profile link copied')
+                      }).catch(() => {
+                        showToast(shareUrl, true)
+                      })
+                    } else {
+                      showToast('Profile link copied')
+                    }
+                  } catch {
+                    showToast(shareUrl, true)
+                  }
                 }}
               >
                 Share Profile

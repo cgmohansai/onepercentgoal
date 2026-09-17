@@ -3,6 +3,7 @@ import { lazyWithStaleRetry } from '../utils/lazyStaleRetry'
 const Silk = lazyWithStaleRetry(() => import('../Silk'))
 import SpecularButton from '../SpecularButton'
 import MorphText from './MorphText'
+import LiveYearNumber from './LiveYearNumber'
 import LiquidMetalButton from './LiquidMetalButton'
 import AppFooter from './AppFooter'
 import { DAY, getISTDate, getYearData } from '../utils/dateUtils'
@@ -20,11 +21,15 @@ export function LandingPage({ onGetStarted, onSignIn, serverSprint }) {
   const yearData = useMemo(() => {
     if (serverSprint) {
       const startTs = Date.UTC(serverSprint.year, 0, 1, 0, 0, 0) - (5.5 * 3600 * 1000)
+      const elapsed = Math.max(0, mockNow.getTime() - startTs)
+      // Live fraction (full precision) so the 6-decimal readout visibly ticks
+      // with the clock; the backend snapshot is rounded to 2 decimals and static.
+      const livePercentage = Math.min(100, Math.max(0, (elapsed / (serverSprint.days_in_year * DAY)) * 100))
       return {
         year: serverSprint.year,
         total: serverSprint.days_in_year,
-        elapsed: Math.max(0, mockNow.getTime() - startTs),
-        percentage: serverSprint.percentage,
+        elapsed,
+        percentage: livePercentage,
         sprint: serverSprint.sprint_number,
         sprint_number: serverSprint.sprint_number,
         sprint_start: serverSprint.sprint_start,
@@ -156,9 +161,7 @@ export function LandingPage({ onGetStarted, onSignIn, serverSprint }) {
           <div className="urgency-live-percentage">
             <div className="urgency-system-status">SYS.MOCK // SPRINT #{String(yearData.sprint).padStart(2, '0')}</div>
             <div className="live-num">
-              <span style={{ fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum"', display: 'inline-block' }}>
-                {yearData.percentage.toFixed(6)}
-              </span>
+              <LiveYearNumber year={yearData.year} totalDays={yearData.total} />
               <em>%</em>
             </div>
             <div className="live-label">OF {yearData.year} COMPLETED</div>

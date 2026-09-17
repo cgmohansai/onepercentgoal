@@ -15,9 +15,17 @@ export const FALLBACK_TOKEN_STORAGE_KEY = 'token'
 
 // Website requests stay same-origin through Vercel's /api rewrite. This avoids
 // cross-origin login failures; the native shell still uses its configured API.
-export const API_BASE = (typeof window !== 'undefined' && (window.location.protocol === 'http:' || window.location.protocol === 'https:'))
-  ? ''
-  : (import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '')
+// NOTE: Capacitor Android serves the app as http://localhost by default, so a
+// protocol check alone mistakes the native shell for the website and the app
+// ends up calling its own bundled index.html instead of the backend.
+const isNativeShell =
+  typeof window !== 'undefined' &&
+  Boolean(window.Capacitor?.isNativePlatform?.())
+export const API_BASE = isNativeShell
+  ? (import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '')
+  : (typeof window !== 'undefined' && (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+    ? ''
+    : (import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || ''))
 
 /**
  * Constructs a full API URL for the given endpoint path.

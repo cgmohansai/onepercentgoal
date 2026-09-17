@@ -57,13 +57,22 @@ export async function verifyGoogleCredential(payload) {
 
   const responseBody = await res.text()
   let result = {}
+  let responseHost = ''
+  try {
+    responseHost = new URL(res.url || '', window.location.href).host
+  } catch {
+    responseHost = ''
+  }
   if (responseBody) {
     try {
       result = JSON.parse(responseBody)
     } catch {
+      // Non-JSON 200 bodies are almost always an HTML page (SPA fallback,
+      // proxy/captive-portal page) — surface a preview so it's diagnosable.
+      const preview = responseBody.replace(/\s+/g, ' ').trim().slice(0, 80)
       throw new Error(
         res.ok
-          ? 'Google sign-in returned an invalid response. Please try again.'
+          ? `Google sign-in returned an unreadable response (HTTP 200 from ${responseHost || 'unknown host'}): ${preview}`
           : `Google sign-in service is unavailable (${res.status}). Please try again shortly.`
       )
     }
