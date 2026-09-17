@@ -70,6 +70,7 @@ import {
   formatDateWithTime,
 } from './utils/dateUtils'
 
+import { useEscapeKey } from './hooks/useEscapeKey'
 import KineticTextLoader from './components/KineticTextLoader'
 import SpotlightNavbar from './components/SpotlightNavbar'
 import LandingPage from './components/LandingPage'
@@ -311,11 +312,14 @@ function App() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
   const [toastNoTick, setToastNoTick] = useState(false)
+  const toastTimeoutRef = useRef(null)
   const showToast = (msg, noTick = false) => {
     setToastMsg(msg)
     setToastNoTick(Boolean(noTick))
-    setTimeout(() => setToastMsg(''), 2500)
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    toastTimeoutRef.current = setTimeout(() => setToastMsg(''), 2500)
   }
+  useEscapeKey(() => { if (!authLoading) setShowAuthModal(false) }, !showAuthModal)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const exitPendingRef = useRef(false)
@@ -382,7 +386,7 @@ function App() {
   }, [completedShare])
 
   useEffect(() => {
-    const id = setInterval(() => setNow(getISTDate()), 50)
+    const id = setInterval(() => setNow(getISTDate()), 1000)
     return () => clearInterval(id)
   }, [])
 
@@ -948,8 +952,8 @@ function App() {
         <AuthTransitionOverlay active={authLoading} message={authStatus} />
 
         {toastMsg && (
-          <div className="bottom-toast-notification">
-            {!toastNoTick && <span className="toast-tick">✓</span>}
+          <div className="bottom-toast-notification" role="status" aria-live="polite">
+            {!toastNoTick && <span className="toast-tick" aria-hidden="true">✓</span>}
             <span className="toast-text">{toastMsg}</span>
           </div>
         )}
@@ -1051,8 +1055,8 @@ function App() {
           onConfirm={confirmDeleteGoal}
         />
         {toastMsg && (
-          <div className="bottom-toast-notification">
-            {!toastNoTick && <span className="toast-tick">✓</span>}
+          <div className="bottom-toast-notification" role="status" aria-live="polite">
+            {!toastNoTick && <span className="toast-tick" aria-hidden="true">✓</span>}
             <span className="toast-text">{toastMsg}</span>
           </div>
         )}

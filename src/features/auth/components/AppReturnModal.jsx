@@ -1,6 +1,8 @@
 import React from 'react'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 export function AppReturnModal({ appReturnFlow, onClose }) {
+  useEscapeKey(onClose, !appReturnFlow)
   if (!appReturnFlow) return null
 
   return (

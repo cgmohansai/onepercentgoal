@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 export function EditProfileModal({ isOpen, onClose, user, onSubmit, loading, error }) {
   const [form, setForm] = useState({
@@ -16,6 +17,8 @@ export function EditProfileModal({ isOpen, onClose, user, onSubmit, loading, err
       })
     }
   }, [user])
+
+  useEscapeKey(onClose, !isOpen)
 
   if (!isOpen) return null
 

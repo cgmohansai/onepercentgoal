@@ -1,7 +1,9 @@
 import React from 'react'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 import { formatDateWithTime } from '../../../utils/dateUtils'
 
 export function SprintHistoryModal({ sprint, onClose, onShowGoalDetails }) {
+  useEscapeKey(onClose, !sprint)
   const start = new Date(sprint.sprint_start)
   const end = new Date(sprint.sprint_end)
 
@@ -37,7 +39,7 @@ export function SprintHistoryModal({ sprint, onClose, onShowGoalDetails }) {
             
             <div className="sprint-history-list" style={{ maxHeight: '380px', overflowY: 'auto', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
               {sprint.goals.length ? sprint.goals.map(goal => (
-                <div key={goal.id} className="confirm-summary-simple" onClick={() => { if (goal.completed && onShowGoalDetails) onShowGoalDetails(goal); }} style={{ display: 'block', width: '100%', boxSizing: 'border-box', background: '#171916', border: '1px solid #32352f', padding: '16px 20px', borderRadius: '6px', textAlign: 'center', cursor: goal.completed ? 'pointer' : 'default' }}>
+                <button key={goal.id} type="button" className="confirm-summary-simple" onClick={() => { if (goal.completed && onShowGoalDetails) onShowGoalDetails(goal); }} disabled={!goal.completed} aria-label={goal.completed ? `View details for ${goal.title}` : goal.title} style={{ display: 'block', width: '100%', boxSizing: 'border-box', background: '#171916', border: '1px solid #32352f', padding: '16px 20px', borderRadius: '6px', textAlign: 'center', cursor: goal.completed ? 'pointer' : 'default', font: 'inherit', color: 'inherit' }}>
                   <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '4px' }}>Goal</span>
                   <strong style={{ display: 'block', color: '#eef0e9', fontSize: '16px', fontWeight: '500', letterSpacing: '-.025em', marginBottom: '10px', lineHeight: '1.4' }}>{goal.title}</strong>
                   
@@ -47,7 +49,7 @@ export function SprintHistoryModal({ sprint, onClose, onShowGoalDetails }) {
                   <span style={{ display: 'block', color: goal.completed ? '#c9f36a' : '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '.08em' }}>
                     {goal.completed ? '✓ Completed in this sprint' : '• Carried to the next sprint'}
                   </span>
-                </div>
+                </button>
               )) : <p className="sprint-history-empty" style={{ textAlign: 'center', color: '#8c9085', fontStyle: 'italic', fontSize: '12px', margin: '20px 0' }}>No goals were recorded in this sprint.</p>}
             </div>
           </div>

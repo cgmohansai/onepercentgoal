@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 export function AddGoalModal({ isOpen, onClose, onSubmit, loading, deadline }) {
   const [title, setTitle] = useState('')
+  useEscapeKey(onClose, !isOpen)
 
   if (!isOpen) return null
 

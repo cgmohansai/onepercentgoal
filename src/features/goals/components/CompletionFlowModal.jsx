@@ -1,6 +1,8 @@
 import React from 'react'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 export function CompletionFlowModal({ flow, setFlow, onContinue, onComplete, onCancel }) {
+  useEscapeKey(onCancel, !flow)
   if (!flow) return null
 
   if (flow.step === 'note') {

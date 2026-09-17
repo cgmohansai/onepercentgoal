@@ -1,6 +1,8 @@
 import React from 'react'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm }) {
+  useEscapeKey(onCancel, !goal)
   if (!goal) return null
 
   return (

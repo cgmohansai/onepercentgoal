@@ -1,6 +1,8 @@
 import React from 'react'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 export function GoalDetailsModal({ goal, onClose }) {
+  useEscapeKey(onClose, !goal)
   if (!goal) return null
 
   return (

@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 export function AddRoteModal({ isOpen, onClose, onSubmit }) {
   const [title, setTitle] = useState('')
+  useEscapeKey(onClose, !isOpen)
 
   if (!isOpen) return null
 

@@ -1,8 +1,10 @@
 import React from 'react'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 import { isNativeApp } from '../../../reminders'
 import { downloadImage, sanitizeFilename } from '../goalUtils'
 
 export function CompletedShareModal({ completedShare, onClose }) {
+  useEscapeKey(onClose, !completedShare)
   if (!completedShare) return null
 
   return (

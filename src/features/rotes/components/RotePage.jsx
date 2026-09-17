@@ -311,11 +311,11 @@ export function RotePage({ user, onRotesChanged }) {
       <div className="rote-layout-grid">
         <div className="rote-calendar-card card">
           <div className="rote-calendar-header">
-            <button className="calendar-nav-btn" onClick={handlePrevMonth} disabled={!canGoPrev} aria-label="Previous month">‹</button>
+            <button type="button" className="calendar-nav-btn" onClick={handlePrevMonth} disabled={!canGoPrev} aria-label="Previous month">‹</button>
             <div className="calendar-month-title">
               <span>{monthNames[viewMonth]} {viewYear}</span>
             </div>
-            <button className="calendar-nav-btn" onClick={handleNextMonth} disabled={!canGoNext} aria-label="Next month">›</button>
+            <button type="button" className="calendar-nav-btn" onClick={handleNextMonth} disabled={!canGoNext} aria-label="Next month">›</button>
           </div>
 
           <div className="rote-calendar-weekdays">
@@ -396,7 +396,12 @@ export function RotePage({ user, onRotesChanged }) {
                   <div
                     key={rote.id}
                     className={`rote-row ${rote.completed ? 'completed' : ''}`}
+                    role="checkbox"
+                    aria-checked={!!rote.completed}
+                    aria-label={`Mark ${rote.title} as ${rote.completed ? 'not done' : 'done'}`}
+                    tabIndex={0}
                     onClick={() => toggleRote(rote.id)}
+                    onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleRote(rote.id) } }}
                     style={{ cursor: 'pointer', touchAction: 'manipulation' }}
                   >
                     <div className="rote-checkbox" aria-hidden="true">
@@ -409,7 +414,7 @@ export function RotePage({ user, onRotesChanged }) {
                       <span className={`rote-status-tag ${rote.completed ? 'done' : 'pending'}`}>
                         {rote.completed ? 'DONE' : 'PENDING'}
                       </span>
-                      <button className="rote-delete-btn" onClick={(e) => { e.stopPropagation(); deleteRote(rote.id); }}>
+                      <button type="button" className="rote-delete-btn" onClick={(e) => { e.stopPropagation(); deleteRote(rote.id); }}>
                         Delete
                       </button>
                     </div>
