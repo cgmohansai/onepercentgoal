@@ -83,8 +83,11 @@ export function parseAuthUrl(urlString) {
   }
 
   try {
-    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
-    const parsed = new URL(urlString, base)
+    // Windowless fallback (tests/SSR only): intentionally never a localhost
+    // URL — the regex extraction below covers anything this base cannot parse.
+    const base =
+      typeof window !== 'undefined' ? window.location.origin : WEB_APP_URL || undefined
+    const parsed = base ? new URL(urlString, base) : new URL(urlString)
     code = parsed.searchParams.get('code') || ''
     token = parsed.searchParams.get('auth_token') || ''
     accessToken = parsed.searchParams.get('access_token') || ''

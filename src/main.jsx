@@ -4,7 +4,6 @@ import './styles.css'
 import { isNativeApp } from './reminders'
 
 import { Browser } from '@capacitor/browser'
-import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Keyboard as CapacitorKeyboard } from '@capacitor/keyboard'
 import { apiFetch, getStoredToken, setStoredToken, removeStoredToken } from './services/apiClient'
@@ -711,29 +710,30 @@ function App() {
   }, [currentUser, sessionToken, authReady])
 
   const handleNativeGoogle = async () => {
-    // In-app native account chooser (stays inside the app — no browser).
-    // The returned ID token is verified by the existing backend endpoint,
-    // so no backend or protocol changes are involved.
+    // Native sign-in runs through the production website's Google GIS flow
+    // inside an in-app browser tab (@capacitor/browser + @capacitor/app are
+    // both Capacitor 8 core plugins, so there is no peer conflict). The web
+    // app verifies the Google credential with the existing backend endpoint
+    // and hands a short-lived single-use exchange code back via the
+    // com.onepercentgoal.app://auth deep link, which the appUrlOpen /
+    // getLaunchUrl restore above exchanges for a session. No backend or
+    // protocol changes are involved, and no native SDK plugin is required.
     setAuthLoading(true)
-    setAuthStatus('Choose your Google account…')
+    setAuthStatus('Opening Google…')
     setAuthError('')
     try {
-      await GoogleAuth.initialize({ clientId: GOOGLE_CLIENT_ID, scopes: ['profile', 'email'] })
-      const result = await GoogleAuth.signIn()
-      const idToken = result?.authentication?.idToken || ''
-      if (!idToken) throw new Error('Google sign-in returned no credential.')
-      await finishGoogleSignIn({ credential: idToken })
+      const oauthUrl = buildNativeOAuthUrl()
+      const isUsableWebUrl = oauthUrl && /^https:\/\//i.test(oauthUrl)
+      if (!isUsableWebUrl) {
+        throw new Error('Google sign-in is unavailable in this build. Please update the app and try again.')
+      }
+      await Browser.open({ url: oauthUrl })
+      // Loading clears via `browserFinished` (user backs out) or via the
+      // appUrlOpen deep-link restore on success.
     } catch (error) {
       setAuthLoading(false)
       googleSignInInFlight.current = false
-      const message = String(error?.message || '')
-      const code = error?.code !== undefined && error?.code !== null ? String(error.code) : ''
-      // User dismissing the chooser is not an error — just stop loading.
-      if (/cancel/i.test(message) || /cancel/i.test(code) || code === '12501') return
-      // Surface the plugin status code (e.g. 10 = app not registered in
-      // Google Cloud Console, 12500 = OAuth client misconfiguration,
-      // 7 = network) so the exact cause is diagnosable on-device.
-      setAuthError(code ? `${message} [${code}]` : (message || 'Unable to sign in with Google. Please try again.'))
+      setAuthError(error?.message || 'Unable to open Google sign-in. Please try again.')
     }
   }
 
@@ -787,14 +787,9 @@ function App() {
   const logout = async () => {
     const token = sessionToken
     authLogout(token).catch(() => {})
-    if (isNativeShell()) {
-      try {
-        await GoogleAuth.signOut()
-      } catch {
-        // Native account cache clear is best-effort; server session is
-        // already revoked above so logout always completes.
-      }
-    }
+    // Native sign-in runs through the web GIS flow, so there is no native
+    // SDK account cache to clear — revoking the server session above plus
+    // removing the local token completes logout on every platform.
     showToast('Logged Out')
     setActive('Overview')
     setShowAuthModal(false)
