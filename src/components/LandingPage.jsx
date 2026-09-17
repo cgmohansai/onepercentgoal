@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import Silk from '../Silk'
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react'
+const Silk = lazy(() => import('../Silk'))
 import SpecularButton from '../SpecularButton'
 import MorphText from './MorphText'
 import LiquidMetalButton from './LiquidMetalButton'
@@ -12,7 +12,7 @@ export function LandingPage({ onGetStarted, onSignIn, serverSprint }) {
   useEffect(() => {
     const timer = setInterval(() => {
       setMockNow(getISTDate())
-    }, 50)
+    }, 1000)
     return () => clearInterval(timer)
   }, [])
 
@@ -49,14 +49,16 @@ export function LandingPage({ onGetStarted, onSignIn, serverSprint }) {
     <div className="landing-page">
       {/* Hero Card */}
       <section className="aurora-hero-wrapper landing-hero">
-        <div className="silk-bg-container">
-          <Silk
-            speed={5}
-            scale={1}
-            color="#366cf3"
-            noiseIntensity={1.5}
-            rotation={0}
-          />
+        <div className="silk-bg-container" aria-hidden="true">
+          <Suspense fallback={null}>
+            <Silk
+              speed={5}
+              scale={1}
+              color="#366cf3"
+              noiseIntensity={1.5}
+              rotation={0}
+            />
+          </Suspense>
         </div>
         <div className="aurora-content">
           <div className="aurora-text-group">

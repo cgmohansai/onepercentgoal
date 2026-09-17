@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { lazy, Suspense } from 'react'
 import { Target, Repeat } from '@phosphor-icons/react'
-import Silk from '../Silk'
+const Silk = lazy(() => import('../Silk'))
 import SpecularButton from '../SpecularButton'
 import AnimatedPlusButton from '../AnimatedPlusButton'
 import MorphText from './MorphText'
@@ -42,14 +42,16 @@ export function OverviewPage({
   return (
     <>
       <section className="aurora-hero-wrapper">
-        <div className="silk-bg-container">
-          <Silk
-            speed={5}
-            scale={1}
-            color="#366cf3"
-            noiseIntensity={1.5}
-            rotation={0}
-          />
+        <div className="silk-bg-container" aria-hidden="true">
+          <Suspense fallback={null}>
+            <Silk
+              speed={5}
+              scale={1}
+              color="#366cf3"
+              noiseIntensity={1.5}
+              rotation={0}
+            />
+          </Suspense>
         </div>
         <div className="aurora-content">
           <div className="aurora-text-group">
@@ -259,13 +261,13 @@ export function OverviewPage({
                 <p style={{ margin: '10px 0', fontSize: '12px', color: '#8c9085', fontStyle: 'italic' }}>No goals set for this sprint. Get started!</p>
               ) : (
                 goals.map(g => (
-                  <div key={g.id} className={`mini-goal-item ${g.done ? 'completed' : ''}`} onClick={() => { if (g.done) showGoalDetails(g); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: '1px solid #282a25', fontSize: '12px', cursor: g.done ? 'pointer' : 'default' }}>
+                  <button key={g.id} type="button" className={`mini-goal-item ${g.done ? 'completed' : ''}`} onClick={() => { if (g.done) showGoalDetails(g); }} disabled={!g.done} aria-label={g.done ? `View details for ${g.title}` : g.title} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: '1px solid #282a25', fontSize: '12px', cursor: g.done ? 'pointer' : 'default', background: 'none', border: 'none', borderBottom: '1px solid #282a25', width: '100%', textAlign: 'left', font: 'inherit', color: 'inherit' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                       <span style={{ color: g.done ? '#c9f36a' : '#8c9085', fontWeight: 'bold' }}>{g.done ? '✓' : '•'}</span>
                       <span style={{ textDecoration: g.done ? 'line-through' : 'none', color: g.done ? '#7f8279' : '#eef0e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.title}</span>
                     </div>
                     <span style={{ fontFamily: '"DM Mono", monospace', fontSize: '10px', color: g.done ? '#c9f36a' : '#a1a49b' }}>{g.value}%</span>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -376,13 +378,13 @@ export function OverviewPage({
                   <p style={{ margin: '10px 0', fontSize: '12px', color: '#8c9085', fontStyle: 'italic' }}>No routine rotes added for today yet.</p>
                 ) : (
                   roteOverviewStats.rotes.map(r => (
-                    <div key={r.id} className={`mini-goal-item ${r.completed ? 'completed' : ''}`} onClick={() => toggleRoteFromOverview(r.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: '1px solid #282a25', fontSize: '12px', cursor: 'pointer' }}>
+                    <button key={r.id} type="button" className={`mini-goal-item ${r.completed ? 'completed' : ''}`} onClick={() => toggleRoteFromOverview(r.id)} aria-label={`Toggle ${r.title}`} aria-pressed={!!r.completed} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: '1px solid #282a25', fontSize: '12px', cursor: 'pointer', background: 'none', border: 'none', borderBottom: '1px solid #282a25', width: '100%', textAlign: 'left', font: 'inherit', color: 'inherit' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                         <span style={{ color: r.completed ? '#c9f36a' : '#8c9085', fontWeight: 'bold' }}>{r.completed ? '✓' : '•'}</span>
                         <span style={{ textDecoration: r.completed ? 'line-through' : 'none', color: r.completed ? '#7f8279' : '#eef0e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</span>
                       </div>
                       <span style={{ fontFamily: '"DM Mono", monospace', fontSize: '10px', color: r.completed ? '#c9f36a' : '#a1a49b' }}>{r.completed ? 'DONE' : 'PENDING'}</span>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>

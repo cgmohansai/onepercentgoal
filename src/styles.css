@@ -5128,6 +5128,38 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   }
 }
 
+/* ── #8.2 mobile-first patch: touch, overflow, modal/keyboard, hierarchy ── */
+html, body { overflow-x: clip; }
+.silk-bg-container { pointer-events: none; }
+.silk-bg-container canvas { pointer-events: none !important; }
+.compounding-watermark { max-width: 100%; overflow: hidden; }
+button.mini-goal-item { min-height: 44px; }
+button.mini-goal-item:disabled { cursor: default; opacity: .85; }
+@media (hover: none) {
+  .goal-inline-actions { opacity: 1; }
+  .track-thumb { opacity: 1; }
+}
+@media (max-width: 768px) {
+  .goal-inline-actions button,
+  .add-button,
+  .timeline-year,
+  .shell-nav-item { min-height: 44px; }
+  .completion-modal input,
+  .completion-modal textarea,
+  .auth-card input { font-size: 16px; }
+  .completion-modal {
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal-backdrop {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .silk-bg-container { display: none; }
+}
+
 
 
 

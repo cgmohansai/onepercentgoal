@@ -242,7 +242,6 @@ function App() {
   }
 
   const [addGoalModalOpen, setAddGoalModalOpen] = useState(false)
-  const [addGoalLoading, setAddGoalLoading] = useState(false)
   const [timelineHistory, setTimelineHistory] = useState(() => createEmptyTimeline())
   const [selectedTimelineYear, setSelectedTimelineYear] = useState(new Date().getFullYear())
   const [profile, setProfile] = useState(null)
@@ -830,8 +829,8 @@ function App() {
       await deleteGoalApi(goal.id, sessionToken)
       await refreshProfile()
     } catch (err) {
-      console.error(err)
-      window.alert('The goal could not be deleted.')
+      console.error('Failed to delete goal:', err)
+      showToast('The goal could not be deleted')
     }
   }
 
@@ -855,7 +854,7 @@ function App() {
     } catch (err) {
       console.error('Failed to create goal:', err)
       setGoals(items => items.filter(item => item.id !== tempGoal.id))
-      window.alert('The goal could not be saved.')
+      showToast('The goal could not be saved')
     }
   }
 
@@ -886,7 +885,6 @@ function App() {
       }
       return result.user
     } catch (e) {
-      alert(e.message)
       throw e
     }
   }
@@ -1029,7 +1027,7 @@ function App() {
           isOpen={addGoalModalOpen}
           onClose={() => setAddGoalModalOpen(false)}
           onSubmit={addGoal}
-          loading={addGoalLoading}
+          loading={false}
           deadline={deadlineStr}
         />
         <CompletionFlowModal

@@ -51,7 +51,6 @@ export function WorkspacePage({
   setEditModalOpen,
   roteStats,
 }) {
-  const completed = goals.filter(goal => goal.done).length
 
   // Profile image cropping state
   const [cropImageSrc, setCropImageSrc] = useState(null)
@@ -386,7 +385,7 @@ export function WorkspacePage({
                       const file = e.target.files?.[0]
                       if (!file) return
                       if (file.size > 1500000) {
-                        alert('Image is too large! Please upload an image smaller than 1.5MB.')
+                        showToast('Image is too large — please use an image under 1.5 MB')
                         return
                       }
                       const reader = new FileReader()
@@ -715,7 +714,8 @@ export function WorkspacePage({
                         )
                         setCropImageSrc(null)
                       } catch (err) {
-                        console.error(err)
+                        console.error('Failed to save profile photo:', err)
+                        showToast('Could not save profile photo')
                       }
                     }
                   }}

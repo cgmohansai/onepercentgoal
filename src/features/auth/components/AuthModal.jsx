@@ -13,11 +13,11 @@ export function AuthScreen({ onGoogle, gisReady, native, loading, error, onClose
 
       <div className="google-auth-container" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
         <button className="google-oauth-button" type="button" onClick={onGoogle} disabled={loading || (!native && !gisReady)}>
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M21.35 11.1H12v2.7h5.38c-.24 1.28-.96 2.37-2.04 3.1v2.58h3.29c1.92-1.77 3.02-4.38 3.02-7.38 0-.6-.05-1.2-.15-1.8Z" />
-            <path fill="#34A853" d="M12 20.4c2.54 0 4.67-.84 6.23-2.28l-3.29-2.58c-.91.61-2.08.98-2.94.98-2.27 0-4.2-1.54-4.89-3.6H3.66v2.66A9.2 9.2 0 0 0 12 20.4Z" />
-            <path fill="#FBBC05" d="M7.11 12.92a5.92 5.92 0 0 1 0-1.84V8.42H3.66a9.92 9.92 0 0 0 0 7.16l3.45-2.66Z" />
-            <path fill="#EA4335" d="M12 5.28c1.38 0 2.62.47 3.59 1.4l2.69-2.69C16.66 2.5 14.54 1.8 12 1.8c-3.61 0-6.79 2.1-8.34 5.18l3.45 2.66c.69-2.06 2.62-3.6 4.89-3.6Z" />
+          <svg aria-hidden="true" viewBox="0 0 18 18" width="18" height="18">
+            <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+            <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
           </svg>
           {loading ? 'Opening Google…' : native || gisReady ? 'Continue with Google' : 'Loading Google…'}
         </button>
