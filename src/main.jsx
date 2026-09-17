@@ -184,33 +184,49 @@ function loadGoogleIdentityServices() {
   return gisLoadPromise
 }
 
+// Offline fallback sprint boundary calculation, anchored to IST (UTC+5:30)
 function getSprintBoundary(year, N) {
-  const start = new Date(year, 0, 1)
-  const nextYear = new Date(year + 1, 0, 1)
-  const daysInYear = Math.round((nextYear - start) / DAY)
+  const startTs = Date.UTC(year, 0, 1, 0, 0, 0) - (5.5 * 3600 * 1000)
+  const nextYearStartTs = Date.UTC(year + 1, 0, 1, 0, 0, 0) - (5.5 * 3600 * 1000)
+  const daysInYear = Math.round((nextYearStartTs - startTs) / DAY)
   const totalHalfHours = daysInYear * 48
   const halfHours = Math.round(N * (totalHalfHours / 100.0))
-  return new Date(start.getTime() + halfHours * 30 * 60 * 1000)
+  return new Date(startTs + halfHours * 30 * 60 * 1000)
 }
 
+// Offline fallback sprint progress calculation (server timestamps are authoritative when online)
 function getYearData(date = new Date()) {
-  const year = date.getFullYear()
-  const start = new Date(year, 0, 1)
-  const nextYear = new Date(year + 1, 0, 1)
-  const total = Math.round((nextYear - start) / DAY)
-  const elapsed = date - start
+  const nowTs = date.getTime()
+  const istDate = new Date(nowTs + (5.5 * 3600 * 1000))
+  const year = istDate.getUTCFullYear()
+  const startTs = Date.UTC(year, 0, 1, 0, 0, 0) - (5.5 * 3600 * 1000)
+  const nextYearStartTs = Date.UTC(year + 1, 0, 1, 0, 0, 0) - (5.5 * 3600 * 1000)
+  const total = Math.round((nextYearStartTs - startTs) / DAY)
+  const elapsed = Math.max(0, nowTs - startTs)
   const percentage = Math.min(100, Math.max(0, (elapsed / (total * DAY)) * 100))
 
   let sprint = 100
   for (let s = 1; s <= 100; s++) {
-    if (date.getTime() < getSprintBoundary(year, s).getTime()) {
+    if (nowTs < getSprintBoundary(year, s).getTime()) {
       sprint = s
       break
     }
   }
 
+  const sprintStart = getSprintBoundary(year, sprint - 1)
   const checkpointEnd = getSprintBoundary(year, sprint)
-  return { year, total, elapsed, percentage, sprint, checkpointEnd }
+  return {
+    year,
+    total,
+    elapsed,
+    percentage: Math.round(percentage * 100) / 100,
+    sprint,
+    sprint_number: sprint,
+    sprint_start: sprintStart.toISOString(),
+    sprint_end: checkpointEnd.toISOString(),
+    checkpointEnd,
+    sprintStart,
+  }
 }
 
 function getISTDate() {
@@ -1964,8 +1980,8 @@ function WorkspacePage({ active, data, user, goals, profile, history, historyMod
 
   // Calculate active sprint date range
   const DAY = 24 * 60 * 60 * 1000
-  const sprintStart = getSprintBoundary(data.year, data.sprint - 1)
-  const sprintEnd = new Date(data.checkpointEnd)
+  const sprintStart = data.sprintStart || getSprintBoundary(data.year, data.sprint - 1)
+  const sprintEnd = data.checkpointEnd || new Date(data.sprint_end)
   const dateStr = `${formatDateWithTime(sprintStart)} — ${formatDateWithTime(sprintEnd)}`
 
   if (active === 'Goals') {
@@ -2580,7 +2596,7 @@ const filterImageHref = "data:image/svg+xml," + encodeURIComponent(`
   </svg>
 `)
 
-function LandingPage({ onGetStarted, onSignIn }) {
+function LandingPage({ onGetStarted, onSignIn, serverSprint }) {
   const [mockNow, setMockNow] = useState(getISTDate())
 
   useEffect(() => {
@@ -2590,9 +2606,27 @@ function LandingPage({ onGetStarted, onSignIn }) {
     return () => clearInterval(timer)
   }, [])
 
-  const yearData = getYearData(mockNow)
+  const yearData = useMemo(() => {
+    if (serverSprint) {
+      const startTs = Date.UTC(serverSprint.year, 0, 1, 0, 0, 0) - (5.5 * 3600 * 1000)
+      return {
+        year: serverSprint.year,
+        total: serverSprint.days_in_year,
+        elapsed: Math.max(0, mockNow.getTime() - startTs),
+        percentage: serverSprint.percentage,
+        sprint: serverSprint.sprint_number,
+        sprint_number: serverSprint.sprint_number,
+        sprint_start: serverSprint.sprint_start,
+        sprint_end: serverSprint.sprint_end,
+        checkpointEnd: new Date(serverSprint.sprint_end),
+        sprintStart: new Date(serverSprint.sprint_start),
+      }
+    }
+    return getYearData(mockNow)
+  }, [serverSprint, mockNow])
+
   const day = Math.floor(yearData.elapsed / DAY) + 1
-  const start = new Date(yearData.checkpointEnd.getTime() - (yearData.total * DAY / 100))
+  const start = yearData.sprintStart || new Date(yearData.checkpointEnd.getTime() - (yearData.total * DAY / 100))
   const sprintEnd = yearData.checkpointEnd
   const nextSprintMs = Math.max(0, sprintEnd.getTime() - mockNow.getTime())
   const secondsLeft = Math.floor(nextSprintMs / 1000)
@@ -3245,6 +3279,7 @@ function App() {
   const [historyModal, setHistoryModal] = useState(null)
   const [completionFlow, setCompletionFlow] = useState(null)
   const [selectedGoalDetails, setSelectedGoalDetails] = useState(null)
+  const [serverSprint, setServerSprint] = useState(null)
 
   const shareMatch = window.location.pathname.match(/^\/u\/([a-zA-Z0-9_-]+)/)
   const shareUsername = shareMatch ? shareMatch[1] : null
@@ -3552,13 +3587,38 @@ const exitPendingRef = useRef(false)
     return () => { if (activeHandle) activeHandle.remove() }
   }, [showAuthModal, addGoalModalOpen, editModalOpen, completionFlow, completedShare, deleteConfirmFlow, selectedGoalDetails, historyModal, active])
 
-  const data = useMemo(() => getYearData(now), [now])
+  useEffect(() => {
+    apiFetch('/api/sprint/current')
+      .then(r => r.ok ? r.json() : null)
+      .then(s => { if (s) setServerSprint(s) })
+      .catch(() => {})
+  }, [])
+
+  const fallbackData = useMemo(() => getYearData(now), [now])
+  const data = useMemo(() => {
+    if (!serverSprint) return fallbackData
+    const checkpointEnd = new Date(serverSprint.sprint_end)
+    const sprintStart = new Date(serverSprint.sprint_start)
+    const startTs = Date.UTC(serverSprint.year, 0, 1, 0, 0, 0) - (5.5 * 3600 * 1000)
+    return {
+      year: serverSprint.year,
+      total: serverSprint.days_in_year,
+      elapsed: Math.max(0, now.getTime() - startTs),
+      percentage: serverSprint.percentage,
+      sprint: serverSprint.sprint_number,
+      sprint_number: serverSprint.sprint_number,
+      sprint_start: serverSprint.sprint_start,
+      sprint_end: serverSprint.sprint_end,
+      checkpointEnd,
+      sprintStart,
+    }
+  }, [serverSprint, fallbackData, now])
   const deadlineStr = useMemo(() => {
     if (!data?.checkpointEnd) return ''
     return formatDateWithTime(data.checkpointEnd)
   }, [data])
   const day = Math.floor(data.elapsed / DAY) + 1
-  const start = getSprintBoundary(data.year, data.sprint - 1)
+  const start = data.sprintStart || getSprintBoundary(data.year, data.sprint - 1)
   const hr = now.getHours()
   const greeting = hr < 4 ? 'Good night' : hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : hr < 22 ? 'Good evening' : 'Good night'
   const nextSprintMs = Math.max(0, data.checkpointEnd.getTime() - now.getTime())
@@ -3593,6 +3653,9 @@ const exitPendingRef = useRef(false)
       const response = await apiFetch('/api/dashboard', { headers: { Authorization: `Bearer ${token}` } })
       if (!response.ok) throw new Error('Unable to load dashboard')
       const data = await response.json()
+      if (data.year) {
+        setServerSprint(data.year)
+      }
       const serverGoals = data.goals.map(presentGoal)
       setGoals(prev => {
         const pendingTemps = prev.filter(g => String(g.id).startsWith('temp-'))
@@ -4250,7 +4313,7 @@ const exitPendingRef = useRef(false)
         </header>
 
         <section className="content">
-          <LandingPage onGetStarted={() => setShowAuthModal(true)} onSignIn={() => setShowAuthModal(true)} />
+          <LandingPage onGetStarted={() => setShowAuthModal(true)} onSignIn={() => setShowAuthModal(true)} serverSprint={serverSprint} />
         </section>
 
         {showAuthModal && (
@@ -4312,8 +4375,8 @@ const exitPendingRef = useRef(false)
         
         <div className="aurora-quick-widget card">
           {(() => {
-            const sprintStart = getSprintBoundary(data.year, data.sprint - 1);
-            const sprintEnd = getSprintBoundary(data.year, data.sprint);
+            const sprintStart = data.sprintStart || getSprintBoundary(data.year, data.sprint - 1);
+            const sprintEnd = data.checkpointEnd || getSprintBoundary(data.year, data.sprint);
             const sprintDuration = sprintEnd.getTime() - sprintStart.getTime();
             const sprintElapsed = now.getTime() - sprintStart.getTime();
             const sprintPercent = Math.min(100, Math.max(0, (sprintElapsed / sprintDuration) * 100)).toFixed(2);

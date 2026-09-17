@@ -223,59 +223,17 @@ def current_user(conn, authorization: str | None = None, opg_session: str | None
     return execute(conn, "SELECT * FROM users WHERE id = %s", (user_id,)).fetchone()
 
 
-def sprint_boundary_timestamp(year: int, N: int) -> float:
-    """Calculate exact unix timestamp boundary for the Nth sprint of a year (100 Sprints = 3.6 days each)."""
-    start = datetime(year, 1, 1, tzinfo=IST)
-    end = datetime(year + 1, 1, 1, tzinfo=IST)
-    days_in_year = (end - start).days
-    total_half_hours = days_in_year * 48
-    half_hours = round(N * (total_half_hours / 100.0))
-    return start.timestamp() + half_hours * 1800.0
-
-
-def year_progress(when: datetime | None = None) -> dict:
-    """Calculate year completion percentage, day of year, and active sprint cycle (1 to 100)."""
-    now = when.astimezone(IST) if when and when.tzinfo else (when or datetime.now(IST))
-    start = datetime(now.year, 1, 1, tzinfo=IST)
-    end = datetime(now.year + 1, 1, 1, tzinfo=IST)
-    total_seconds = (end - start).total_seconds()
-    elapsed = max(0, (now - start).total_seconds())
-    percentage = min(100.0, elapsed / total_seconds * 100)
-
-    sprint = 100
-    for s in range(1, 101):
-        if now.timestamp() < sprint_boundary_timestamp(now.year, s):
-            sprint = s
-            break
-
-    sprint_start_ts = sprint_boundary_timestamp(now.year, sprint - 1)
-    sprint_end_ts = sprint_boundary_timestamp(now.year, sprint)
-
-    return {
-        "year": now.year,
-        "percentage": round(percentage, 2),
-        "day_of_year": (now - start).days + 1,
-        "days_in_year": round(total_seconds / 86400),
-        "sprint_number": sprint,
-        "sprint_start": datetime.fromtimestamp(sprint_start_ts, tz=IST).isoformat(),
-        "sprint_end": datetime.fromtimestamp(sprint_end_ts, tz=IST).isoformat(),
-    }
-
-
-def sprint_window(year: int, sprint_number: int) -> tuple[str, str]:
-    """Return start and end ISO timestamps for a given sprint number."""
-    start_ts = sprint_boundary_timestamp(year, sprint_number - 1)
-    end_ts = sprint_boundary_timestamp(year, sprint_number)
-    return (
-        datetime.fromtimestamp(start_ts, tz=IST).isoformat(),
-        datetime.fromtimestamp(end_ts, tz=IST).isoformat(),
-    )
-
-
-def sprint_end_datetime(year: int, sprint_number: int) -> datetime:
-    """Return timezone-aware IST datetime for end of sprint."""
-    end_ts = sprint_boundary_timestamp(year, sprint_number)
-    return datetime.fromtimestamp(end_ts, tz=IST)
+from backend.sprint_engine import (
+    TOTAL_SPRINTS_PER_YEAR,
+    days_in_year,
+    is_leap_year,
+    sprint_boundary_timestamp,
+    sprint_end_datetime,
+    sprint_window,
+    year_progress,
+    previous_sprint,
+    next_sprint,
+)
 
 
 # Pydantic Request Schemas
@@ -377,13 +335,7 @@ def user_created_at(conn, user_id: int) -> datetime:
     return as_utc(created_at)
 
 
-def previous_sprint(year: int, sprint_number: int) -> tuple[int, int] | None:
-    """Calculate prior sprint number and year tuple."""
-    if sprint_number > 1:
-        return year, sprint_number - 1
-    if year > 1:
-        return year - 1, 100
-    return None
+
 
 
 def ensure_sprint_rollover(conn, year: int, sprint_number: int, user_id: int) -> None:
@@ -766,6 +718,12 @@ def startup():
 def health():
     """Backend service health check endpoint."""
     return {"status": "ok"}
+
+
+@app.get("/api/sprint/current")
+def get_current_sprint():
+    """Authoritative public sprint context endpoint for landing pages and client synchronization."""
+    return year_progress()
 
 
 @app.post("/api/auth/google/verify")

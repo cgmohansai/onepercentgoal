@@ -19,18 +19,20 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from backend.sprint_engine import (
+    IST,
+    year_progress,
+    sprint_end_datetime,
+)
 from backend.main import (
     db,
     execute,
     setup_database,
-    year_progress,
-    sprint_end_datetime,
     ensure_sprint_rollover,
     send_email_via_brevo,
     log_sent_reminder,
     EMAIL_LOGO_URL,
     FRONTEND_URL,
-    IST,
 )
 
 
