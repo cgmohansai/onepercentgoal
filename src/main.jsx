@@ -14,6 +14,27 @@ import { Browser } from '@capacitor/browser'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Keyboard as CapacitorKeyboard } from '@capacitor/keyboard'
 import { Media } from '@capacitor-community/media'
+import api, { apiFetch, apiUrl, API_BASE, buildHeaders as buildApiHeaders, getStoredToken, setStoredToken, removeStoredToken } from './services/apiClient'
+import {
+  getCurrentUser,
+  verifyGoogleCredential,
+  requestGoogleAccessToken,
+  exchangeAuthorizationCode,
+  createAuthorizationExchangeCode,
+  updateAuthProfile,
+  logout as authLogout,
+} from './features/auth/authService'
+import {
+  GOOGLE_CLIENT_ID,
+  WEB_APP_URL,
+  isNativeShell,
+  loadGoogleIdentityServices,
+  parseAuthUrl,
+  getNativeAuthReturn,
+  cleanAuthUrlParams,
+  buildNativeOAuthUrl,
+  buildNativeReturnUrl,
+} from './features/auth/authUtils'
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
 
@@ -155,34 +176,8 @@ if ('serviceWorker' in navigator) {
 }
 
 const DAY = 24 * 60 * 60 * 1000
-// Website requests stay same-origin through Vercel's /api rewrite. This avoids
-// cross-origin login failures; the native shell still uses its configured API.
-const API_BASE = window.location.protocol === 'http:' || window.location.protocol === 'https:'
-  ? ''
-  : (import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '')
-const apiUrl = path => `${API_BASE}${path}`
-const apiFetch = (path, options = {}) => fetch(apiUrl(path), {
-  ...options,
-  credentials: 'include',
-})
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '420117390479-kjelftir7nr413rh3b7c9327ia27c6o2.apps.googleusercontent.com'
-const WEB_APP_URL = import.meta.env.VITE_APP_URL?.replace(/\/$/, '') || (window.location.protocol.startsWith('http') ? window.location.origin : '')
-const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client'
-
-let gisLoadPromise
-function loadGoogleIdentityServices() {
-  if (window.google?.accounts?.oauth2) return Promise.resolve()
-  if (gisLoadPromise) return gisLoadPromise
-  gisLoadPromise = new Promise((resolve, reject) => {
-    const script = document.querySelector(`script[src="${GIS_SCRIPT_URL}"]`) || document.createElement('script')
-    script.src = GIS_SCRIPT_URL
-    script.async = true
-    script.onload = () => window.google?.accounts?.oauth2 ? resolve() : reject(new Error('Google sign-in did not load'))
-    script.onerror = () => reject(new Error('Google sign-in could not be loaded'))
-    if (!script.parentNode) document.head.appendChild(script)
-  })
-  return gisLoadPromise
-}
+// Networking utilities (API_BASE, apiUrl, apiFetch, api) are provided by ./services/apiClient
+// Authentication utilities and GIS loader are provided by ./features/auth/authUtils
 
 // Offline fallback sprint boundary calculation, anchored to IST (UTC+5:30)
 function getSprintBoundary(year, N) {
@@ -3316,17 +3311,13 @@ function App() {
       completion_note: goal.completion_note || goal.completed_note || ''
     })
   }
-  const [sessionToken, setSessionToken] = useState(() => localStorage.getItem('onepercentgoal.token') || '')
+  const [sessionToken, setSessionToken] = useState(() => getStoredToken())
   const [currentUser, setCurrentUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
   const [gisReady, setGisReady] = useState(false)
   const googleSignInInFlight = useRef(false)
   const gisInitializedRef = useRef(false)
-  const [nativeAuthReturn, setNativeAuthReturn] = useState(() => {
-    return new URLSearchParams(window.location.search).get('auth_return') === 'com.onepercentgoal.app://auth'
-      ? 'com.onepercentgoal.app://auth'
-      : ''
-  })
+  const [nativeAuthReturn, setNativeAuthReturn] = useState(() => getNativeAuthReturn())
   const [appReturnFlow, setAppReturnFlow] = useState(null)
 
   useEffect(() => {
@@ -3413,7 +3404,7 @@ const exitPendingRef = useRef(false)
       .catch(() => showToast('Image could not be saved'))
   }, [completedShare])
 
-  const buildHeaders = extra => ({ ...(extra || {}), ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}) })
+  const buildHeaders = extra => buildApiHeaders(extra, sessionToken)
 
   useEffect(() => {
     const id = setInterval(() => setNow(getISTDate()), 50)
@@ -3421,45 +3412,36 @@ const exitPendingRef = useRef(false)
   }, [])
 
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search)
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-    const tokenFromUrl = searchParams.get('auth_token')
-    const accessTokenFromUrl = searchParams.get('access_token') || hashParams.get('access_token')
+    const { token: tokenFromUrl, accessToken: accessTokenFromUrl } = parseAuthUrl(window.location.href)
 
     if (tokenFromUrl) {
-      localStorage.setItem('onepercentgoal.token', tokenFromUrl)
-      window.history.replaceState({}, document.title, window.location.pathname)
+      setStoredToken(tokenFromUrl)
+      cleanAuthUrlParams()
     } else if (accessTokenFromUrl) {
-      window.history.replaceState({}, document.title, window.location.pathname)
+      cleanAuthUrlParams()
       finishGoogleSignIn({ access_token: accessTokenFromUrl })
       return
     }
-    const token = tokenFromUrl || localStorage.getItem('onepercentgoal.token')
+    const token = tokenFromUrl || getStoredToken()
     if (token) {
       setSessionToken(token)
     }
-    const headers = token ? { Authorization: `Bearer ${token}` } : {}
-    apiFetch('/api/auth/me', { headers })
-      .then(response => response.ok ? response.json() : Promise.reject(response))
-      .then(data => {
-        if (data?.user) {
-          setCurrentUser(data.user)
+    getCurrentUser(token)
+      .then(user => {
+        if (user) {
+          setCurrentUser(user)
         }
         setAuthReady(true)
       })
       .catch(() => {
         if (token) {
-          localStorage.removeItem('onepercentgoal.token')
+          removeStoredToken()
           setSessionToken('')
         }
         setCurrentUser(null)
         setAuthReady(true)
       })
   }, [])
-
-  const isNativeShell = () => Boolean(
-    window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
-  )
 
   const exitApp = () => {
     if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
@@ -3484,34 +3466,15 @@ const exitPendingRef = useRef(false)
     if (!isNativeShell()) return
     let activeHandle = null
     const restoreSession = async url => {
-      let token = ''
-      let code = ''
-      try {
-        const parsed = new URL(url)
-        code = parsed.searchParams.get('code') || ''
-        token = parsed.searchParams.get('auth_token') || ''
-      } catch {}
-      if (!code && !token && typeof url === 'string') {
-        const matchCode = url.match(/[?&]code=([^&#]+)/)
-        if (matchCode) code = decodeURIComponent(matchCode[1])
-        const matchToken = url.match(/[?&]auth_token=([^&#]+)/)
-        if (matchToken) token = decodeURIComponent(matchToken[1])
-      }
+      let { token, code } = parseAuthUrl(url)
 
       if (code) {
         setAuthLoading(true)
         setAuthStatus('Verifying secure handover…')
         try {
-          const exchangeRes = await apiFetch('/api/auth/exchange-code', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code }),
-          })
-          if (exchangeRes.ok) {
-            const data = await exchangeRes.json()
-            if (data?.token) {
-              token = data.token
-            }
+          const data = await exchangeAuthorizationCode(code)
+          if (data?.token) {
+            token = data.token
           }
         } catch {}
       }
@@ -3519,21 +3482,20 @@ const exitPendingRef = useRef(false)
       if (token) {
         setAuthLoading(true)
         setAuthStatus('Finishing sign-in…')
-        localStorage.setItem('onepercentgoal.token', token)
+        setStoredToken(token)
         setSessionToken(token)
         setActive('Overview')
         setShowAuthModal(false)
         Browser.close().catch(() => {})
-        apiFetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-          .then(response => response.ok ? response.json() : Promise.reject(response))
-          .then(data => {
-            setCurrentUser(data.user)
+        getCurrentUser(token)
+          .then(user => {
+            setCurrentUser(user)
             setActive('Overview')
             setShowAuthModal(false)
             showToast('Welcome to OnePercentGoal')
           })
           .catch(() => {
-            localStorage.removeItem('onepercentgoal.token')
+            removeStoredToken()
             setSessionToken('')
             setAuthError('Your sign-in session could not be restored. Please try again.')
             setShowAuthModal(true)
@@ -3751,31 +3713,10 @@ const exitPendingRef = useRef(false)
     setShowAuthModal(false)
     try {
       await new Promise(resolve => requestAnimationFrame(resolve))
-      const res = await apiFetch('/api/auth/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const responseBody = await res.text()
-      let result = {}
-      if (responseBody) {
-        try {
-          result = JSON.parse(responseBody)
-        } catch {
-          throw new Error(res.ok
-            ? 'Google sign-in returned an invalid response. Please try again.'
-            : `Google sign-in service is unavailable (${res.status}). Please try again shortly.`)
-        }
-      }
-      if (!res.ok) {
-        throw new Error(result.detail || `Google sign-in verification failed (${res.status})`)
-      }
-      if (!result.token || !result.user) {
-        throw new Error('Google sign-in did not return a session. Please try again.')
-      }
+      const result = await verifyGoogleCredential(payload)
 
       // Always save session and log into the website Overview page first
-      localStorage.setItem('onepercentgoal.token', result.token)
+      setStoredToken(result.token)
       setSessionToken(result.token)
       setCurrentUser(result.user)
       setActive('Overview')
@@ -3785,30 +3726,13 @@ const exitPendingRef = useRef(false)
 
       // If launched from native app with auth_return, provide seamless transition
       if (nativeAuthReturn) {
-        let appReturnUrl = ''
-        try {
-          const codeRes = await apiFetch('/api/auth/create-exchange-code', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${result.token}` },
-          })
-          if (codeRes.ok) {
-            const { code } = await codeRes.json()
-            if (code) {
-              appReturnUrl = `${nativeAuthReturn}?code=${encodeURIComponent(code)}`
-            }
-          }
-        } catch {}
-
-        if (!appReturnUrl) {
-          appReturnUrl = `${nativeAuthReturn}?auth_token=${encodeURIComponent(result.token)}`
-        }
+        const code = await createAuthorizationExchangeCode(result.token)
+        const appReturnUrl = buildNativeReturnUrl(nativeAuthReturn, { code, token: result.token })
 
         setAppReturnFlow({
           appUrl: appReturnUrl,
         })
-        try {
-          window.history.replaceState({}, document.title, window.location.pathname)
-        } catch {}
+        cleanAuthUrlParams()
 
         // Attempt direct intent / scheme navigation to switch to the app
         try {
@@ -3850,7 +3774,7 @@ const exitPendingRef = useRef(false)
         setAuthError('Mobile sign-in needs VITE_APP_URL to point to the deployed website.')
         return
       }
-      const signInUrl = `${WEB_APP_URL}/?auth_return=${encodeURIComponent('com.onepercentgoal.app://auth')}`
+      const signInUrl = buildNativeOAuthUrl(WEB_APP_URL)
       Browser.open({ url: signInUrl, windowName: '_blank' }).catch(() => {
         setAuthLoading(false)
         setAuthError('Unable to open Google sign-in. Please try again.')
@@ -3865,34 +3789,19 @@ const exitPendingRef = useRef(false)
     setAuthStatus('Opening Google…')
     setAuthError('')
     try {
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: 'openid email profile',
-        callback: response => {
-          if (response?.access_token) {
-            finishGoogleSignIn({ access_token: response.access_token })
-          } else if (response?.error) {
-            setAuthLoading(false)
-            googleSignInInFlight.current = false
-            setAuthError(response.error_description || 'Google sign-in was cancelled. Please try again.')
-          } else {
-            setAuthLoading(false)
-            googleSignInInFlight.current = false
-          }
-        },
-        error_callback: error => {
+      requestGoogleAccessToken({
+        clientId: GOOGLE_CLIENT_ID,
+        onToken: access_token => finishGoogleSignIn({ access_token }),
+        onError: err => {
           setAuthLoading(false)
           googleSignInInFlight.current = false
-          if (error?.type === 'popup_closed') {
-            setAuthError('Google sign-in window was closed. Please try again.')
-          } else if (error?.type === 'popup_failed_to_open') {
-            setAuthError('Sign-in popup was blocked. Please allow popups and try again.')
-          } else {
-            setAuthError(error?.message || 'Google sign-in could not be completed. Please try again.')
-          }
+          setAuthError(err.message)
+        },
+        onCancel: () => {
+          setAuthLoading(false)
+          googleSignInInFlight.current = false
         },
       })
-      client.requestAccessToken({ prompt: 'select_account' })
     } catch (error) {
       setAuthLoading(false)
       googleSignInInFlight.current = false
@@ -3904,13 +3813,7 @@ const exitPendingRef = useRef(false)
     setProfileLoading(true)
     setProfileError('')
     try {
-      const response = await apiFetch('/api/auth/profile', {
-        method: 'POST',
-        headers: buildHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(form),
-      })
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.detail || 'Unable to save profile')
+      const result = await updateAuthProfile(form, sessionToken)
       setCurrentUser(result.user)
       await refreshProfile()
     } catch (error) {
@@ -3921,20 +3824,8 @@ const exitPendingRef = useRef(false)
   }
 
   const logout = async () => {
-    if (window.google?.accounts?.id) {
-      try { window.google.accounts.id.disableAutoSelect() } catch {}
-    }
-    // Clear the local session immediately so sign out does not depend on the
-    // network or the API being available. Revoke the token on the server in
-    // the background as a best-effort cleanup.
     const token = sessionToken
-    if (token) {
-      apiFetch('/api/auth/logout', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {})
-    }
-    localStorage.removeItem('onepercentgoal.token')
+    authLogout(token).catch(() => {})
     showToast('Logged Out')
     setActive('Overview')
     setShowAuthModal(false)
@@ -4080,24 +3971,12 @@ const exitPendingRef = useRef(false)
 
   const handleUpdateProfile = async (username, displayName, profilePhoto = null, bio = null) => {
     try {
-      const response = await apiFetch('/api/auth/profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...buildHeaders()
-        },
-        body: JSON.stringify({
-          username,
-          display_name: displayName,
-          profile_photo: profilePhoto,
-          bio: bio !== null ? bio : currentUser?.bio || ""
-        })
-      })
-      if (!response.ok) {
-        const err = await response.json()
-        throw new Error(err.detail || 'Failed to update profile')
-      }
-      const result = await response.json()
+      const result = await updateAuthProfile({
+        username,
+        display_name: displayName,
+        profile_photo: profilePhoto,
+        bio: bio !== null ? bio : currentUser?.bio || ""
+      }, sessionToken)
       setCurrentUser(result.user)
       if (profile) {
         setProfile(prev => ({
