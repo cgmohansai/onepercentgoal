@@ -1,5 +1,5 @@
 import React from 'react'
-import { GithubLogo, LinkedinLogo } from '@phosphor-icons/react'
+import { GithubLogo } from '@phosphor-icons/react'
 
 export function AppFooter({ year = 2026 }) {
   return (
@@ -19,17 +19,6 @@ export function AppFooter({ year = 2026 }) {
           className="footer-icon-link"
         >
           <GithubLogo size={18} weight="fill" />
-        </a>
-
-        <a
-          href="https://linkedin.com/in/cgmohansai"
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Connect on LinkedIn"
-          aria-label="Connect on LinkedIn"
-          className="footer-icon-link"
-        >
-          <LinkedinLogo size={18} weight="fill" />
         </a>
       </div>
     </footer>

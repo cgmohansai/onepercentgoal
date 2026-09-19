@@ -30,12 +30,29 @@ function ensureGlobalMorphTimer(interval = 5000) {
 // Start timer immediately with 5000ms (5 seconds) cadence
 ensureGlobalMorphTimer(5000)
 
+export function resetMorphIndex() {
+  globalMorphIndex = 0
+  if (globalIntervalId) {
+    clearInterval(globalIntervalId)
+    globalIntervalId = null
+  }
+  ensureGlobalMorphTimer(currentIntervalMs)
+  morphListeners.forEach((fn) => fn(0))
+}
+
 export const MorphText = React.memo(function MorphText({
   interval = 5000,
   fontSize = "1em",
   fontFamily = "'Instrument Serif', serif",
   className,
+  resetOnMount = false,
 }) {
+  useEffect(() => {
+    if (resetOnMount) {
+      resetMorphIndex()
+    }
+  }, [resetOnMount])
+
   const [currentIndex, setCurrentIndex] = useState(globalMorphIndex)
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false

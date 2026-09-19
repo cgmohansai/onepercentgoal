@@ -10,19 +10,7 @@ This is the first version (v1) of OnePercentGoal—an experiment in rethinking h
 
 **Start small. Improve by 1%. Build momentum.**
 
-For local development, install the backend dependencies once with `./.venv/bin/python -m pip install -r backend/requirements.txt`, then run `npm run backend` and `npm run dev`. The backend command uses the project virtual environment so GIS token verification is available.
+For local development, install the backend dependencies once with `./.venv/bin/python -m pip install -r backend/requirements.txt`, then run `npm run backend` and `npm run dev`.
 
-## Google sign-in setup
+Before building the Android APK, create `.env.production` from `.env.production.example`, then run `npm run android:sync` and rebuild the APK.
 
-The app uses Google Identity Services (GIS) for the website and the Android system browser. Copy `.env.example` to `.env`, then set `VITE_APP_URL` and `FRONTEND_URL` to the deployed website URL. Use the same Google OAuth **Web application** client ID for `VITE_GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_ID`. Website API requests are same-origin through the Vercel `/api` rewrite; set `VITE_API_BASE_URL` to the deployed API only when building the Android app.
-
-In Google Cloud Console, add the local and production website addresses under **Authorized JavaScript origins**. The Android app returns through `com.onepercentgoal.app://auth`, which is already registered in the Android manifest; its browser sign-in must therefore open the same deployed website origin configured as `VITE_APP_URL`.
-
-For the current production domains, set these exact values:
-
-- Vercel: `VITE_APP_URL=https://onepercentgoal.vercel.app` and `VITE_GOOGLE_CLIENT_ID=420117390479-kjelftir7nr413rh3b7c9327ia27c6o2.apps.googleusercontent.com`
-- Render: `FRONTEND_URL=https://onepercentgoal.vercel.app` and `GOOGLE_CLIENT_ID=420117390479-kjelftir7nr413rh3b7c9327ia27c6o2.apps.googleusercontent.com`
-
-Set `DATABASE_URL` on Render as before. Do not set `VITE_API_BASE_URL` on Vercel; browser API calls use the `/api` rewrite. After changing a Vercel `VITE_*` variable, redeploy Vercel because Vite embeds these values during the build.
-
-Before building the Android APK, create `.env.production` from `.env.production.example`, then run `npm run android:sync` and rebuild the APK. This packages the Vercel website URL and Render API URL into the app instead of `localhost`.

@@ -5,6 +5,7 @@ import SpecularButton from '../SpecularButton'
 import MorphText from './MorphText'
 import LiveYearNumber from './LiveYearNumber'
 import LiquidMetalButton from './LiquidMetalButton'
+import UrgencyConsole from './UrgencyConsole'
 import AppFooter from './AppFooter'
 import { DAY, getISTDate, getYearData } from '../utils/dateUtils'
 
@@ -155,56 +156,8 @@ export function LandingPage({ onGetStarted, onSignIn, serverSprint }) {
         </div>
       </section>
 
-      {/* Temporal Urgency Console Mockup */}
-      <section className="urgency-console landing-urgency-mock">
-        <div className="urgency-main">
-          <div className="urgency-live-percentage">
-            <div className="urgency-system-status">SYS.MOCK // SPRINT #{String(yearData.sprint).padStart(2, '0')}</div>
-            <div className="live-num">
-              <LiveYearNumber year={yearData.year} totalDays={yearData.total} />
-              <em>%</em>
-            </div>
-            <div className="live-label">OF {yearData.year} COMPLETED</div>
-          </div>
-          
-          <div className="landing-countdown-container">
-            <div className="urgency-system-status">NEXT SPRINT BEGINS IN</div>
-            <div className="live-num countdown-live-num">
-              <span className="time-unit"><span className="time-num">{String(daysLeft).padStart(2, '0')}</span><em>d</em></span>
-              <i className="time-colon">:</i>
-              <span className="time-unit"><span className="time-num">{String(hoursLeft).padStart(2, '0')}</span><em>h</em></span>
-              <i className="time-colon">:</i>
-              <span className="time-unit"><span className="time-num">{String(minutesLeft).padStart(2, '0')}</span><em>m</em></span>
-              <i className="time-colon">:</i>
-              <span className="time-unit"><span className="time-num">{String(secsLeft).padStart(2, '0')}</span><em>s</em></span>
-            </div>
-            <div className="live-label">SPRINT #{String(yearData.sprint).padStart(2, '0')} → #{String(yearData.sprint + 1).padStart(2, '0')}</div>
-          </div>
-        </div>
-
-        <div className="urgency-track-wrap">
-          <div className="urgency-track-labels">
-            <span />
-            <span>YEAR REMAINING: {(100 - yearData.percentage).toFixed(6)}% · DAY {day} OF {yearData.total}</span>
-          </div>
-          <div className="urgency-progress-track main-highlighted-track">
-            <div className="urgency-progress-bar" style={{ width: `${yearData.percentage}%` }} />
-            <div className="urgency-progress-glow" style={{ left: `${yearData.percentage}%` }} />
-          </div>
-          <div className="urgency-progress-scale" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', color: '#8c9085', fontFamily: '"DM Mono", monospace', fontSize: '13px', letterSpacing: '.08em' }}>
-            <span>{yearData.year}</span>
-            <span>25%</span>
-            <span>50%</span>
-            <span>75%</span>
-            <span>{yearData.year + 1}</span>
-          </div>
-        </div>
-
-        <div className="urgency-footer-warning">
-          <span className="warning-icon">✦</span>
-          <p className="warning-text">Time is slipping away. Every second counts. <b>Will you complete your goals, or let another day burn out?</b></p>
-        </div>
-      </section>
+      {/* Temporal Urgency Console */}
+      <UrgencyConsole data={{ ...yearData, day }} now={mockNow} />
 
       {/* Landing Page Features Grid (Visualizing the experience) */}
       <section className="landing-features-grid">

@@ -90,6 +90,7 @@ import GoalDetailsModal from './features/goals/components/GoalDetailsModal'
 import DeleteGoalConfirmModal from './features/goals/components/DeleteGoalConfirmModal'
 import ErrorBoundary from './components/ErrorBoundary'
 import { MOTIVATIONAL_QUOTES } from './constants/quotes'
+import { resetMorphIndex } from './components/MorphText'
 
 if ('serviceWorker' in navigator) {
   const isCapacitorNative = () => Boolean(
@@ -768,6 +769,7 @@ function App() {
       setStoredToken(result.token)
       setSessionToken(result.token)
       setCurrentUser(result.user)
+      resetMorphIndex()
       setActive('Overview')
       setShowAuthModal(false)
       showToast('Welcome to OnePercentGoal')

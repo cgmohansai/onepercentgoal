@@ -1410,10 +1410,14 @@ a:focus-visible,
 .urgency-progress-track.main-highlighted-track .urgency-progress-glow {
   width: 24px;
   height: 24px;
+  top: 50%;
+  transform: translate(-50%, -50%);
   background: #c9f36a;
   border: 4px solid #151714;
   box-shadow: 0 0 0 2px #c9f36a, 0 0 20px rgba(201, 243, 106, 0.9);
   transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
+  pointer-events: none;
+  z-index: 2;
 }
 .urgency-progress-track.main-highlighted-track:hover .urgency-progress-glow {
   transform: translate(-50%, -50%) scale(1.2);
@@ -1454,7 +1458,7 @@ a:focus-visible,
   border: 1px solid rgba(201, 243, 106, 0.15);
   border-radius: 20px;
   margin-bottom: 20px;
-  background: #0d0f0c !important;
+  background: #141513 !important;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
   isolation: isolate;
 }
@@ -1501,8 +1505,9 @@ a:focus-visible,
   .landing-hero.aurora-hero-wrapper {
     height: auto !important;
     min-height: auto !important;
-    margin-bottom: 10px !important;
+    margin-bottom: 20px !important;
     border-radius: 20px !important;
+    background: #141513 !important;
   }
   .aurora-content {
     padding: 10px !important;
@@ -2098,6 +2103,7 @@ body,
     min-height: 360px;
     border-radius: 20px;
     margin-bottom: 20px;
+    background: #141513 !important;
   }
   .aurora-content {
     padding-top: 20px !important;
@@ -2154,10 +2160,16 @@ body,
   }
   .urgency-progress-track.main-highlighted-track {
     height: 12px;
+    position: relative !important;
+    overflow: visible !important;
   }
   .urgency-progress-track.main-highlighted-track .urgency-progress-glow {
     width: 18px;
     height: 18px;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    pointer-events: none !important;
+    z-index: 2 !important;
   }
   .urgency-track-labels {
     font-size: 9px;
@@ -2355,6 +2367,7 @@ body,
   .aurora-hero-wrapper {
     min-height: 300px;
     border-radius: 20px;
+    background: #141513 !important;
   }
   .aurora-content {
     padding: 80px 14px 20px 14px !important;
@@ -2394,7 +2407,7 @@ body,
   position: relative;
   overflow: hidden;
   padding: 60px 48px;
-  background: linear-gradient(135deg, #181b16 0%, #0d0f0c 100%);
+  background: linear-gradient(135deg, #1a1d18 0%, #151714 100%);
   border: 1px solid #2f3827;
   border-radius: 16px;
   margin-top: 0 !important;
@@ -3454,10 +3467,6 @@ body,
   margin-top: 0 !important;
   margin-bottom: 20px !important;
 }
-.landing-urgency-mock {
-  margin-top: 0 !important;
-  margin-bottom: 20px !important;
-}
 .landing-features-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -3905,55 +3914,6 @@ body,
     width: 100% !important;
     padding: 14px 24px !important;
     font-size: 0.95rem !important;
-  }
-
-  /* 8. Urgency console mockup scaling */
-  .landing-urgency-mock {
-    padding: 24px 20px !important;
-  }
-  .urgency-main {
-    flex-direction: column !important;
-    align-items: center !important;
-    text-align: center !important;
-    gap: 28px !important;
-  }
-  .urgency-live-percentage {
-    text-align: center !important;
-    width: 100% !important;
-    margin: 0 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-  }
-  .urgency-live-percentage .live-num {
-    font-size: clamp(48px, 12vw, 64px) !important; /* Maximized percentage! */
-    line-height: 1 !important;
-  }
-  .urgency-live-percentage .live-label {
-    font-size: 11px !important;
-    letter-spacing: 0.15em !important;
-    margin-top: 8px !important;
-  }
-  .landing-countdown-container {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    text-align: center !important;
-    width: 100% !important;
-    margin-top: 12px !important;
-  }
-  .landing-countdown-container .live-num {
-    font-size: clamp(26px, 8vw, 34px) !important;
-    line-height: 1 !important;
-  }
-  .landing-countdown-container .countdown-live-num {
-    justify-content: center !important;
-    gap: 4px !important;
-    margin-top: 6px !important;
-  }
-  .landing-countdown-container .time-colon {
-    width: 1.2em !important;
-    margin: 0 -0.6em 0 -0.6em !important;
   }
 
   /* 9. Features grid and cards */
@@ -4839,6 +4799,7 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    background: #141513 !important;
   }
 
   .logged-out .landing-hero {
@@ -4847,8 +4808,8 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     margin-bottom: 20px !important;
   }
 
-  .compounding-banner-visual:not(.landing-compounding-banner),
-  .urgency-console:not(.landing-urgency-mock) {
+  .compounding-banner-visual,
+  .urgency-console {
     margin-top: 0 !important;
     margin-bottom: 20px !important;
   }
@@ -5505,6 +5466,7 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   .landing-hero.aurora-hero-wrapper {
     margin-bottom: 20px !important;
     border-radius: 20px !important;
+    background: #141513 !important;
   }
 
   .aurora-content {
@@ -5545,6 +5507,7 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     height: calc(100dvh - 20px - var(--safe-top, 0px) - var(--safe-bottom, 0px)) !important;
     min-height: calc(100dvh - 20px - var(--safe-top, 0px) - var(--safe-bottom, 0px)) !important;
     margin-bottom: 20px !important;
+    background: #141513 !important;
   }
 }
 
@@ -5788,23 +5751,59 @@ body.capacitor-native .sprint-modal {
   margin-bottom: 20px !important;
 }
 
-.compounding-banner-visual,
-.compounding-banner-visual.landing-compounding-banner,
-.landing-compounding-banner {
+.compounding-banner-visual {
   margin-top: 0 !important;
   margin-bottom: 20px !important;
 }
 
-.urgency-console,
-.urgency-console.landing-urgency-mock,
-.landing-urgency-mock {
+.urgency-console {
   margin-top: 0 !important;
   margin-bottom: 20px !important;
 }
 
 .landing-features-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+  gap: 20px !important;
   margin-top: 0 !important;
   margin-bottom: 20px !important;
+}
+
+.landing-features-grid .landing-feature-card,
+.landing-features-grid .card {
+  margin: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .landing-features-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+    margin-top: 0 !important;
+    margin-bottom: 20px !important;
+  }
+  .landing-features-grid .landing-feature-card,
+  .landing-features-grid .card {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Ensure uniform background color and eliminate dark box shadows bleeding into container gaps */
+  body,
+  #root,
+  .app-shell,
+  .content,
+  .landing-page {
+    background-color: #141513 !important;
+  }
+
+  .aurora-hero-wrapper,
+  .landing-hero.aurora-hero-wrapper,
+  .compounding-banner-visual,
+  .landing-compounding-banner,
+  .urgency-console,
+  .landing-urgency-mock {
+    box-shadow: none !important;
+  }
 }
 
 .overview-staggered-grid {
