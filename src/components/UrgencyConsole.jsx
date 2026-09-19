@@ -12,8 +12,12 @@ export function UrgencyConsole({ data, now = new Date() }) {
   const secsLeft = secondsLeft % 60
 
   const day = data.day || (data.elapsed ? Math.floor(data.elapsed / DAY) + 1 : 1)
-  const percentage = typeof data.percentage === 'number' ? data.percentage : (parseFloat(data.percentage) || 0)
-  const clampedPercentage = Math.min(100, Math.max(0, percentage))
+  const startTs = data.year ? Date.UTC(data.year, 0, 1, 0, 0, 0) - (5.5 * 3600 * 1000) : 0
+  const totalDays = data.total || 365
+  const livePct = (data.year && totalDays)
+    ? Math.min(100, Math.max(0, ((now.getTime() - startTs) / (totalDays * DAY)) * 100))
+    : (typeof data.percentage === 'number' ? data.percentage : (parseFloat(data.percentage) || 0))
+  const clampedPercentage = Math.min(100, Math.max(0, livePct))
 
   return (
     <section className="urgency-console">
@@ -56,12 +60,12 @@ export function UrgencyConsole({ data, now = new Date() }) {
           <div className="urgency-progress-bar" style={{ width: `${clampedPercentage}%` }} />
           <div className="urgency-progress-glow" style={{ left: `${clampedPercentage}%` }} />
         </div>
-        <div className="urgency-progress-scale" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', color: '#8c9085', fontFamily: '"DM Mono", monospace', fontSize: '13px', letterSpacing: '.08em' }}>
-          <span>{data.year}</span>
-          <span>25%</span>
-          <span>50%</span>
-          <span>75%</span>
-          <span>{data.year + 1}</span>
+        <div className="urgency-progress-scale" style={{ position: 'relative', width: '100%', height: '18px', marginTop: '10px', color: '#8c9085', fontFamily: '"DM Mono", monospace', fontSize: '13px', letterSpacing: '.08em' }}>
+          <span style={{ position: 'absolute', left: 0 }}>{data.year}</span>
+          <span style={{ position: 'absolute', left: '25%', transform: 'translateX(-50%)' }}>25%</span>
+          <span style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>50%</span>
+          <span style={{ position: 'absolute', left: '75%', transform: 'translateX(-50%)' }}>75%</span>
+          <span style={{ position: 'absolute', right: 0 }}>{data.year + 1}</span>
         </div>
       </div>
 

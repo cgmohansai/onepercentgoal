@@ -124,21 +124,6 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
               )}
             </span>
           )}
-          {goal.done && showActions && (
-            <span className="goal-inline-actions">
-              <button
-                className="ghost btn-delete"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setIsSelected(false)
-                  setIsHovered(false)
-                  onDelete(goal)
-                }}
-              >
-                Delete
-              </button>
-            </span>
-          )}
         </span>
         <label
           className={goal.done ? 'mini-track static' : 'mini-track editable'}

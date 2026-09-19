@@ -1,7 +1,7 @@
 import React from 'react'
 import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
-export function GoalDetailsModal({ goal, onClose }) {
+export function GoalDetailsModal({ goal, onClose, onDelete }) {
   useEscapeKey(onClose, !goal)
   if (!goal) return null
 
@@ -20,7 +20,25 @@ export function GoalDetailsModal({ goal, onClose }) {
           </p>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+          {onDelete && (
+            <button
+              className="add-button"
+              type="button"
+              onClick={() => {
+                onClose()
+                onDelete(goal)
+              }}
+              style={{
+                minWidth: '120px',
+                borderColor: 'rgba(255, 107, 107, 0.4)',
+                color: '#ff8888',
+                background: 'rgba(255, 107, 107, 0.08)'
+              }}
+            >
+              Delete
+            </button>
+          )}
           <button className="add-button" type="button" onClick={onClose} style={{ minWidth: '120px' }}>Close</button>
         </div>
       </div>

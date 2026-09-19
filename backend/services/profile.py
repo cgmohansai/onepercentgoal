@@ -37,6 +37,18 @@ def profile_stats(conn, year: int | None = None, user_id: int | None = None) -> 
         start_sprint = 1
     end_sprint = progress["sprint_number"] if selected_year == progress["year"] else 100
 
+    # Fetch all goals for user once in a single batch query
+    all_goals_rows = execute(
+        conn,
+        "SELECT * FROM goals WHERE user_id = %s ORDER BY sprint_year, sprint_number, id",
+        (user_id,)
+    ).fetchall()
+
+    by_year_sprint: dict[tuple[int, int], list] = {}
+    for r in all_goals_rows:
+        key = (r["sprint_year"], r["sprint_number"])
+        by_year_sprint.setdefault(key, []).append(r)
+
     heatmap = []
     for sprint_number in range(1, 101):
         if selected_year == joined_progress["year"] and sprint_number < start_sprint:
@@ -45,19 +57,20 @@ def profile_stats(conn, year: int | None = None, user_id: int | None = None) -> 
         if selected_year == progress["year"] and sprint_number > end_sprint:
             heatmap.append({"sprint_number": sprint_number, "value": None, "completed_count": 0, "goal_count": 0})
             continue
-        summary = sprint_summary(conn, selected_year, sprint_number, user_id)
-        rate = round(summary["completed_count"] / summary["goal_count"] * 100) if summary["goal_count"] else 0
+        s_goals = by_year_sprint.get((selected_year, sprint_number), [])
+        tot = len(s_goals)
+        comp = sum(1 for g in s_goals if g["completed"])
+        rate = round(comp / tot * 100) if tot else 0
         heatmap.append({
             "sprint_number": sprint_number,
             "value": rate,
-            "completed_count": summary["completed_count"],
-            "goal_count": summary["goal_count"],
+            "completed_count": comp,
+            "goal_count": tot,
         })
 
-    rows = execute(conn, "SELECT id, completed, source_goal_id, rolled_from_goal_id FROM goals WHERE user_id = %s", (user_id,)).fetchall()
     source_ids: list[int] = []
     completed_sources: set[int] = set()
-    for row in rows:
+    for row in all_goals_rows:
         source_id = resolve_source_goal_id(conn, row)
         if source_id not in source_ids:
             source_ids.append(source_id)
@@ -73,11 +86,12 @@ def profile_stats(conn, year: int | None = None, user_id: int | None = None) -> 
         sprint_start = joined_progress["sprint_number"] if sprint_year == joined_progress["year"] else 1
         sprint_end = progress["sprint_number"] if sprint_year == progress["year"] else 100
         for sprint_number in range(sprint_start, sprint_end + 1):
-            summary = sprint_summary(conn, sprint_year, sprint_number, user_id)
+            s_goals = by_year_sprint.get((sprint_year, sprint_number), [])
+            comp = sum(1 for g in s_goals if g["completed"])
             summaries.append({
                 "year": sprint_year,
                 "sprint_number": sprint_number,
-                "success": summary["completed_count"] > 0,
+                "success": comp > 0,
             })
 
     current_streak = 0

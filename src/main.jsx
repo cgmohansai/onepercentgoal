@@ -309,23 +309,8 @@ function App() {
         setPublicLoading(true)
         setPublicError('')
         try {
-          let response
-          try {
-            response = await apiFetch(`/api/u/${shareUsername}?year=${publicYear}`)
-          } catch {
-            response = await fetch(`https://onepercentgoal.onrender.com/api/u/${shareUsername}?year=${publicYear}`)
-          }
+          const response = await apiFetch(`/api/u/${shareUsername}?year=${publicYear}`)
           if (!response.ok) {
-            if (response.status !== 404) {
-              try {
-                const direct = await fetch(`https://onepercentgoal.onrender.com/api/u/${shareUsername}?year=${publicYear}`)
-                if (direct.ok) {
-                  const result = await direct.json()
-                  setPublicData(result)
-                  return
-                }
-              } catch {}
-            }
             const err = await response.json().catch(() => ({}))
             throw new Error(err.detail || 'User profile not found')
           }
@@ -343,6 +328,7 @@ function App() {
 
   const showGoalDetails = goal => {
     setSelectedGoalDetails({
+      ...goal,
       title: goal.title,
       completion_note: goal.completion_note || goal.completed_note || ''
     })
@@ -1283,6 +1269,7 @@ function App() {
         <GoalDetailsModal
           goal={selectedGoalDetails}
           onClose={() => setSelectedGoalDetails(null)}
+          onDelete={deleteGoal}
         />
         <DeleteGoalConfirmModal
           goal={deleteConfirmFlow}

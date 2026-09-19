@@ -9,8 +9,8 @@ from backend.auth.session import (
     user_created_at,
     normalize_username,
 )
-from backend.sprint_engine import year_progress
-from backend.services.goals import ensure_sprint_rollover
+from backend.sprint_engine import year_progress, sprint_window
+from backend.services.goals import ensure_sprint_rollover, goal_dict
 from backend.services.timeline import sprint_summary
 from backend.services.profile import profile_stats
 
@@ -56,8 +56,14 @@ def get_public_profile(username: str, year: int | None = None):
         current_year = progress["year"]
         current_sprint = progress["sprint_number"]
 
-        # Ensure goals rollover is up to date for current sprint
-        ensure_sprint_rollover(conn, current_year, current_sprint, user_id)
+        # Ensure goals rollover is up to date for current sprint only if not already present
+        has_current_goals = execute(
+            conn,
+            "SELECT 1 FROM goals WHERE user_id = %s AND sprint_year = %s AND sprint_number = %s LIMIT 1",
+            (user_id, current_year, current_sprint)
+        ).fetchone()
+        if not has_current_goals:
+            ensure_sprint_rollover(conn, current_year, current_sprint, user_id)
 
         # Get active goals
         goals_rows = execute(
@@ -82,7 +88,34 @@ def get_public_profile(username: str, year: int | None = None):
         start_sprint = year_progress(joined)["sprint_number"] if selected_year == joined.year else 1
         end_sprint = progress["sprint_number"] if selected_year == progress["year"] else 100
         start_bound = min(start_sprint, end_sprint)
-        history_items = [sprint_summary(conn, selected_year, sprint_number, user_id) for sprint_number in range(start_bound, end_sprint + 1)]
+
+        history_rows = execute(
+            conn,
+            "SELECT * FROM goals WHERE user_id = %s AND sprint_year = %s AND sprint_number >= %s AND sprint_number <= %s ORDER BY sprint_number, id",
+            (user_id, selected_year, start_bound, end_sprint)
+        ).fetchall()
+        goals_by_sprint: dict[int, list] = {}
+        for r in history_rows:
+            sn = r["sprint_number"]
+            goals_by_sprint.setdefault(sn, []).append(goal_dict(r))
+
+        history_items = []
+        for sprint_number in range(start_bound, end_sprint + 1):
+            s_goals = goals_by_sprint.get(sprint_number, [])
+            tot = len(s_goals)
+            comp = sum(1 for g in s_goals if g["completed"])
+            avg_p = round(sum(g["progress_percent"] for g in s_goals) / tot) if tot else 0
+            s_start, s_end = sprint_window(selected_year, sprint_number)
+            history_items.append({
+                "year": selected_year,
+                "sprint_number": sprint_number,
+                "sprint_start": s_start,
+                "sprint_end": s_end,
+                "goal_count": tot,
+                "completed_count": comp,
+                "average_progress": avg_p,
+                "goals": s_goals,
+            })
 
         min_year = min(joined.year, selected_year, progress["year"])
         history = {

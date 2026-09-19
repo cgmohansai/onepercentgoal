@@ -31,5 +31,8 @@
     "react-dom": "18.3.1",
     "three": "^0.185.1",
     "vite": "5.4.11"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^1.2.0"
   }
 }

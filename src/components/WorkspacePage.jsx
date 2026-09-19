@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Gear, SignOut, ShareNetwork } from '@phosphor-icons/react'
+import { Gear, SignOut, ShareNetwork, PencilSimple } from '@phosphor-icons/react'
 import SpecularButton from '../SpecularButton'
 import {
   isNativeApp,
@@ -271,17 +271,17 @@ export function WorkspacePage({
             <span className="goals-sprint-badge">ACTIVE SPRINT CYCLE</span>
           </div>
           <div className="goals-title-action-row">
-            <h1 className="goals-sprint-title">
-              <span className="title-main-text">
-                Sprint <em>#{String(data.sprint).padStart(2, '0')}</em>
-              </span>
-              <span className="title-date-group">
-                <span className="goals-sprint-dates">({dateStr})</span>
+            <div className="goals-title-col">
+              <h1 className="goals-sprint-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+                <span className="title-main-text" style={{ whiteSpace: 'nowrap' }}>
+                  Sprint <em>#{String(data.sprint).padStart(2, '0')}</em>
+                </span>
                 <HeaderInfoTooltip
                   description="All current sprint goals present here. Compounding progress is built 1% at a time."
                 />
-              </span>
-            </h1>
+              </h1>
+              <div className="goals-sprint-dates" style={{ marginTop: '4px' }}>({dateStr})</div>
+            </div>
             <SpecularButton
               size="md"
               radius={9999}
@@ -350,17 +350,17 @@ export function WorkspacePage({
             <span className="timeline-badge">THE YEAR IN 100 PARTS</span>
           </div>
           <div className="goals-title-action-row">
-            <h1 className="timeline-title">
-              <span className="title-main-text">
-                Sprint <em>Timeline</em>
-              </span>
-              <span className="title-date-group">
-                <span className="timeline-year-dates">({selectedYear})</span>
+            <div className="goals-title-col">
+              <h1 className="timeline-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+                <span className="title-main-text" style={{ whiteSpace: 'nowrap' }}>
+                  Sprint <em>Timeline</em>
+                </span>
                 <HeaderInfoTooltip
                   description="Track your compounding progress across all 100 sprints. Click a sprint tile to inspect detailed history."
                 />
-              </span>
-            </h1>
+              </h1>
+              <div className="timeline-year-dates" style={{ marginTop: '4px' }}>({selectedYear})</div>
+            </div>
             <SpecularButton
               size="md"
               radius={9999}
@@ -482,8 +482,10 @@ export function WorkspacePage({
               <span className="profile-badge">ACCOUNT OVERVIEW</span>
             </div>
             <div className="profile-title-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '16px' }}>
-              <h1 className="profile-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'center' }}>
-                User <em>Profile</em>
+              <h1 className="profile-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+                <span className="title-main-text" style={{ whiteSpace: 'nowrap' }}>
+                  User <em>Profile</em>
+                </span>
                 <HeaderInfoTooltip
                   description="Manage your personal settings, view cumulative statistics, and inspect sprint achievements."
                 />
@@ -608,10 +610,13 @@ export function WorkspacePage({
             {/* Action Buttons */}
             <div className="profile-action-btns">
               <button className="profile-edit-btn" onClick={() => setEditModalOpen(true)}>
-                Edit Profile
+                <PencilSimple size={14} weight="bold" />
+                <span>Edit Profile</span>
               </button>
               <button
                 className="profile-edit-btn share-btn"
+                title="Share Profile"
+                aria-label="Share Profile"
                 onClick={() => {
                   if (!profileUser.username) {
                     showToast('Set your username first')
@@ -657,12 +662,30 @@ export function WorkspacePage({
           </section>
         </div>
 
-        <div className="profile-stats compact-stats">
-          <div className="metric card"><small>GOALS COMPLETED</small><b>{goalsCompleted}</b><span>out of {totalGoals} unique</span></div>
-          <div className="metric card"><small>GOAL RATE</small><b>{goalRate}%</b><span>completion performance</span></div>
-          <div className="metric card"><small>ROTE RATE</small><b>{roteRate}%</b><span>{rotesCompleted}/{totalRotes} tasks done</span></div>
-          <div className="metric card"><small>STREAK</small><b>{stats.current_streak || 0} <small className="best-streak-tag">Best: {stats.longest_streak || 0}</small></b><span>sprints streak</span></div>
-        </div>
+        <section className="profile-combined-stats-card card">
+          <div className="combined-stats-grid">
+            <div className="combined-stat-item">
+              <small className="combined-stat-label">GOALS COMPLETED</small>
+              <b className="combined-stat-value">{goalsCompleted}</b>
+              <span className="combined-stat-desc">out of {totalGoals} unique</span>
+            </div>
+            <div className="combined-stat-item">
+              <small className="combined-stat-label">GOAL RATE</small>
+              <b className="combined-stat-value">{goalRate}%</b>
+              <span className="combined-stat-desc">completion performance</span>
+            </div>
+            <div className="combined-stat-item">
+              <small className="combined-stat-label">ROTE RATE</small>
+              <b className="combined-stat-value">{roteRate}%</b>
+              <span className="combined-stat-desc">{rotesCompleted}/{totalRotes} tasks done</span>
+            </div>
+            <div className="combined-stat-item">
+              <small className="combined-stat-label">STREAK</small>
+              <b className="combined-stat-value">{stats.current_streak || 0}</b>
+              <span className="combined-stat-desc">sprints streak | Best - {stats.longest_streak || 0}</span>
+            </div>
+          </div>
+        </section>
 
         <section className="reminders-card card">
           <div className="reminders-card-header">

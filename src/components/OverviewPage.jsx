@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect } from 'react'
-import { Target, Repeat } from '@phosphor-icons/react'
+import { Target, Repeat, ArrowRight } from '@phosphor-icons/react'
 import { lazyWithStaleRetry } from '../utils/lazyStaleRetry'
 const Silk = lazyWithStaleRetry(() => import('../Silk'))
 import SpecularButton from '../SpecularButton'
@@ -75,7 +75,7 @@ export function OverviewPage({
             </p>
             <h1 className="h1-scalingSize">
               <span>Make this</span>
-              <MorphText resetOnMount />
+              <MorphText />
               <span>count.</span>
             </h1>
           </div>
@@ -210,8 +210,8 @@ export function OverviewPage({
               </div>
               
               <div style={{ flex: 1 }}>
-                <div className="sprint-num-value" style={{ fontSize: '18px' }}>{completeGoals}/{goals.length}</div>
-                <p className="sprint-num-label" style={{ margin: '2px 0 0' }}>GOALS DONE</p>
+                <div className="sprint-num-value" style={{ fontSize: '28px', fontWeight: 600, lineHeight: 1 }}>{completeGoals}/{goals.length}</div>
+                <p className="sprint-num-label" style={{ margin: '4px 0 0' }}>GOALS DONE</p>
               </div>
             </div>
 
@@ -234,7 +234,9 @@ export function OverviewPage({
             
             <button className="goals-cta" onClick={() => setActive('Goals')}>
               <span>Open Sprint Board</span>
-              <b>→</b>
+              <span className="goals-cta-arrow">
+                <ArrowRight size={16} weight="bold" />
+              </span>
             </button>
           </article>
 
@@ -309,9 +311,9 @@ export function OverviewPage({
             <div>
               <div className="sprint-summary-header">
                 <p className="eyebrow">FORCEFUL TASKS</p>
-                <h2>
-                  Routine <em>Rote</em>
-                  <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#c9f36a', marginLeft: '10px', letterSpacing: '0.08em', fontFamily: '"DM Mono", monospace', textTransform: 'uppercase', padding: '2px 8px', borderRadius: '4px', background: 'rgba(201, 243, 106, 0.1)', border: '1px solid rgba(201, 243, 106, 0.2)', display: 'inline-block', width: 'fit-content' }}>
+                <h2 style={{ display: 'inline-flex', alignItems: 'flex-end', flexWrap: 'nowrap', gap: '10px', width: '100%', lineHeight: 1 }}>
+                  <span style={{ whiteSpace: 'nowrap', lineHeight: 1, display: 'inline-block' }}>Routine <em>Rote</em></span>
+                  <span className="daywise-badge" style={{ fontSize: '11px', fontWeight: 'normal', color: '#c9f36a', letterSpacing: '0.08em', fontFamily: '"DM Mono", monospace', textTransform: 'uppercase', padding: '3px 8px', borderRadius: '4px', background: 'rgba(201, 243, 106, 0.1)', border: '1px solid rgba(201, 243, 106, 0.2)', display: 'inline-flex', alignItems: 'center', width: 'fit-content', whiteSpace: 'nowrap', flexShrink: 0, lineHeight: 1, alignSelf: 'flex-end', marginBottom: '2px' }}>
                     DAY-WISE
                   </span>
                 </h2>
@@ -327,8 +329,8 @@ export function OverviewPage({
                 </div>
                 
                 <div style={{ flex: 1 }}>
-                  <div className="sprint-num-value" style={{ fontSize: '18px' }}>{roteOverviewStats.completed}/{roteOverviewStats.total}</div>
-                  <p className="sprint-num-label" style={{ margin: '2px 0 0' }}>ROTES DONE TODAY</p>
+                  <div className="sprint-num-value" style={{ fontSize: '28px', fontWeight: 600, lineHeight: 1 }}>{roteOverviewStats.completed}/{roteOverviewStats.total}</div>
+                  <p className="sprint-num-label" style={{ margin: '4px 0 0' }}>ROTES DONE TODAY</p>
                 </div>
               </div>
 
@@ -352,7 +354,9 @@ export function OverviewPage({
 
             <button className="goals-cta" onClick={() => setActive('Rote')}>
               <span>Open Rote Routines</span>
-              <b>→</b>
+              <span className="goals-cta-arrow">
+                <ArrowRight size={16} weight="bold" />
+              </span>
             </button>
           </article>
         </div>

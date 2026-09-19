@@ -279,8 +279,10 @@ export function RotePage({ user, onRotesChanged }) {
           <span className="goals-sprint-badge">DAY-WISE</span>
         </div>
         <div className="goals-title-action-row">
-          <h1 className="goals-sprint-title">
-            Routine <em>Rote</em>
+          <h1 className="goals-sprint-title" style={{ display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+            <span className="title-main-text" style={{ whiteSpace: 'nowrap' }}>
+              Routine <em>Rote</em>
+            </span>
             <HeaderInfoTooltip
               description="Completing unwanted tasks that you feel don't develop yourself — like record writing, mandatory paperwork, or mechanical chores."
             />

@@ -135,10 +135,16 @@ export function SpotlightNavbar({
     return (
       <div className={`spotlight-nav-wrapper ${className}`} style={{ justifyContent: 'center' }}>
         <nav ref={navRef} className="spotlight-nav" style={{ padding: '0 20px', justifyContent: 'center' }}>
-          <div className="spotlight-brand-inside" style={{ padding: '0 4px', cursor: 'default' }}>
+          <button
+            type="button"
+            className="spotlight-brand-inside"
+            onClick={() => { window.location.href = '/' }}
+            style={{ padding: '0 4px', cursor: 'pointer', background: 'none', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            aria-label="OnePercentGoal home"
+          >
             <img src="/favicon.ico" alt="Logo" style={{ width: 'clamp(14px, 3.8vw, 20px)', height: 'clamp(14px, 3.8vw, 20px)', objectFit: 'contain' }} />
             <span>onepercentgoal</span>
-          </div>
+          </button>
         </nav>
       </div>
     )
