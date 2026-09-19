@@ -12,28 +12,72 @@ export function PublicProfilePage({
   handleGoogle,
   headerHidden,
 }) {
+  if (publicLoading) {
+    return <AdaptiveLoader text="Loading" />
+  }
+
+  if (publicError || !publicData) {
+    return (
+      <main className="app-shell">
+        <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
+          <SpotlightNavbar
+            items={[{ label: 'Join OnePercentGoal', href: '#join', onClick: () => (window.location.href = '/') }]}
+          />
+        </header>
+
+        <section
+          className="content profile-not-found-section"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 'calc(100vh - 120px)',
+            textAlign: 'center',
+            padding: '20px'
+          }}
+        >
+          <div
+            className="profile-not-found-card"
+            style={{
+              maxWidth: '420px',
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <h2 style={{ color: '#ff6b6b', fontSize: '32px', fontWeight: 600, letterSpacing: '-0.03em', margin: '0 0 8px' }}>
+              Profile Not Found
+            </h2>
+            <p style={{ color: '#8c9085', fontFamily: '"DM Mono", monospace', fontSize: '15px', margin: '0 0 24px' }}>
+              User not found
+            </p>
+            <button
+              type="button"
+              className="profile-edit-btn"
+              style={{ borderRadius: '9999px', padding: '10px 28px', fontSize: '14px', cursor: 'pointer' }}
+              onClick={() => (window.location.href = '/')}
+            >
+              Go Home
+            </button>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main className="app-shell">
       <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
         <SpotlightNavbar
-          items={[{ label: 'Join OnePercentGoal', href: '#join', onClick: () => window.location.href = '/' }]}
+          items={[{ label: 'Join OnePercentGoal', href: '#join', onClick: () => (window.location.href = '/') }]}
         />
       </header>
 
       <section className="content" style={{ paddingBottom: '60px' }}>
-        {publicLoading && (
-          <AdaptiveLoader text="Loading" />
-        )}
-        {publicError && (
-          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-            <h2 style={{ color: '#ff6b6b', fontWeight: 500 }}>Profile Not Found</h2>
-            <p style={{ color: '#8c9085', margin: '12px 0 24px' }}>{publicError}</p>
-            <button className="profile-edit-btn" onClick={() => window.location.href = '/'}>Go Home</button>
-          </div>
-        )}
-        
-        {publicData && (
-          <div className="workspace-page" style={{ animation: 'fadeIn 0.3s ease' }}>
+        <div className="workspace-page" style={{ animation: 'fadeIn 0.3s ease' }}>
             <header className="profile-page-header">
               <div className="profile-header-left">
                 <span className="profile-badge">PUBLIC SPRINT PROFILE</span>
@@ -186,7 +230,6 @@ export function PublicProfilePage({
               ))}
             </div>
           </div>
-        )}
       </section>
     </main>
   )

@@ -132,7 +132,7 @@ export function LandingPage({ onGetStarted, onSignIn, serverSprint }) {
             </p>
             <SpecularButton
               size="lg"
-              radius={18}
+              radius={9999}
               tint="#ffffff"
               tintOpacity={0}
               blur={0}
@@ -239,7 +239,7 @@ export function LandingPage({ onGetStarted, onSignIn, serverSprint }) {
         <p className="landing-footer-quote">Make every 1% count.</p>
         <SpecularButton
           size="lg"
-          radius={18}
+          radius={9999}
           tint="#ffffff"
           tintOpacity={0}
           blur={0}
