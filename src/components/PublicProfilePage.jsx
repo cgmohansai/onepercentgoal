@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ArrowRight } from '@phosphor-icons/react'
+import { ArrowRight, Fire } from '@phosphor-icons/react'
 import AdaptiveLoader from './AdaptiveBootLoader'
 import SpotlightNavbar from './SpotlightNavbar'
 import NotFoundPage from './NotFoundPage'
@@ -32,6 +32,16 @@ export function PublicProfilePage({
       />
     )
   }
+
+  const stats = publicData.stats || {}
+  const publicGoalsCompleted = stats.goals_completed || 0
+  const publicTotalGoals = stats.total_goals || 0
+  const publicGoalRate = stats.completion_rate || 0
+  const publicRotesCompleted = stats.rote_completed || 0
+  const publicTotalRotes = stats.total_rotes || 0
+  const publicRoteRate = stats.rote_rate || 0
+  const publicCurrentStreak = stats.current_streak || 0
+  const publicLongestStreak = stats.longest_streak || 0
 
   return (
     <main className="app-shell">
@@ -122,34 +132,67 @@ export function PublicProfilePage({
               </section>
             </div>
 
-            {/* Cumulative Performance stats — oriented immediately under Hero Grid matching original profile */}
-            <div className="profile-section-heading-wrap">
-              <p className="eyebrow">CUMULATIVE PERFORMANCE</p>
-              <h2 className="profile-section-title">
-                Performance <em>Stats</em>
-              </h2>
-            </div>
+            {/* Unified Personal Progress Dashboard matching Workspace Profile */}
             <section className="profile-combined-stats-card card">
+              <div className="stats-dashboard-header">
+                <h3 className="stats-dashboard-title">
+                  Your <em>Progress</em>
+                </h3>
+              </div>
+
               <div className="combined-stats-grid">
+                {/* Tile 1: GOALS COMPLETED */}
                 <div className="combined-stat-item">
-                  <small className="combined-stat-label">GOALS COMPLETED</small>
-                  <b className="combined-stat-value">{publicData.stats.goals_completed}</b>
-                  <span className="combined-stat-desc">out of {publicData.stats.total_goals} unique</span>
+                  <span className="combined-stat-label">GOALS COMPLETED</span>
+                  <b className="combined-stat-value">{publicGoalsCompleted}</b>
+                  <span className="combined-stat-desc">
+                    {publicTotalGoals > 0 ? `of ${publicTotalGoals} goals` : 'No active goals'}
+                  </span>
                 </div>
-                <div className="combined-stat-item">
-                  <small className="combined-stat-label">COMPLETION RATE</small>
-                  <b className="combined-stat-value">{publicData.stats.completion_rate}%</b>
-                  <span className="combined-stat-desc">overall performance</span>
+
+                {/* Tile 2: GOAL COMPLETION (Restrained Accent) */}
+                <div className="combined-stat-item is-accent">
+                  <span className="combined-stat-label">GOAL COMPLETION</span>
+                  <b className="combined-stat-value accent-value">{publicGoalRate}%</b>
+                  <div className="stat-progress-indicator">
+                    <div
+                      className="stat-progress-bar accent-fill"
+                      style={{ width: `${Math.min(100, Math.max(0, publicGoalRate))}%` }}
+                    />
+                  </div>
+                  <span className="combined-stat-desc">Overall progress</span>
                 </div>
+
+                {/* Tile 3: ROTE COMPLETION */}
                 <div className="combined-stat-item">
-                  <small className="combined-stat-label">CURRENT STREAK</small>
-                  <b className="combined-stat-value">{publicData.stats.current_streak}</b>
-                  <span className="combined-stat-desc">sprints streak | Best - {publicData.stats.longest_streak}</span>
+                  <span className="combined-stat-label">ROTE COMPLETION</span>
+                  <b className="combined-stat-value">{publicRoteRate}%</b>
+                  <div className="stat-progress-indicator">
+                    <div
+                      className="stat-progress-bar neutral-fill"
+                      style={{ width: `${Math.min(100, Math.max(0, publicRoteRate))}%` }}
+                    />
+                  </div>
+                  <span className="combined-stat-desc">
+                    {publicRotesCompleted > 0
+                      ? `${publicRotesCompleted} of ${publicTotalRotes} rotes completed`
+                      : 'No rotes completed yet'}
+                  </span>
                 </div>
+
+                {/* Tile 4: CURRENT STREAK (Relevant Streak Fire Icon) */}
                 <div className="combined-stat-item">
-                  <small className="combined-stat-label">LONGEST STREAK</small>
-                  <b className="combined-stat-value">{publicData.stats.longest_streak}</b>
-                  <span className="combined-stat-desc">sprints record</span>
+                  <div className="combined-stat-label-row">
+                    <span className="combined-stat-label">CURRENT STREAK</span>
+                    <Fire size={14} weight="fill" className="streak-relevant-icon" />
+                  </div>
+                  <div className="streak-value-row">
+                    <b className="combined-stat-value">{publicCurrentStreak}</b>
+                    <span className="streak-unit-text">{publicCurrentStreak === 1 ? 'sprint' : 'sprints'}</span>
+                  </div>
+                  <span className="combined-stat-desc">
+                    Best: {publicLongestStreak} {publicLongestStreak === 1 ? 'sprint' : 'sprints'}
+                  </span>
                 </div>
               </div>
             </section>

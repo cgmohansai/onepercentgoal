@@ -3,7 +3,6 @@
 .env.local
 .env.*
 .env.*.local
-!.env.example
 
 # JetBrains / Android Studio / VSCode IDE settings
 .idea/
@@ -16,6 +15,7 @@
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Node dependencies and build outputs
 node_modules/

@@ -2,6 +2,7 @@ import React from 'react'
 import { useEscapeKey } from '../../../hooks/useEscapeKey'
 import { isNativeApp } from '../../../reminders'
 import { downloadImage, sanitizeFilename } from '../goalUtils'
+import { triggerSideCannons } from '../../../utils/confetti'
 
 export function CompletedShareModal({ completedShare, onClose }) {
   useEscapeKey(onClose, !completedShare)
@@ -30,6 +31,7 @@ export function CompletedShareModal({ completedShare, onClose }) {
             disabled={!completedShare.image}
             onClick={() => {
               if (!completedShare.image) return
+              triggerSideCannons()
               if (isNativeApp()) {
                 onClose()
               } else {

@@ -313,7 +313,7 @@ export function OverviewPage({
                 <p className="eyebrow">FORCEFUL TASKS</p>
                 <h2 style={{ display: 'inline-flex', alignItems: 'flex-end', flexWrap: 'nowrap', gap: '10px', width: '100%', lineHeight: 1 }}>
                   <span style={{ whiteSpace: 'nowrap', lineHeight: 1, display: 'inline-block' }}>Routine <em>Rote</em></span>
-                  <span className="daywise-badge" style={{ fontSize: '11px', fontWeight: 'normal', color: '#c9f36a', letterSpacing: '0.08em', fontFamily: '"DM Mono", monospace', textTransform: 'uppercase', padding: '3px 8px', borderRadius: '4px', background: 'rgba(201, 243, 106, 0.1)', border: '1px solid rgba(201, 243, 106, 0.2)', display: 'inline-flex', alignItems: 'center', width: 'fit-content', whiteSpace: 'nowrap', flexShrink: 0, lineHeight: 1, alignSelf: 'flex-end', marginBottom: '2px' }}>
+                  <span className="daywise-badge" style={{ fontSize: '11px', fontWeight: 'normal', color: '#c9f36a', letterSpacing: '0.08em', fontFamily: '"DM Mono", monospace', textTransform: 'uppercase', padding: '3px 8px', borderRadius: '4px', background: 'rgba(201, 243, 106, 0.1)', border: '1px solid rgba(201, 243, 106, 0.2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 'fit-content', whiteSpace: 'nowrap', flexShrink: 0, lineHeight: 1, alignSelf: 'flex-end', marginBottom: '7px' }}>
                     DAY-WISE
                   </span>
                 </h2>

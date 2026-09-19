@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 /**
  * HeaderInfoTooltip - Cloud-style speech bubble for section titles
- * Renders an inline (i) info button that toggles a floating cloud message
+ * Renders an inline (i) info button that toggles a floating cloud message.
+ * Rendered through a React Portal directly into document.body to ensure it
+ * floats completely free of any container boundaries, overflow, or scrollbars.
  */
 export function HeaderInfoTooltip({ description }) {
   const [isOpen, setIsOpen] = useState(false)
   const [bubbleStyle, setBubbleStyle] = useState({})
   const [arrowLeft, setArrowLeft] = useState('20px')
   const containerRef = useRef(null)
+  const bubbleRef = useRef(null)
 
   const updatePosition = () => {
     if (!containerRef.current) return
@@ -17,26 +21,29 @@ export function HeaderInfoTooltip({ description }) {
     // Keep at least 14px safe margin from viewport edges
     const maxAllowedWidth = Math.min(380, screenWidth - 28)
     
-    // Default: try placing slightly to the left of button
-    let leftOffset = -14
-    const bubbleLeft = rect.left + leftOffset
-    const bubbleRight = bubbleLeft + maxAllowedWidth
-
-    if (bubbleRight > screenWidth - 14) {
-      leftOffset = Math.floor(screenWidth - 14 - rect.left - maxAllowedWidth)
+    // Horizontal alignment: Center over button, clamp within safe viewport boundaries
+    const btnCenter = rect.left + rect.width / 2
+    let left = btnCenter - maxAllowedWidth / 2
+    if (left + maxAllowedWidth > screenWidth - 14) {
+      left = screenWidth - 14 - maxAllowedWidth
     }
-    if (rect.left + leftOffset < 14) {
-      leftOffset = Math.floor(14 - rect.left)
+    if (left < 14) {
+      left = 14
     }
 
-    // Button center relative to bubble
-    const btnCenter = (rect.width || 26) / 2
-    const arrowX = Math.max(16, Math.min(maxAllowedWidth - 24, -leftOffset + btnCenter - 6))
+    // Button center relative to bubble for arrow placement
+    const arrowX = Math.max(16, Math.min(maxAllowedWidth - 24, btnCenter - left - 6))
+
+    // Vertical positioning: attach below button
+    const top = rect.bottom + 10
 
     setBubbleStyle({
-      left: `${leftOffset}px`,
+      position: 'fixed',
+      top: `${top}px`,
+      left: `${left}px`,
       width: `${maxAllowedWidth}px`,
-      maxWidth: `calc(100vw - 28px)`
+      maxWidth: `calc(100vw - 28px)`,
+      zIndex: 99999
     })
     setArrowLeft(`${arrowX}px`)
   }
@@ -47,7 +54,11 @@ export function HeaderInfoTooltip({ description }) {
     updatePosition()
 
     const handlePointerDown = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target) &&
+        (!bubbleRef.current || !bubbleRef.current.contains(e.target))
+      ) {
         setIsOpen(false)
       }
     }
@@ -87,7 +98,6 @@ export function HeaderInfoTooltip({ description }) {
         aria-expanded={isOpen}
         title="More information"
       >
-        {/* Crisp enlarged 'i' stem and dot; circle removed to let outer button circle frame it */}
         <svg
           width="13"
           height="13"
@@ -104,8 +114,9 @@ export function HeaderInfoTooltip({ description }) {
         </svg>
       </button>
 
-      {isOpen && (
+      {isOpen && typeof document !== 'undefined' && createPortal(
         <div
+          ref={bubbleRef}
           className="cloud-bubble"
           role="dialog"
           aria-modal="false"
@@ -117,7 +128,8 @@ export function HeaderInfoTooltip({ description }) {
           <div className="cloud-bubble-content">
             {description}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   )

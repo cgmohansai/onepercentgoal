@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Gear, SignOut, ShareNetwork, PencilSimple } from '@phosphor-icons/react'
+import { Gear, SignOut, ShareNetwork, PencilSimple, Fire } from '@phosphor-icons/react'
 import SpecularButton from '../SpecularButton'
 import {
   isNativeApp,
@@ -663,26 +663,65 @@ export function WorkspacePage({
         </div>
 
         <section className="profile-combined-stats-card card">
+          <div className="stats-dashboard-header">
+            <h3 className="stats-dashboard-title">
+              Your <em>Progress</em>
+            </h3>
+          </div>
+
           <div className="combined-stats-grid">
+            {/* Tile 1: GOALS COMPLETED */}
             <div className="combined-stat-item">
-              <small className="combined-stat-label">GOALS COMPLETED</small>
+              <span className="combined-stat-label">GOALS COMPLETED</span>
               <b className="combined-stat-value">{goalsCompleted}</b>
-              <span className="combined-stat-desc">out of {totalGoals} unique</span>
+              <span className="combined-stat-desc">
+                {totalGoals > 0 ? `of ${totalGoals} goals` : 'No active goals'}
+              </span>
             </div>
-            <div className="combined-stat-item">
-              <small className="combined-stat-label">GOAL RATE</small>
-              <b className="combined-stat-value">{goalRate}%</b>
-              <span className="combined-stat-desc">completion performance</span>
+
+            {/* Tile 2: GOAL COMPLETION (Restrained Accent) */}
+            <div className="combined-stat-item is-accent">
+              <span className="combined-stat-label">GOAL COMPLETION</span>
+              <b className="combined-stat-value accent-value">{goalRate}%</b>
+              <div className="stat-progress-indicator">
+                <div
+                  className="stat-progress-bar accent-fill"
+                  style={{ width: `${Math.min(100, Math.max(0, goalRate))}%` }}
+                />
+              </div>
+              <span className="combined-stat-desc">Overall progress</span>
             </div>
+
+            {/* Tile 3: ROTE COMPLETION */}
             <div className="combined-stat-item">
-              <small className="combined-stat-label">ROTE RATE</small>
+              <span className="combined-stat-label">ROTE COMPLETION</span>
               <b className="combined-stat-value">{roteRate}%</b>
-              <span className="combined-stat-desc">{rotesCompleted}/{totalRotes} tasks done</span>
+              <div className="stat-progress-indicator">
+                <div
+                  className="stat-progress-bar neutral-fill"
+                  style={{ width: `${Math.min(100, Math.max(0, roteRate))}%` }}
+                />
+              </div>
+              <span className="combined-stat-desc">
+                {rotesCompleted > 0
+                  ? `${rotesCompleted} of ${totalRotes} rotes completed`
+                  : 'No rotes completed yet'}
+              </span>
             </div>
+
+            {/* Tile 4: CURRENT STREAK (Relevant Streak Fire Icon) */}
             <div className="combined-stat-item">
-              <small className="combined-stat-label">STREAK</small>
-              <b className="combined-stat-value">{stats.current_streak || 0}</b>
-              <span className="combined-stat-desc">sprints streak | Best - {stats.longest_streak || 0}</span>
+              <div className="combined-stat-label-row">
+                <span className="combined-stat-label">CURRENT STREAK</span>
+                <Fire size={14} weight="fill" className="streak-relevant-icon" />
+              </div>
+              <div className="streak-value-row">
+                <b className="combined-stat-value">{stats.current_streak || 0}</b>
+                <span className="streak-unit-text">{stats.current_streak === 1 ? 'sprint' : 'sprints'}</span>
+              </div>
+              <span className="combined-stat-desc">
+                Best: {stats.longest_streak || 0} {stats.longest_streak === 1 ? 'sprint' : 'sprints'}
+              </span>
             </div>
           </div>
         </section>

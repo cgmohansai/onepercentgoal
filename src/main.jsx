@@ -91,6 +91,7 @@ import DeleteGoalConfirmModal from './features/goals/components/DeleteGoalConfir
 import ErrorBoundary from './components/ErrorBoundary'
 import { MOTIVATIONAL_QUOTES } from './constants/quotes'
 import { resetMorphIndex } from './components/MorphText'
+import { triggerSideCannons } from './utils/confetti'
 
 if ('serviceWorker' in navigator) {
   const isCapacitorNative = () => Boolean(
@@ -973,6 +974,7 @@ function App() {
     setCompletionFlow(null)
     setCompletedShare({ goal: tempCompleted, note, image: null })
     showToast('Goal Completed')
+    triggerSideCannons()
 
     if (String(goal.id).startsWith('temp-')) return
 
