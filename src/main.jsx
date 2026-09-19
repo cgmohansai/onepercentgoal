@@ -1148,9 +1148,7 @@ function App() {
 
         <AuthTransitionOverlay active={authLoading} message={authStatus} />
 
-        {toastMsg && (isNativeShell()
-          ? <MobileTopToast message={toastMsg} showTick={!toastNoTick} />
-          : <ToastPopup message={toastMsg} showTick={!toastNoTick} />)}
+        {toastMsg && <ToastPopup message={toastMsg} showTick={!toastNoTick} />}
       </main>
     )
   }
@@ -1255,9 +1253,7 @@ function App() {
         />
       </section>
 
-      {toastMsg && (isNativeShell()
-        ? <MobileTopToast message={toastMsg} showTick={!toastNoTick} />
-        : <ToastPopup message={toastMsg} showTick={!toastNoTick} />)}
+      {toastMsg && <ToastPopup message={toastMsg} showTick={!toastNoTick} />}
       <AppReturnModal
         appReturnFlow={appReturnFlow}
         onClose={() => setAppReturnFlow(null)}
