@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react'
+import React, { Suspense, useEffect } from 'react'
 import { Target, Repeat } from '@phosphor-icons/react'
 import { lazyWithStaleRetry } from '../utils/lazyStaleRetry'
 const Silk = lazyWithStaleRetry(() => import('../Silk'))
@@ -26,6 +26,18 @@ export function OverviewPage({
   showGoalDetails,
   toggleRoteFromOverview,
 }) {
+  useEffect(() => {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    } catch {
+      window.scrollTo(0, 0)
+    }
+    const contentEl = document.querySelector('.content')
+    if (contentEl) {
+      contentEl.scrollTop = 0
+      contentEl.scrollLeft = 0
+    }
+  }, [])
   const sprintStart = data.sprintStart || getSprintBoundary(data.year, data.sprint - 1)
   const sprintEnd = data.checkpointEnd || getSprintBoundary(data.year, data.sprint)
   const sprintDuration = sprintEnd.getTime() - sprintStart.getTime()

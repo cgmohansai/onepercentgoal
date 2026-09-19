@@ -121,6 +121,33 @@ function App() {
   const [quoteIndices, setQuoteIndices] = useState([0, 1])
   const [headerHidden, setHeaderHidden] = useState(false)
 
+  // Reset scroll to top helper covering window, body, html and all scrollable containers
+  const resetScrollToTop = useCallback(() => {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    } catch {
+      window.scrollTo(0, 0)
+    }
+    if (document.documentElement) {
+      document.documentElement.scrollTop = 0
+      document.documentElement.scrollLeft = 0
+    }
+    if (document.body) {
+      document.body.scrollTop = 0
+      document.body.scrollLeft = 0
+    }
+    const scrollContainers = document.querySelectorAll('.content, .app-shell, main, section, .workspace-page, .landing-page')
+    scrollContainers.forEach(el => {
+      if (el) {
+        try {
+          el.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+        } catch {}
+        el.scrollTop = 0
+        el.scrollLeft = 0
+      }
+    })
+  }, [])
+
   useEffect(() => {
     let lastScrollY = window.scrollY
     let scrollTimeout = null
@@ -313,6 +340,24 @@ function App() {
   const gisInitializedRef = useRef(false)
   const [nativeAuthReturn, setNativeAuthReturn] = useState(() => getNativeAuthReturn())
   const [appReturnFlow, setAppReturnFlow] = useState(null)
+
+  // Reset scroll to top whenever active tab changes or user logs in/out
+  useEffect(() => {
+    setHeaderHidden(false)
+    resetScrollToTop()
+    const raf1 = requestAnimationFrame(() => resetScrollToTop())
+    const raf2 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => resetScrollToTop())
+    })
+    const timer1 = setTimeout(() => resetScrollToTop(), 50)
+    const timer2 = setTimeout(() => resetScrollToTop(), 150)
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+      clearTimeout(timer1)
+      clearTimeout(timer2)
+    }
+  }, [active, currentUser ? (currentUser.id || currentUser._id || currentUser.email || 'user') : 'guest', resetScrollToTop])
 
   useEffect(() => {
     if (authReady) {
@@ -712,6 +757,7 @@ function App() {
       setShowAuthModal(false)
       showToast('Welcome to OnePercentGoal')
       setAuthError('')
+      resetScrollToTop()
 
       // If launched from native app with auth_return, provide seamless transition
       if (nativeAuthReturn) {
@@ -850,6 +896,7 @@ function App() {
     setTimelineHistory(createEmptyTimeline())
     setHistoryModal(null)
     setCompletionFlow(null)
+    resetScrollToTop()
   }
 
   const updateGoal = async (goal, payload) => {
@@ -1078,7 +1125,7 @@ function App() {
           <SpotlightNavbar items={[]} />
         </header>
 
-        <section className="content">
+        <section className="content" key="content-guest">
           <LandingPage
             onGetStarted={() => setShowAuthModal(true)}
             onSignIn={() => setShowAuthModal(true)}
@@ -1120,7 +1167,11 @@ function App() {
         />
       </header>
 
-      <section className="content" id="top">
+      <section
+        className="content"
+        id="top"
+        key={`content-${currentUser ? (currentUser.id || currentUser._id || currentUser.email || 'user') : 'guest'}-${active}`}
+      >
         {active !== 'Overview' ? (
           <WorkspacePage
             active={active}

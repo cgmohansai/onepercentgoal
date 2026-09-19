@@ -245,6 +245,19 @@ export function WorkspacePage({
     }
   }, [showSettingsMenu])
 
+  useEffect(() => {
+    try {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    } catch {
+      window.scrollTo(0, 0)
+    }
+    const contentEl = document.querySelector('.content')
+    if (contentEl) {
+      contentEl.scrollTop = 0
+      contentEl.scrollLeft = 0
+    }
+  }, [active])
+
   // Calculate active sprint date range
   const sprintStart = data.sprintStart || getSprintBoundary(data.year, data.sprint - 1)
   const sprintEnd = data.checkpointEnd || new Date(data.sprint_end)
@@ -259,11 +272,15 @@ export function WorkspacePage({
           </div>
           <div className="goals-title-action-row">
             <h1 className="goals-sprint-title">
-              Sprint <em>#{String(data.sprint).padStart(2, '0')}</em>
-              <span className="goals-sprint-dates">({dateStr})</span>
-              <HeaderInfoTooltip
-                description="All current sprint goals present here. Compounding progress is built 1% at a time."
-              />
+              <span className="title-main-text">
+                Sprint <em>#{String(data.sprint).padStart(2, '0')}</em>
+              </span>
+              <span className="title-date-group">
+                <span className="goals-sprint-dates">({dateStr})</span>
+                <HeaderInfoTooltip
+                  description="All current sprint goals present here. Compounding progress is built 1% at a time."
+                />
+              </span>
             </h1>
             <SpecularButton
               size="md"
@@ -320,11 +337,15 @@ export function WorkspacePage({
           </div>
           <div className="goals-title-action-row">
             <h1 className="timeline-title">
-              Sprint <em>Timeline</em>
-              <span className="timeline-year-dates">({selectedYear})</span>
-              <HeaderInfoTooltip
-                description="Track your compounding progress across all 100 sprints. Click a sprint tile to inspect detailed history."
-              />
+              <span className="title-main-text">
+                Sprint <em>Timeline</em>
+              </span>
+              <span className="title-date-group">
+                <span className="timeline-year-dates">({selectedYear})</span>
+                <HeaderInfoTooltip
+                  description="Track your compounding progress across all 100 sprints. Click a sprint tile to inspect detailed history."
+                />
+              </span>
             </h1>
             <SpecularButton
               size="md"
