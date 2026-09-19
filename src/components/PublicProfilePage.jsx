@@ -1,6 +1,7 @@
 import React from 'react'
 import AdaptiveLoader from './AdaptiveBootLoader'
 import SpotlightNavbar from './SpotlightNavbar'
+import NotFoundPage from './NotFoundPage'
 import { formatDateOnly } from '../utils/dateUtils'
 
 export function PublicProfilePage({
@@ -18,53 +19,12 @@ export function PublicProfilePage({
 
   if (publicError || !publicData) {
     return (
-      <main className="app-shell">
-        <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
-          <SpotlightNavbar
-            items={[{ label: 'Join OnePercentGoal', href: '#join', onClick: () => (window.location.href = '/') }]}
-          />
-        </header>
-
-        <section
-          className="content profile-not-found-section"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: 'calc(100vh - 120px)',
-            textAlign: 'center',
-            padding: '20px'
-          }}
-        >
-          <div
-            className="profile-not-found-card"
-            style={{
-              maxWidth: '420px',
-              width: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <h2 style={{ color: '#ff6b6b', fontSize: '32px', fontWeight: 600, letterSpacing: '-0.03em', margin: '0 0 8px' }}>
-              Profile Not Found
-            </h2>
-            <p style={{ color: '#8c9085', fontFamily: '"DM Mono", monospace', fontSize: '15px', margin: '0 0 24px' }}>
-              User not found
-            </p>
-            <button
-              type="button"
-              className="profile-edit-btn"
-              style={{ borderRadius: '9999px', padding: '10px 28px', fontSize: '14px', cursor: 'pointer' }}
-              onClick={() => (window.location.href = '/')}
-            >
-              Go Home
-            </button>
-          </div>
-        </section>
-      </main>
+      <NotFoundPage
+        title="Profile Not Found"
+        subtitle="User not found"
+        buttonText="Go Home"
+        headerHidden={headerHidden}
+      />
     )
   }
 

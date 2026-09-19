@@ -78,6 +78,7 @@ import LandingPage from './components/LandingPage'
 import OverviewPage from './components/OverviewPage'
 import WorkspacePage from './components/WorkspacePage'
 import PublicProfilePage from './components/PublicProfilePage'
+import NotFoundPage from './components/NotFoundPage'
 import AuthScreen from './features/auth/components/AuthModal'
 import AuthTransitionOverlay from './features/auth/components/AuthTransitionOverlay'
 import AppReturnModal from './features/auth/components/AppReturnModal'
@@ -279,8 +280,23 @@ function App() {
   const [selectedGoalDetails, setSelectedGoalDetails] = useState(null)
   const [serverSprint, setServerSprint] = useState(null)
 
-  const shareMatch = window.location.pathname.match(/^\/u\/([a-zA-Z0-9_-]+)/)
+  const [currentPath, setCurrentPath] = useState(() => (typeof window !== 'undefined' ? window.location.pathname : '/'))
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  const normalizedPath = currentPath.length > 1 && currentPath.endsWith('/') ? currentPath.slice(0, -1) : currentPath
+  const isRootPath = normalizedPath === '' || normalizedPath === '/' || normalizedPath === '/index.html'
+  const shareMatch = normalizedPath.match(/^\/u\/([a-zA-Z0-9_-]+)$/)
   const shareUsername = shareMatch ? shareMatch[1] : null
+  const isProfileRoute = normalizedPath.startsWith('/u')
+  const isOutOfBound = !isRootPath && !shareUsername
+
   const [publicData, setPublicData] = useState(null)
   const [publicLoading, setPublicLoading] = useState(Boolean(shareUsername))
   const [publicError, setPublicError] = useState('')
@@ -1108,6 +1124,27 @@ function App() {
         publicYear={publicYear}
         setPublicYear={setPublicYear}
         handleGoogle={handleGoogle}
+        headerHidden={headerHidden}
+      />
+    )
+  }
+
+  if (isOutOfBound) {
+    if (isProfileRoute) {
+      return (
+        <NotFoundPage
+          title="Profile Not Found"
+          subtitle="User not found"
+          buttonText="Go Home"
+          headerHidden={headerHidden}
+        />
+      )
+    }
+    return (
+      <NotFoundPage
+        title="Page Not Found"
+        subtitle="Page not found"
+        buttonText="Go Home"
         headerHidden={headerHidden}
       />
     )
