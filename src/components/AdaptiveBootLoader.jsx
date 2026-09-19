@@ -30,10 +30,9 @@ export function MobileRippleLoader({ showBrand = true }) {
       {showBrand && (
         <div className="boot-brand">
           <img
-            src="/icons/icon-192.png"
+            src="/favicon.ico"
             alt="OnePercentGoal"
             className="boot-logo"
-            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/icon.png'; }}
           />
           <span className="boot-name">OnePercentGoal</span>
         </div>

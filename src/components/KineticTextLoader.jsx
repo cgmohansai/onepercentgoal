@@ -104,10 +104,9 @@ export function KineticTextLoader({
       {showBrand && (
         <div className="ktl-brand-badge">
           <img
-            src="/icons/icon-192.png"
+            src="/favicon.ico"
             alt="OnePercentGoal"
             className="ktl-brand-icon"
-            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/icon.png'; }}
           />
           <span className="ktl-brand-text">ONEPERCENTGOAL</span>
         </div>

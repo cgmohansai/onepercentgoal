@@ -74,7 +74,7 @@ void main() {
 const SpecularButton = ({
   children = 'Get Started',
   size = 'lg',
-  radius = 18,
+  radius = 9999,
   tint = '#ffffff',
   tintOpacity = 0,
   blur = 0,
@@ -248,7 +248,7 @@ const SpecularButton = ({
       baseC.set(p.baseColor || '#525252');
       program.uniforms.uAngle.value = angle;
       const halfMin = Math.min(sizeRef.w, sizeRef.h) / 2;
-      const radiusVal = Math.min(p.radius || 18, halfMin) * dpr;
+      const radiusVal = Math.min(p.radius ?? 9999, halfMin) * dpr;
       program.uniforms.uRadius.value = isNaN(radiusVal) ? 0 : Math.max(0, radiusVal);
       program.uniforms.uLineColor.value = [lineC.r, lineC.g, lineC.b];
       program.uniforms.uBaseColor.value = [baseC.r, baseC.g, baseC.b];

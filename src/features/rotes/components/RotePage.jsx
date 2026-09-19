@@ -288,7 +288,7 @@ export function RotePage({ user, onRotesChanged }) {
           {selectedDate === todayStr && (
             <SpecularButton
               size="md"
-              radius={18}
+              radius={9999}
               tint="#ffffff"
               tintOpacity={0}
               blur={0}

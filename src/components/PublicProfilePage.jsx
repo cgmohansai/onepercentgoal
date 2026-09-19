@@ -88,10 +88,9 @@ export function PublicProfilePage({
                 <div className="profile-brand-header-row">
                   <div className="profile-brand-logo-wrap">
                     <img
-                      src="/icons/icon-192.png"
+                      src="/favicon.ico"
                       alt="OnePercentGoal"
                       className="profile-brand-logo-img"
-                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/icon.png'; }}
                     />
                   </div>
                   <span className="profile-brand-title">OnePercentGoal</span>

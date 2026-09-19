@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Gear, SignOut } from '@phosphor-icons/react'
+import { Gear, SignOut, ShareNetwork } from '@phosphor-icons/react'
 import SpecularButton from '../SpecularButton'
 import {
   isNativeApp,
@@ -284,7 +284,7 @@ export function WorkspacePage({
             </h1>
             <SpecularButton
               size="md"
-              radius={18}
+              radius={9999}
               tint="#ffffff"
               tintOpacity={0}
               blur={0}
@@ -308,16 +308,30 @@ export function WorkspacePage({
         
         <section className="all-goals card">
           <div className="goal-list">
-            {(goals || []).map(goal => (
-              <GoalRow
-                goal={goal}
-                onProgress={onProgress}
-                onComplete={onComplete}
-                onDelete={onDelete}
-                onShowDetails={onShowGoalDetails}
-                key={goal.id}
-              />
-            ))}
+            {(goals && goals.length > 0) ? (
+              goals.map(goal => (
+                <GoalRow
+                  goal={goal}
+                  onProgress={onProgress}
+                  onComplete={onComplete}
+                  onDelete={onDelete}
+                  onShowDetails={onShowGoalDetails}
+                  key={goal.id}
+                />
+              ))
+            ) : (
+              <div className="rote-empty-state goals-empty-state">
+                <p>No sprint goals configured yet for this sprint.</p>
+                <button
+                  type="button"
+                  className="add-button"
+                  style={{ marginTop: '10px', display: 'inline-block' }}
+                  onClick={onAdd}
+                >
+                  + Create Sprint Goal
+                </button>
+              </div>
+            )}
           </div>
         </section>
       </div>
@@ -349,7 +363,7 @@ export function WorkspacePage({
             </h1>
             <SpecularButton
               size="md"
-              radius={18}
+              radius={9999}
               tint="#ffffff"
               tintOpacity={0}
               blur={0}
@@ -624,7 +638,8 @@ export function WorkspacePage({
                   }
                 }}
               >
-                Share Profile
+                <ShareNetwork size={14} weight="bold" />
+                <span>Share Profile</span>
               </button>
             </div>
           </section>

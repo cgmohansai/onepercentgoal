@@ -214,7 +214,7 @@ export function OverviewPage({
             </p>
             <SpecularButton
               size="lg"
-              radius={18}
+              radius={9999}
               tint="#ffffff"
               tintOpacity={0}
               blur={0}

@@ -3298,22 +3298,35 @@ body,
 
 .profile-edit-btn {
   border: 1px solid #3c4037;
-  border-radius: 6px;
-  padding: 5px 12px;
-  background: transparent;
+  border-radius: 9999px;
+  padding: 7px 18px;
+  background: rgba(25, 28, 24, 0.6);
   color: #d8dad3;
   cursor: pointer;
   font-size: 12px;
-  font-family: 'DM Mono', monospace;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   transition: all 0.18s ease;
+  line-height: 1.2;
 }
 .profile-edit-btn:hover {
   border-color: #c9f36a;
   color: #c9f36a;
+  background: rgba(201, 243, 106, 0.08);
 }
 .profile-edit-btn.share-btn {
   border-color: rgba(201, 243, 106, 0.35);
   color: #c9f36a;
+  background: rgba(201, 243, 106, 0.06);
+}
+.profile-edit-btn.share-btn:hover {
+  border-color: #c9f36a;
+  background: rgba(201, 243, 106, 0.14);
+  color: #f6f5f1;
 }
 
 .compact-progress {
@@ -4173,7 +4186,7 @@ body,
 }
 
 .rote-checklist-card {
-  padding: 32px;
+  padding: 20px 22px;
   background: #171916;
   border: 1px solid #2b2d28;
   border-radius: 14px;
@@ -4183,31 +4196,32 @@ body,
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 24px;
+  margin-bottom: 14px;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 12px;
 }
 .rote-day-label {
   font-family: 'DM Mono', monospace;
-  font-size: 14px;
+  font-size: 12px;
   letter-spacing: 0.16em;
   color: #c9f36a;
   text-transform: uppercase;
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .rote-day-header h2 {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 500;
   margin: 0;
   letter-spacing: -0.03em;
   color: #f6f5f1;
+  line-height: 1.15;
 }
 .rote-day-counter {
   text-align: right;
 }
 .rote-day-counter b {
-  font-size: 34px;
+  font-size: 28px;
   font-family: 'Instrument Serif', serif;
   font-weight: normal;
   color: #c9f36a;
@@ -4216,7 +4230,7 @@ body,
 }
 .rote-day-counter span {
   font-family: 'DM Mono', monospace;
-  font-size: 13px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   color: #8c9085;
   text-transform: uppercase;
@@ -4227,7 +4241,7 @@ body,
   background: #252822;
   border-radius: 3px;
   overflow: hidden;
-  margin-bottom: 28px;
+  margin-bottom: 14px;
 }
 .rote-day-progress-bar {
   height: 100%;
@@ -4239,13 +4253,13 @@ body,
 .rote-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 .rote-row {
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 18px 22px;
+  gap: 16px;
+  padding: 14px 18px;
   background: #1c1e1a;
   border: 1px solid #2b2d27;
   border-radius: 10px;
@@ -4352,9 +4366,17 @@ body,
 
 .rote-empty-state {
   text-align: center;
-  padding: 50px 20px;
+  padding: 22px 16px;
   color: #8c9085;
-  font-size: 15px;
+  font-size: 13px;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.rote-empty-state p {
+  margin: 0 0 10px 0;
+  line-height: 1.4;
+  color: #8c9085;
 }
 .rote-delete-btn {
   background: rgba(255, 107, 107, 0.08);
@@ -4388,10 +4410,24 @@ body,
 }
 
 @media (max-width: 640px) {
+  .rote-checklist-card,
+  .rote-calendar-card {
+    padding: 16px 14px !important;
+  }
+  .rote-day-header {
+    margin-bottom: 12px;
+    gap: 10px;
+  }
+  .rote-day-progress-bar-wrap {
+    margin-bottom: 12px;
+  }
+  .rote-empty-state {
+    padding: 18px 12px;
+  }
   .rote-row {
     flex-wrap: wrap;
     gap: 12px;
-    padding: 14px 14px;
+    padding: 12px 14px;
   }
   
   .rote-checkbox {
@@ -4959,9 +4995,13 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   .profile-edit-btn {
     flex: 1 !important;
     font-size: 13px !important;
-    padding: 10px 16px !important;
+    padding: 10px 18px !important;
+    border-radius: 9999px !important;
     text-align: center !important;
     justify-content: center !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 7px !important;
   }
 
   .aurora-content {
@@ -5199,29 +5239,29 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
    popup instead of overflowing off-screen. Tick stays pinned to the
    first line when the text wraps to multiple lines. */
 .toast-popup {
-  position: fixed;
-  bottom: calc(36px + var(--safe-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 99999;
-  background: #191c18;
-  border: 1px solid rgba(201, 243, 106, 0.4);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 24px rgba(201, 243, 106, 0.2);
-  border-radius: 9999px;
-  padding: 10px 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  color: #f6f5f1;
-  pointer-events: none;
-  width: max-content;
-  max-width: min(480px, calc(100vw - 32px));
-  box-sizing: border-box;
-  animation: toastPopupIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  position: fixed !important;
+  bottom: calc(36px + var(--safe-bottom, 0px)) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 100001 !important;
+  background: #191c18 !important;
+  border: 1px solid rgba(201, 243, 106, 0.4) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 24px rgba(201, 243, 106, 0.2) !important;
+  border-radius: 9999px !important;
+  padding: 10px 22px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: #f6f5f1 !important;
+  pointer-events: none !important;
+  width: max-content !important;
+  max-width: min(480px, calc(100vw - 32px)) !important;
+  box-sizing: border-box !important;
+  animation: toastPopupIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
 }
 
 .toast-popup-tick {
@@ -5300,90 +5340,6 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   }
   .app-shell.logged-out .toast-popup {
     bottom: calc(36px + var(--safe-bottom, 0px)) !important;
-  }
-}
-
-/* MobileTopToast — mobile-app-only top toast. Desktop keeps ToastPopup.
-   Slick glass card sliding down from under the status bar as a full rectangle. */
-.mobile-top-toast {
-  position: fixed;
-  top: calc(var(--safe-top, 0px) + 12px);
-  left: 16px;
-  right: 16px;
-  width: calc(100vw - 32px);
-  max-width: calc(100vw - 32px);
-  z-index: 99999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 10px;
-  padding: 13px 16px;
-  overflow: hidden;
-  background: rgba(22, 25, 21, 0.92);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  border: 1px solid rgba(201, 243, 106, 0.45);
-  border-radius: 10px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6), 0 0 22px rgba(201, 243, 106, 0.14);
-  color: #f6f5f1;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 13.5px;
-  font-weight: 500;
-  pointer-events: none;
-  box-sizing: border-box;
-  animation: mobileTopToastIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.mobile-top-toast-tick {
-  color: #182013;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 23px;
-  height: 23px;
-  min-width: 23px;
-  min-height: 23px;
-  flex: 0 0 23px;
-  line-height: 0;
-  border-radius: 50%;
-  background: #c9f36a;
-  box-shadow: 0 0 14px rgba(201, 243, 106, 0.55);
-  box-sizing: border-box;
-}
-
-.mobile-top-toast-tick svg {
-  display: block;
-  flex: none;
-}
-
-.mobile-top-toast-text {
-  flex: 1;
-  min-width: 0;
-  letter-spacing: 0.02em;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.mobile-top-toast-glow {
-  position: absolute;
-  top: -40px;
-  right: -30px;
-  width: 120px;
-  height: 90px;
-  background: radial-gradient(closest-side, rgba(201, 243, 106, 0.22), transparent);
-  pointer-events: none;
-}
-
-@keyframes mobileTopToastIn {
-  from {
-    opacity: 0;
-    transform: translateY(-20px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
@@ -5680,14 +5636,113 @@ body.capacitor-native .sprint-modal {
   }
 }
 
+/* ── Universal Container Architecture: Rote & Goal Sections ── */
+.rote-checklist-card,
+.all-goals.card,
+.all-goals,
+.goals-card {
+  background: #171916 !important;
+  border: 1px solid #2b2d28 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2) !important;
+  padding: 20px 22px !important;
+  box-sizing: border-box !important;
+}
 
+@media (max-width: 768px) {
+  .rote-checklist-card,
+  .all-goals.card,
+  .all-goals,
+  .goals-card {
+    padding: 16px 14px !important;
+  }
+}
 
+.all-goals .goal-list {
+  border-top: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
 
+.all-goals .goal {
+  background: #1c1e1a !important;
+  border: 1px solid #2b2d27 !important;
+  border-radius: 10px !important;
+  padding: 14px 18px !important;
+  gap: 16px !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
 
+.all-goals .goal:hover {
+  border-color: #40443a !important;
+  background: #22251f !important;
+}
 
+.all-goals .goal.complete {
+  border-color: rgba(201, 243, 106, 0.3) !important;
+  background: rgba(201, 243, 106, 0.04) !important;
+}
 
+@media (max-width: 768px) {
+  .all-goals .goal {
+    padding: 12px 14px !important;
+    gap: 12px !important;
+  }
+}
 
+/* Universal empty states: clean, compact, professional */
+.goals-empty-state,
+.rote-empty-state {
+  text-align: center;
+  padding: 22px 16px !important;
+  color: #8c9085;
+  font-size: 13px;
+  border: 1px dashed rgba(255, 255, 255, 0.08) !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.015) !important;
+  margin: 0 !important;
+}
+.goals-empty-state p,
+.rote-empty-state p {
+  margin: 0 0 10px 0 !important;
+  line-height: 1.4 !important;
+  color: #8c9085 !important;
+  font-size: 13px !important;
+}
+@media (max-width: 640px) {
+  .goals-empty-state,
+  .rote-empty-state {
+    padding: 18px 12px !important;
+  }
+}
 
-
-
-
+/* Universal curved add-button styling */
+.add-button {
+  border: 1px solid #474a41 !important;
+  border-radius: 9999px !important;
+  padding: 8px 18px !important;
+  color: #dce1d2 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1.2 !important;
+  min-height: 38px !important;
+}
+.add-button:hover {
+  border-color: #c9f36a !important;
+  color: #c9f36a !important;
+  background: rgba(201, 243, 106, 0.08) !important;
+  transform: translateY(-1px) !important;
+}
+.add-button:active {
+  transform: translateY(0) !important;
+}
