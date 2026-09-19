@@ -1760,42 +1760,39 @@ a:focus-visible,
 }
 
 /* ================================================================
-   Universal Minimalist Scrollbar (Active Sprint Checklist Rail)
-   Clean 4px width, transparent track, #343731 thumb
-   Arrows hidden. Color remains normal #343731 during normal scrolling,
-   and ONLY changes to green (#c9f36a) when directly hovered over thumb.
+   Universal Minimalist Smooth Scrollbar
+   Sleek floating capsule rail with symmetrical inset padding,
+   transparent track, smooth scroll behavior, and #343731 thumb.
+   No arrow buttons. Transitions smoothly to #c9f36a on thumb hover.
    ================================================================ */
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Firefox fallback */
+@supports not selector(::-webkit-scrollbar) {
+  *,
+  html,
+  body {
+    scrollbar-width: thin;
+    scrollbar-color: #343731 transparent;
+  }
+}
+
+/* Touch scrolling behavior universally */
 html,
 body,
 #root,
 .app-shell,
-.content,
-.sprint-goals-mini-list,
-.sprint-history-list,
-.sprint-history-panel,
-.sprint-modal,
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #343731 transparent;
+.content {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Hide all scrollbar arrows/buttons across all browsers */
-::-webkit-scrollbar-button,
-::-webkit-scrollbar-button:single-button,
-::-webkit-scrollbar-button:vertical:decrement,
-::-webkit-scrollbar-button:vertical:increment,
-::-webkit-scrollbar-button:horizontal:decrement,
-::-webkit-scrollbar-button:horizontal:increment {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  background: transparent !important;
-}
-
+/* Universal WebKit / Blink scrollbar (Brave, Chrome, Edge, Safari, Opera) */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
@@ -1803,14 +1800,31 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #343731;
-  border-radius: 99px;
-  transition: background 0.15s ease;
+  background-color: #343731;
+  background-clip: padding-box;
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  min-height: 40px;
+  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Color ONLY changes when mouse cursor is directly hovered over the scrollbar thumb */
+/* Color changes cleanly when mouse cursor is directly hovered or active */
 ::-webkit-scrollbar-thumb:hover {
-  background: #c9f36a !important;
+  background-color: #c9f36a !important;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: #d8faa0 !important;
+  background-clip: padding-box;
+}
+
+/* Completely remove arrow buttons universally */
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  -webkit-appearance: none !important;
 }
 
 ::-webkit-scrollbar-corner {
