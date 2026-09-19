@@ -87,8 +87,10 @@ const SilkPlane = forwardRef(function SilkPlane({ uniforms }, ref) {
   }, [ref, viewport, uniforms]);
 
   useFrame((_, delta) => {
+    if (typeof document !== 'undefined' && document.hidden) return;
     if (ref.current && ref.current.material && ref.current.material.uniforms) {
-      ref.current.material.uniforms.uTime.value += 0.1 * delta;
+      const safeDelta = Math.min(delta, 0.1);
+      ref.current.material.uniforms.uTime.value += 0.1 * safeDelta;
     }
   });
 
@@ -127,7 +129,11 @@ export const Silk = ({ speed = 5, scale = 1, color = '#366cf3', noiseIntensity =
   }, [speed, scale, noiseIntensity, color, rotation, uniforms]);
 
   return (
-    <Canvas dpr={[1, 2]} frameloop="always">
+    <Canvas
+      dpr={[1, 1.25]}
+      frameloop="always"
+      gl={{ antialias: false, powerPreference: 'low-power', depth: false, stencil: false }}
+    >
       <SilkPlane ref={meshRef} uniforms={uniforms} />
     </Canvas>
   );

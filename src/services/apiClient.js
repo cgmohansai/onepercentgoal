@@ -97,6 +97,8 @@ export function buildHeaders(extra = {}, token = null) {
   return headers
 }
 
+const inFlightGetRequests = new Map()
+
 /**
  * Universal fetch wrapper for all API requests.
  * Ensures credentials: 'include', base URL resolution,
@@ -107,6 +109,9 @@ export function buildHeaders(extra = {}, token = null) {
  * @returns {Promise<Response>}
  */
 export async function apiFetch(path, options = {}) {
+  const method = (options.method || 'GET').toUpperCase()
+  const isGet = method === 'GET'
+
   const url = typeof path === 'string' && (path.startsWith('http://') || path.startsWith('https://'))
     ? path
     : apiUrl(path)
@@ -121,6 +126,12 @@ export async function apiFetch(path, options = {}) {
     }
   }
 
+  // Deduplicate identical concurrent in-flight GET requests
+  const dedupKey = isGet ? `${url}::${headers.Authorization || ''}` : null
+  if (dedupKey && inFlightGetRequests.has(dedupKey)) {
+    return inFlightGetRequests.get(dedupKey).then(res => res.clone())
+  }
+
   // Automatically JSON-encode object payloads if body is not already a string/FormData/Blob
   let body = options.body
   if (body && typeof body === 'object' && !(body instanceof FormData) && !(body instanceof Blob)) {
@@ -130,12 +141,21 @@ export async function apiFetch(path, options = {}) {
     body = JSON.stringify(body)
   }
 
-  return fetch(url, {
+  const fetchPromise = fetch(url, {
     ...options,
     headers,
     body,
     credentials: 'include',
   })
+
+  if (dedupKey) {
+    inFlightGetRequests.set(dedupKey, fetchPromise)
+    fetchPromise.finally(() => {
+      inFlightGetRequests.delete(dedupKey)
+    })
+  }
+
+  return fetchPromise
 }
 
 /**

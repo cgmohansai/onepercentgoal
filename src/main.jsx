@@ -274,13 +274,37 @@ function App() {
   }
 
   const [addGoalModalOpen, setAddGoalModalOpen] = useState(false)
-  const [timelineHistory, setTimelineHistory] = useState(() => createEmptyTimeline())
+  const [timelineHistory, setTimelineHistory] = useState(() => {
+    try {
+      const year = new Date().getFullYear()
+      const stored = localStorage.getItem(`opg.timeline.${year}`)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (parsed && typeof parsed === 'object') return parsed
+      }
+    } catch {}
+    return createEmptyTimeline()
+  })
   const [selectedTimelineYear, setSelectedTimelineYear] = useState(new Date().getFullYear())
-  const [profile, setProfile] = useState(null)
+  const [profile, setProfile] = useState(() => {
+    try {
+      const stored = localStorage.getItem('opg.profile')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  })
   const [historyModal, setHistoryModal] = useState(null)
   const [completionFlow, setCompletionFlow] = useState(null)
   const [selectedGoalDetails, setSelectedGoalDetails] = useState(null)
-  const [serverSprint, setServerSprint] = useState(null)
+  const [serverSprint, setServerSprint] = useState(() => {
+    try {
+      const stored = localStorage.getItem('opg.sprint.current')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  })
 
   const [currentPath, setCurrentPath] = useState(() => (typeof window !== 'undefined' ? window.location.pathname : '/'))
 
@@ -336,8 +360,26 @@ function App() {
   }
 
   const [sessionToken, setSessionToken] = useState(() => getStoredToken())
-  const [currentUser, setCurrentUser] = useState(null)
-  const [authReady, setAuthReady] = useState(false)
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const token = getStoredToken()
+      if (!token) return null
+      const stored = localStorage.getItem('opg.current_user')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  })
+  const [authReady, setAuthReady] = useState(() => {
+    try {
+      const token = getStoredToken()
+      if (!token) return true
+      const stored = localStorage.getItem('opg.current_user')
+      return Boolean(stored)
+    } catch {
+      return false
+    }
+  })
   const [gisReady, setGisReady] = useState(false)
   const googleSignInInFlight = useRef(false)
   const gisInitializedRef = useRef(false)
@@ -512,6 +554,7 @@ function App() {
       .then(user => {
         if (user) {
           setCurrentUser(user)
+          try { localStorage.setItem('opg.current_user', JSON.stringify(user)) } catch {}
         }
         setAuthReady(true)
       })
@@ -519,11 +562,22 @@ function App() {
         if (token) {
           removeStoredToken()
           setSessionToken('')
+          try { localStorage.removeItem('opg.current_user') } catch {}
         }
         setCurrentUser(null)
         setAuthReady(true)
       })
   }, [])
+
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        localStorage.setItem('opg.current_user', JSON.stringify(currentUser))
+      } else {
+        localStorage.removeItem('opg.current_user')
+      }
+    } catch {}
+  }, [currentUser])
 
 
   useEffect(() => {
@@ -628,7 +682,12 @@ function App() {
   useEffect(() => {
     apiFetch('/api/sprint/current')
       .then(r => r.ok ? r.json() : null)
-      .then(s => { if (s) setServerSprint(s) })
+      .then(s => {
+        if (s) {
+          setServerSprint(s)
+          try { localStorage.setItem('opg.sprint.current', JSON.stringify(s)) } catch {}
+        }
+      })
       .catch(() => {})
   }, [])
 
@@ -678,7 +737,11 @@ function App() {
       if (!profileRes.ok) throw new Error('Unable to load profile')
       const profileData = await profileRes.json()
       setProfile(profileData)
-      if (timelineData) setTimelineHistory(timelineData)
+      try { localStorage.setItem('opg.profile', JSON.stringify(profileData)) } catch {}
+      if (timelineData) {
+        setTimelineHistory(timelineData)
+        try { localStorage.setItem(`opg.timeline.${yr}`, JSON.stringify(timelineData)) } catch {}
+      }
     } catch (err) {
       console.error('Failed to refresh profile:', err)
     }
@@ -689,6 +752,7 @@ function App() {
       const dashData = await fetchDashboard(token)
       if (dashData.year) {
         setServerSprint(dashData.year)
+        try { localStorage.setItem('opg.sprint.current', JSON.stringify(dashData.year)) } catch {}
       }
       const serverGoals = (dashData.goals || []).map(presentGoal)
       setGoals(prev => {
@@ -722,23 +786,25 @@ function App() {
   useEffect(() => {
     if (!currentUser || !sessionToken) return
     loadDashboard(sessionToken)
-    refreshProfile(sessionToken, selectedTimelineYear)
     loadRotes(sessionToken)
-  }, [currentUser, sessionToken, data.year, selectedTimelineYear])
+  }, [currentUser, sessionToken])
 
   useEffect(() => {
     if (!currentUser || !sessionToken) return
-    setSelectedTimelineYear(data.year)
-  }, [data.year, currentUser, sessionToken])
+    if (data?.year && data.year !== selectedTimelineYear) {
+      setSelectedTimelineYear(data.year)
+    }
+  }, [data?.year, currentUser, sessionToken])
 
   useEffect(() => {
     if (!currentUser || !sessionToken) return
-    fetchTimelineApi(selectedTimelineYear, sessionToken)
-      .then(timeline => {
-        setTimelineHistory(timeline)
-        setHistoryModal(null)
-      })
-      .catch(() => setTimelineHistory(createEmptyTimeline(selectedTimelineYear)))
+    try {
+      const cached = localStorage.getItem(`opg.timeline.${selectedTimelineYear}`)
+      if (cached) {
+        setTimelineHistory(JSON.parse(cached))
+      }
+    } catch {}
+    refreshProfile(sessionToken, selectedTimelineYear)
   }, [selectedTimelineYear, currentUser, sessionToken])
 
   const finishGoogleSignIn = async (payload) => {
@@ -900,6 +966,11 @@ function App() {
     setTimelineHistory(createEmptyTimeline())
     setHistoryModal(null)
     setCompletionFlow(null)
+    try {
+      localStorage.removeItem('opg.current_user')
+      localStorage.removeItem('opg.profile')
+      localStorage.removeItem('opg.dashboard.goals')
+    } catch {}
     resetScrollToTop()
   }
 

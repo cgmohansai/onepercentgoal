@@ -32,23 +32,50 @@ export function SpotlightNavbar({
   const spotlightX = useRef(0)
   const ambienceX = useRef(0)
 
-  // Dynamically measure exact 20px gap below the bottom of the onepercentgoal island
+  // Dynamically measure exact gap below the bottom of the onepercentgoal island / navbar
   useEffect(() => {
     const updateDynamicGap = () => {
-      if (!navRef.current) return
-      const rect = navRef.current.getBoundingClientRect()
-      const gap20Px = rect.bottom > 0 ? rect.bottom + 10 : 88
+      const nav = navRef.current
+      if (!nav) {
+        // Navbar is not present: top distance should be 30px (10px clearance + 20px padding)
+        document.documentElement.style.setProperty('--navbar-bottom-clearance', '10px')
+        document.documentElement.style.setProperty('--dynamic-island-20px-gap', '10px')
+        return
+      }
+
+      const style = window.getComputedStyle(nav)
+      const parentStyle = nav.parentElement ? window.getComputedStyle(nav.parentElement) : null
+      const isHidden = style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0' ||
+                       (parentStyle && (parentStyle.display === 'none' || parentStyle.visibility === 'hidden' || parentStyle.opacity === '0'))
+
+      if (isHidden) {
+        document.documentElement.style.setProperty('--navbar-bottom-clearance', '10px')
+        document.documentElement.style.setProperty('--dynamic-island-20px-gap', '10px')
+        return
+      }
+
+      const rect = nav.getBoundingClientRect()
+      if (rect.bottom <= 0 || rect.height === 0) {
+        document.documentElement.style.setProperty('--navbar-bottom-clearance', '10px')
+        document.documentElement.style.setProperty('--dynamic-island-20px-gap', '10px')
+        return
+      }
+
+      const gap20Px = Math.round(rect.bottom + 20)
       document.documentElement.style.setProperty('--dynamic-island-20px-gap', `${gap20Px}px`)
+      document.documentElement.style.setProperty('--navbar-bottom-clearance', `${gap20Px}px`)
     }
 
     updateDynamicGap()
     const timer = setTimeout(updateDynamicGap, 100)
     window.addEventListener('resize', updateDynamicGap)
     window.addEventListener('orientationchange', updateDynamicGap)
+    window.addEventListener('scroll', updateDynamicGap, { passive: true })
     return () => {
       clearTimeout(timer)
       window.removeEventListener('resize', updateDynamicGap)
       window.removeEventListener('orientationchange', updateDynamicGap)
+      window.removeEventListener('scroll', updateDynamicGap)
     }
   }, [])
 
