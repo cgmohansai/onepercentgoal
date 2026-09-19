@@ -14,6 +14,7 @@ import {
   reconcileRotesData,
 } from '../roteUtils'
 import AddRoteModal from './AddRoteModal'
+import HeaderInfoTooltip from '../../../components/HeaderInfoTooltip'
 
 export function RotePage({ user, onRotesChanged }) {
   const todayStr = getTodayYMD()
@@ -274,38 +275,40 @@ export function RotePage({ user, onRotesChanged }) {
   return (
     <div className="workspace-page rote-page-custom">
       <header className="goals-page-header">
-        <div className="goals-header-left">
+        <div className="goals-badge-row">
           <span className="goals-sprint-badge">DAY-WISE</span>
+        </div>
+        <div className="goals-title-action-row">
           <h1 className="goals-sprint-title">
             Routine <em>Rote</em>
+            <HeaderInfoTooltip
+              description="Completing unwanted tasks that you feel don't develop yourself — like record writing, mandatory paperwork, or mechanical chores."
+            />
           </h1>
-          <p className="goals-subtitle">
-            Completing unwanted tasks that you feel don't develop yourself — like record writing, mandatory paperwork, or mechanical chores.
-          </p>
+          {selectedDate === todayStr && (
+            <SpecularButton
+              size="md"
+              radius={18}
+              tint="#ffffff"
+              tintOpacity={0}
+              blur={0}
+              textColor="#f5f5f5"
+              lineColor="#ffffff"
+              baseColor="#525252"
+              intensity={1}
+              shineSize={10}
+              shineFade={40}
+              thickness={1}
+              speed={0.35}
+              followMouse
+              proximity={250}
+              autoAnimate={false}
+              onClick={() => setAddModalOpen(true)}
+            >
+              + Add Routine Rote
+            </SpecularButton>
+          )}
         </div>
-        {selectedDate === todayStr && (
-          <SpecularButton
-            size="md"
-            radius={18}
-            tint="#ffffff"
-            tintOpacity={0}
-            blur={0}
-            textColor="#f5f5f5"
-            lineColor="#ffffff"
-            baseColor="#525252"
-            intensity={1}
-            shineSize={10}
-            shineFade={40}
-            thickness={1}
-            speed={0.35}
-            followMouse
-            proximity={250}
-            autoAnimate={false}
-            onClick={() => setAddModalOpen(true)}
-          >
-            + Add Routine Rote
-          </SpecularButton>
-        )}
       </header>
 
       <div className="rote-layout-grid">

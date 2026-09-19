@@ -87,7 +87,7 @@ export function OverviewPage({
             <div className="quick-widget-items">
               <div className="quick-widget-row">
                 <div className="quick-widget-info">
-                  <Target size={24} weight="fill" className="quick-widget-icon goals" />
+                  <Target size={24} weight="bold" className="quick-widget-icon goals" />
                   <div className="quick-widget-text">
                     <strong>{goals.filter(g => !g.done).length} Goals Remaining</strong>
                     <small>Sprint Goal Targets</small>
@@ -119,52 +119,6 @@ export function OverviewPage({
                 />
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Visual Compounding Banner */}
-      <section className="compounding-banner-visual card">
-        <div className="compounding-watermark">COMPOUNDING</div>
-        <div className="compounding-glow"></div>
-        <div className="compounding-banner-inner">
-          <div className="compounding-visuals-left">
-            <div className="compounding-eq-row">
-              <span className="eq-term font-instrument-italic">1 Sprint</span>
-              <span className="eq-operator">=</span>
-              <span className="eq-result color-lime">1% of Year</span>
-            </div>
-            <div className="compounding-eq-row">
-              <span className="eq-term font-instrument-italic">1 Sprint</span>
-              <span className="eq-operator">=</span>
-              <span className="eq-result color-lime">3.6 Days</span>
-            </div>
-          </div>
-          <div className="compounding-actions-right">
-            <p className="compounding-cta-text">
-              Complete your mini goals in that 3.6 days in here
-            </p>
-            <SpecularButton
-              size="lg"
-              radius={18}
-              tint="#ffffff"
-              tintOpacity={0}
-              blur={0}
-              textColor="#f5f5f5"
-              lineColor="#ffffff"
-              baseColor="#525252"
-              intensity={1}
-              shineSize={10}
-              shineFade={40}
-              thickness={1}
-              speed={0.35}
-              followMouse
-              proximity={250}
-              autoAnimate={false}
-              onClick={() => setAddGoalModalOpen(true)}
-            >
-              Create Sprint Goal
-            </SpecularButton>
           </div>
         </div>
       </section>
@@ -225,6 +179,52 @@ export function OverviewPage({
         </div>
       </section>
 
+      {/* Visual Compounding Banner */}
+      <section className="compounding-banner-visual card">
+        <div className="compounding-watermark">COMPOUNDING</div>
+        <div className="compounding-glow"></div>
+        <div className="compounding-banner-inner">
+          <div className="compounding-visuals-left">
+            <div className="compounding-eq-row">
+              <span className="eq-term font-instrument-italic">1 Sprint</span>
+              <span className="eq-operator">=</span>
+              <span className="eq-result color-lime">1% of Year</span>
+            </div>
+            <div className="compounding-eq-row">
+              <span className="eq-term font-instrument-italic">1 Sprint</span>
+              <span className="eq-operator">=</span>
+              <span className="eq-result color-lime">3.6 Days</span>
+            </div>
+          </div>
+          <div className="compounding-actions-right">
+            <p className="compounding-cta-text">
+              Complete your mini goals in that 3.6 days in here
+            </p>
+            <SpecularButton
+              size="lg"
+              radius={18}
+              tint="#ffffff"
+              tintOpacity={0}
+              blur={0}
+              textColor="#f5f5f5"
+              lineColor="#ffffff"
+              baseColor="#525252"
+              intensity={1}
+              shineSize={10}
+              shineFade={40}
+              thickness={1}
+              speed={0.35}
+              followMouse
+              proximity={250}
+              autoAnimate={false}
+              onClick={() => setAddGoalModalOpen(true)}
+            >
+              Create Sprint Goal
+            </SpecularButton>
+          </div>
+        </div>
+      </section>
+
       {/* Grid containing Current Sprint, Speed & Momentum, Motivational Drive, and Forceful Tasks */}
       <section className="overview-staggered-grid">
         {/* Row 1: Active Sprint Status (Left) & Your Speed & Momentum (Right) */}
@@ -261,7 +261,7 @@ export function OverviewPage({
                 <p style={{ margin: '10px 0', fontSize: '12px', color: '#8c9085', fontStyle: 'italic' }}>No goals set for this sprint. Get started!</p>
               ) : (
                 goals.map(g => (
-                  <button key={g.id} type="button" className={`mini-goal-item ${g.done ? 'completed' : ''}`} onClick={() => { if (g.done) showGoalDetails(g); }} disabled={!g.done} aria-label={g.done ? `View details for ${g.title}` : g.title} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: '1px solid #282a25', fontSize: '12px', cursor: g.done ? 'pointer' : 'default', background: 'none', border: 'none', borderBottom: '1px solid #282a25', width: '100%', textAlign: 'left', font: 'inherit', color: 'inherit' }}>
+                  <button key={g.id} type="button" className={`mini-goal-item ${g.done ? 'completed' : ''}`} onClick={() => { if (g.done) showGoalDetails(g); }} disabled={!g.done} aria-label={g.done ? `View details for ${g.title}` : g.title} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', fontSize: '12px', cursor: g.done ? 'pointer' : 'default', background: 'none', border: 'none', borderBottom: '1px solid #282a25', width: '100%', textAlign: 'left', font: 'inherit', color: 'inherit' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                       <span style={{ color: g.done ? '#c9f36a' : '#8c9085', fontWeight: 'bold' }}>{g.done ? '✓' : '•'}</span>
                       <span style={{ textDecoration: g.done ? 'line-through' : 'none', color: g.done ? '#7f8279' : '#eef0e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.title}</span>
@@ -378,7 +378,7 @@ export function OverviewPage({
                   <p style={{ margin: '10px 0', fontSize: '12px', color: '#8c9085', fontStyle: 'italic' }}>No routine rotes added for today yet.</p>
                 ) : (
                   roteOverviewStats.rotes.map(r => (
-                    <button key={r.id} type="button" className={`mini-goal-item ${r.completed ? 'completed' : ''}`} onClick={() => toggleRoteFromOverview(r.id)} aria-label={`Toggle ${r.title}`} aria-pressed={!!r.completed} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', borderBottom: '1px solid #282a25', fontSize: '12px', cursor: 'pointer', background: 'none', border: 'none', borderBottom: '1px solid #282a25', width: '100%', textAlign: 'left', font: 'inherit', color: 'inherit' }}>
+                    <button key={r.id} type="button" className={`mini-goal-item ${r.completed ? 'completed' : ''}`} onClick={() => toggleRoteFromOverview(r.id)} aria-label={`Toggle ${r.title}`} aria-pressed={!!r.completed} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', fontSize: '12px', cursor: 'pointer', background: 'none', border: 'none', borderBottom: '1px solid #282a25', width: '100%', textAlign: 'left', font: 'inherit', color: 'inherit' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                         <span style={{ color: r.completed ? '#c9f36a' : '#8c9085', fontWeight: 'bold' }}>{r.completed ? '✓' : '•'}</span>
                         <span style={{ textDecoration: r.completed ? 'line-through' : 'none', color: r.completed ? '#7f8279' : '#eef0e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</span>

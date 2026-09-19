@@ -3,10 +3,11 @@ import { cn } from '../utils/cn'
 
 export function KineticTextLoader({ 
   className = "", 
-  text = "Loading", 
+  text: _propText = "Loading", 
   showBrand = true, 
   ...props 
 }) {
+  const text = "Loading"
   const letters = text.split("")
   const lRef = useRef(null)
   const iRef = useRef(null)
@@ -102,7 +103,12 @@ export function KineticTextLoader({
 
       {showBrand && (
         <div className="ktl-brand-badge">
-          <img src="/favicon.ico" alt="OnePercentGoal" className="ktl-brand-icon" />
+          <img
+            src="/icons/icon-192.png"
+            alt="OnePercentGoal"
+            className="ktl-brand-icon"
+            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/icon.png'; }}
+          />
           <span className="ktl-brand-text">ONEPERCENTGOAL</span>
         </div>
       )}

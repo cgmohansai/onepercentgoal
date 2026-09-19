@@ -8,9 +8,9 @@ export const GOOGLE_CLIENT_ID =
 
 export const WEB_APP_URL =
   import.meta.env?.VITE_APP_URL?.replace(/\/$/, '') ||
-  (typeof window !== 'undefined' && window.location.protocol.startsWith('http')
+  (typeof window !== 'undefined' && window.location.protocol.startsWith('http') && !isNativeShell()
     ? window.location.origin
-    : '')
+    : 'https://onepercentgoal.vercel.app')
 
 export const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client'
 

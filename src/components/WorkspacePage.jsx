@@ -9,6 +9,7 @@ import {
   cancelDailyReminders,
   areExactAlarmsAllowed,
   requestExactAlarmAccess,
+  isScheduledForToday,
 } from '../reminders'
 import {
   DAY,
@@ -24,6 +25,20 @@ import RotePage from '../features/rotes/components/RotePage'
 import SprintHistoryModal from '../features/timeline/components/SprintHistoryModal'
 import EditProfileModal from './EditProfileModal'
 import AppFooter from './AppFooter'
+import HeaderInfoTooltip from './HeaderInfoTooltip'
+
+function formatDisplayReminderTime(val) {
+  if (!val) return ''
+  const parts = String(val).split(':')
+  if (parts.length < 2) return val
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1], 10)
+  if (isNaN(h) || isNaN(m)) return val
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const hour12 = h % 12 || 12
+  const minStr = String(m).padStart(2, '0')
+  return `${hour12}:${minStr} ${ampm}`
+}
 
 export function WorkspacePage({
   active,
@@ -82,33 +97,40 @@ export function WorkspacePage({
       .catch(err => console.error('Failed to restore reminders:', err))
   }, [])
 
-  const saveReminders = async (enabled = remindersEnabled) => {
+  const saveReminders = async (explicitEnabled = true) => {
     if (!isNativeApp()) {
       showToast('Reminders are available in the app version')
       return
     }
+    const isTargetEnabled = typeof explicitEnabled === 'boolean' ? explicitEnabled : true
+    if (reminderRescheduleTimer.current) clearTimeout(reminderRescheduleTimer.current)
     setRemindersBusy(true)
     try {
-      if (enabled) {
+      if (isTargetEnabled) {
         const granted = await requestNotificationPermission()
         if (!granted) {
           setRemindersEnabled(false)
+          localStorage.setItem('opg.reminders.enabled', '0')
           showToast('Permission denied — allow notifications in Settings')
           return
         }
         const [hour, minute] = reminderTime.split(':').map(Number)
         const pending = await scheduleDailyReminders(hour, minute)
+        setRemindersEnabled(true)
         localStorage.setItem('opg.reminders.enabled', '1')
         localStorage.setItem('opg.reminders.time', reminderTime)
         const exactAlarms = await areExactAlarmsAllowed()
+        const isToday = isScheduledForToday(hour, minute)
+        const dayLabel = isToday ? 'today' : '(starts tomorrow)'
         if (!exactAlarms) {
           requestExactAlarmAccess()
-          showToast(pending >= 1 ? 'Reminders set — enable "Alarms & reminders" for on-time delivery' : 'Reminders could not be scheduled')
+          showToast(pending >= 1 ? `Reminders set for ${reminderTime} ${dayLabel} — enable "Alarms & reminders"` : 'Reminders could not be scheduled')
         } else {
-          showToast(pending >= 1 ? 'Daily reminders scheduled' : 'Reminders could not be scheduled')
+          showToast(pending >= 1 ? `Daily reminders scheduled for ${reminderTime} ${dayLabel}` : 'Reminders could not be scheduled')
         }
       } else {
         await cancelDailyReminders()
+        setRemindersEnabled(false)
         localStorage.setItem('opg.reminders.enabled', '0')
         showToast('Reminders paused')
       }
@@ -145,15 +167,14 @@ export function WorkspacePage({
         await scheduleDailyReminders(hour, minute)
         localStorage.setItem('opg.reminders.enabled', '1')
         localStorage.setItem('opg.reminders.time', value)
-        // Without the system "Alarms & reminders" allowance, Android turns
-        // the alarm inexact and night-time alarms silently slip. Send the
-        // user straight to the toggle instead of pretending all is fine.
         const exactAlarms = await areExactAlarmsAllowed()
+        const isToday = isScheduledForToday(hour, minute)
+        const dayLabel = isToday ? 'today' : '(starts tomorrow)'
         if (!exactAlarms) {
           requestExactAlarmAccess()
-          showToast(`Moved to ${value} — allow "Alarms & reminders" or it won't fire on time`)
+          showToast(`Moved to ${value} ${dayLabel} — allow "Alarms & reminders" or it won't fire on time`)
         } else {
-          showToast(`Reminders moved to ${value}`)
+          showToast(`Reminders moved to ${value} ${dayLabel}`)
         }
       } catch (err) {
         console.error('Failed to reschedule reminders:', err)
@@ -188,37 +209,39 @@ export function WorkspacePage({
     return (
       <div className="workspace-page goals-page-custom">
         <header className="goals-page-header">
-          <div className="goals-header-left">
+          <div className="goals-badge-row">
             <span className="goals-sprint-badge">ACTIVE SPRINT CYCLE</span>
+          </div>
+          <div className="goals-title-action-row">
             <h1 className="goals-sprint-title">
               Sprint <em>#{String(data.sprint).padStart(2, '0')}</em>
               <span className="goals-sprint-dates">({dateStr})</span>
+              <HeaderInfoTooltip
+                description="All current sprint goals present here. Compounding progress is built 1% at a time."
+              />
             </h1>
-            <p className="goals-subtitle">
-              All current sprint goals present here. Compounding progress is built 1% at a time.
-            </p>
+            <SpecularButton
+              size="md"
+              radius={18}
+              tint="#ffffff"
+              tintOpacity={0}
+              blur={0}
+              textColor="#f5f5f5"
+              lineColor="#ffffff"
+              baseColor="#525252"
+              intensity={1}
+              shineSize={10}
+              shineFade={40}
+              thickness={1}
+              speed={0.35}
+              followMouse
+              proximity={250}
+              autoAnimate={false}
+              onClick={onAdd}
+            >
+              Create Sprint Goal
+            </SpecularButton>
           </div>
-          <SpecularButton
-            size="md"
-            radius={18}
-            tint="#ffffff"
-            tintOpacity={0}
-            blur={0}
-            textColor="#f5f5f5"
-            lineColor="#ffffff"
-            baseColor="#525252"
-            intensity={1}
-            shineSize={10}
-            shineFade={40}
-            thickness={1}
-            speed={0.35}
-            followMouse
-            proximity={250}
-            autoAnimate={false}
-            onClick={onAdd}
-          >
-            Create Sprint Goal
-          </SpecularButton>
         </header>
         
         <section className="all-goals card">
@@ -247,15 +270,17 @@ export function WorkspacePage({
     return (
       <div className="workspace-page timeline-page-custom">
         <header className="timeline-page-header">
-          <div className="timeline-header-left">
+          <div className="goals-badge-row">
             <span className="timeline-badge">THE YEAR IN 100 PARTS</span>
+          </div>
+          <div className="goals-title-action-row">
             <h1 className="timeline-title">
               Sprint <em>Timeline</em>
               <span className="timeline-year-dates">({selectedYear})</span>
+              <HeaderInfoTooltip
+                description="Track your compounding progress across all 100 sprints. Click a sprint tile to inspect detailed history."
+              />
             </h1>
-            <p className="timeline-subtitle">
-              Track your compounding progress across all 100 sprints. Click a sprint tile to inspect detailed history.
-            </p>
           </div>
         </header>
 
@@ -350,8 +375,11 @@ export function WorkspacePage({
               <span className="profile-badge">ACCOUNT OVERVIEW</span>
             </div>
             <div className="profile-title-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '16px' }}>
-              <h1 className="profile-title" style={{ margin: 0 }}>
+              <h1 className="profile-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'center' }}>
                 User <em>Profile</em>
+                <HeaderInfoTooltip
+                  description="Manage your personal settings, view cumulative statistics, and inspect sprint achievements."
+                />
               </h1>
               
               <div 
@@ -386,9 +414,6 @@ export function WorkspacePage({
                 )}
               </div>
             </div>
-            <p className="profile-subtitle">
-              Manage your personal settings, view cumulative statistics, and inspect sprint achievements.
-            </p>
           </div>
         </header>
 
@@ -486,7 +511,10 @@ export function WorkspacePage({
                     setEditModalOpen(true)
                     return
                   }
-                  const shareUrl = `${window.location.origin}/u/${profileUser.username}`
+                  const baseShareUrl = (typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost'))
+                    ? window.location.origin
+                    : 'https://onepercentgoal.vercel.app'
+                  const shareUrl = `${baseShareUrl}/u/${profileUser.username}`
                   try {
                     const result = navigator.clipboard.writeText(shareUrl)
                     if (result && typeof result.then === 'function') {
@@ -562,18 +590,46 @@ export function WorkspacePage({
                   disabled={remindersBusy}
                 />
               </div>
-              <button
-                type="button"
-                className="add-button reminders-save"
-                onClick={saveReminders}
-                disabled={remindersBusy}
+              <div
+                className="reminders-status-msg"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  marginTop: '16px',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  background: remindersEnabled ? 'rgba(201, 243, 106, 0.08)' : '#191b18',
+                  border: `1px solid ${remindersEnabled ? 'rgba(201, 243, 106, 0.28)' : '#32352f'}`,
+                  color: remindersEnabled ? '#c9f36a' : '#8c9085',
+                  fontFamily: '"DM Mono", monospace',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  boxSizing: 'border-box'
+                }}
               >
-                {remindersBusy ? 'Saving…' : 'Schedule Reminders'}
-              </button>
+                <span
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: remindersEnabled ? '#c9f36a' : '#555850',
+                    boxShadow: remindersEnabled ? '0 0 8px rgba(201, 243, 106, 0.6)' : 'none',
+                    flex: 'none'
+                  }}
+                />
+                <span>
+                  {remindersBusy
+                    ? 'Updating…'
+                    : remindersEnabled
+                      ? `Daily reminders at ${formatDisplayReminderTime(reminderTime)}`
+                      : 'Scheduled reminders is off'}
+                </span>
+              </div>
               <p className="reminders-note">
                 {remindersEnabled
-                  ? `Fires daily at ${reminderTime} (device time). Two notifications: sprint goals + rote completion. Keep OnePercentGoal unswiped in Recents so the alarm isn't killed.`
-                  : 'Reminders are currently paused. Enable them to stay on track.'}
+                  ? `Fires daily at ${formatDisplayReminderTime(reminderTime)} (device time). Two notifications: sprint goals + rote completion.`
+                  : 'Use the toggle switch above to turn on daily reminders.'}
               </p>
             </>
           ) : (

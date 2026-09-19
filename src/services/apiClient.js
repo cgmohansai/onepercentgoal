@@ -18,14 +18,21 @@ export const FALLBACK_TOKEN_STORAGE_KEY = 'token'
 // NOTE: Capacitor Android serves the app as http://localhost by default, so a
 // protocol check alone mistakes the native shell for the website and the app
 // ends up calling its own bundled index.html instead of the backend.
+export const DEFAULT_PROD_API = 'https://onepercentgoal.onrender.com'
+
 const isNativeShell =
   typeof window !== 'undefined' &&
   Boolean(window.Capacitor?.isNativePlatform?.())
+
+const rawApiBase = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
+
 export const API_BASE = isNativeShell
-  ? (import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '')
+  ? (rawApiBase && !rawApiBase.includes('localhost') && !rawApiBase.includes('127.0.0.1')
+      ? rawApiBase
+      : DEFAULT_PROD_API)
   : (typeof window !== 'undefined' && (window.location.protocol === 'http:' || window.location.protocol === 'https:')
     ? ''
-    : (import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || ''))
+    : (rawApiBase || DEFAULT_PROD_API))
 
 /**
  * Constructs a full API URL for the given endpoint path.

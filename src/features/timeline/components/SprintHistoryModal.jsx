@@ -9,35 +9,38 @@ export function SprintHistoryModal({ sprint, onClose, onShowGoalDetails }) {
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <section className="completion-modal sprint-modal" onClick={event => event.stopPropagation()} style={{ padding: '32px', maxWidth: '900px', width: '90%', boxSizing: 'border-box' }}>
+      <section className="completion-modal sprint-modal" onClick={event => event.stopPropagation()}>
         
-        <div className="sprint-modal-columns" style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
+        <div className="sprint-modal-columns">
           
           {/* Left Column: Summary and Stats */}
-          <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-            <p className="eyebrow">SPRINT HISTORY</p>
-            <h2 style={{ fontSize: '26px', marginBottom: '4px', fontWeight: '500', letterSpacing: '-.035em' }}>Sprint #{String(sprint.sprint_number).padStart(2, '0')}</h2>
-            <p className="sprint-modal-dates" style={{ color: '#8c9085', fontFamily: '"DM Mono", monospace', fontSize: '13px', margin: '0 0 20px' }}>
-              {formatDateWithTime(start)} — {formatDateWithTime(end)}
-            </p>
+          <div style={{ flex: '1 1 280px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <p className="eyebrow" style={{ marginBottom: '12px', textAlign: 'center' }}>SPRINT HISTORY</p>
             
-            <div className="confirm-summary-simple" style={{ display: 'block', width: '100%', boxSizing: 'border-box', background: '#171916', border: '1px solid #32352f', padding: '20px 24px', borderRadius: '6px', textAlign: 'center' }}>
-              <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '4px' }}>Goals Set</span>
-              <strong style={{ display: 'block', color: '#eef0e9', fontSize: '22px', fontWeight: '500', letterSpacing: '-.025em', marginBottom: '12px' }}>{sprint.goal_count}</strong>
-              
-              <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '4px' }}>Goals Completed</span>
-              <strong style={{ display: 'block', color: '#eef0e9', fontSize: '22px', fontWeight: '500', letterSpacing: '-.025em', marginBottom: '12px' }}>{sprint.completed_count}</strong>
-              
-              <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '4px' }}>Average Progress</span>
-              <strong style={{ display: 'block', color: '#c9f36a', fontSize: '32px', fontFamily: '"Instrument Serif", serif', fontStyle: 'italic', fontWeight: 'normal', marginBottom: '0' }}>{sprint.average_progress}%</strong>
+            <div className="sprint-history-panel" style={{ width: '100%' }}>
+              <div className="confirm-summary-simple" style={{ display: 'block', width: '100%', boxSizing: 'border-box', background: '#171916', border: '1px solid #32352f', padding: '20px 24px', borderRadius: '6px', textAlign: 'center' }}>
+                <h2 style={{ fontSize: '26px', marginBottom: '4px', fontWeight: '500', letterSpacing: '-.035em' }}>Sprint #{String(sprint.sprint_number).padStart(2, '0')}</h2>
+                <p className="sprint-modal-dates" style={{ color: '#8c9085', fontFamily: '"DM Mono", monospace', fontSize: '13px', margin: '0 0 20px' }}>
+                  {formatDateWithTime(start)} — {formatDateWithTime(end)}
+                </p>
+
+                <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '4px' }}>Goals Set</span>
+                <strong style={{ display: 'block', color: '#eef0e9', fontSize: '22px', fontWeight: '500', letterSpacing: '-.025em', marginBottom: '12px' }}>{sprint.goal_count}</strong>
+                
+                <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '4px' }}>Goals Completed</span>
+                <strong style={{ display: 'block', color: '#eef0e9', fontSize: '22px', fontWeight: '500', letterSpacing: '-.025em', marginBottom: '12px' }}>{sprint.completed_count}</strong>
+                
+                <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '4px' }}>Average Progress</span>
+                <strong style={{ display: 'block', color: '#c9f36a', fontSize: '32px', fontFamily: '"Instrument Serif", serif', fontStyle: 'italic', fontWeight: 'normal', marginBottom: '0' }}>{sprint.average_progress}%</strong>
+              </div>
             </div>
           </div>
 
           {/* Right Column: Goal Checklist Cards */}
-          <div style={{ flex: '1.2 1 340px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: '1.2 1 300px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <p className="eyebrow" style={{ marginBottom: '12px' }}>GOALS LIST DETAILS</p>
             
-            <div className="sprint-history-list" style={{ maxHeight: '380px', overflowY: 'auto', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
+            <div className="sprint-history-list">
               {sprint.goals.length ? sprint.goals.map(goal => (
                 <button key={goal.id} type="button" className="confirm-summary-simple" onClick={() => { if (goal.completed && onShowGoalDetails) onShowGoalDetails(goal); }} disabled={!goal.completed} aria-label={goal.completed ? `View details for ${goal.title}` : goal.title} style={{ display: 'block', width: '100%', boxSizing: 'border-box', background: '#171916', border: '1px solid #32352f', padding: '16px 20px', borderRadius: '6px', textAlign: 'center', cursor: goal.completed ? 'pointer' : 'default', font: 'inherit', color: 'inherit' }}>
                   <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '4px' }}>Goal</span>

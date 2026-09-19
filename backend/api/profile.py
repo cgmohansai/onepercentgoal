@@ -39,9 +39,13 @@ def profile(year: int | None = None, authorization: str | None = Header(default=
 @router.get("/api/u/{username}")
 def get_public_profile(username: str, year: int | None = None):
     """Public Profile Gateway: returns public user details, active goals, stats, and timeline history."""
-    username = normalize_username(username)
+    clean_username = normalize_username(username)
     with db() as conn:
-        user_row = execute(conn, "SELECT id, name, username, display_name, created_at, profile_photo, bio FROM users WHERE username = %s", (username,)).fetchone()
+        user_row = execute(
+            conn,
+            "SELECT id, name, username, display_name, created_at, profile_photo, bio FROM users WHERE LOWER(username) = LOWER(%s) OR username = %s",
+            (clean_username, username.strip())
+        ).fetchone()
         if not user_row:
             raise HTTPException(status_code=404, detail="User not found")
 
@@ -51,6 +55,9 @@ def get_public_profile(username: str, year: int | None = None):
         progress = year_progress()
         current_year = progress["year"]
         current_sprint = progress["sprint_number"]
+
+        # Ensure goals rollover is up to date for current sprint
+        ensure_sprint_rollover(conn, current_year, current_sprint, user_id)
 
         # Get active goals
         goals_rows = execute(
@@ -74,12 +81,14 @@ def get_public_profile(username: str, year: int | None = None):
         selected_year = year or progress["year"]
         start_sprint = year_progress(joined)["sprint_number"] if selected_year == joined.year else 1
         end_sprint = progress["sprint_number"] if selected_year == progress["year"] else 100
-        history_items = [sprint_summary(conn, selected_year, sprint_number, user_id) for sprint_number in range(start_sprint, end_sprint + 1)]
+        start_bound = min(start_sprint, end_sprint)
+        history_items = [sprint_summary(conn, selected_year, sprint_number, user_id) for sprint_number in range(start_bound, end_sprint + 1)]
 
+        min_year = min(joined.year, selected_year, progress["year"])
         history = {
             "year": selected_year,
-            "years": list(range(joined.year, progress["year"] + 1)),
-            "start_sprint": start_sprint,
+            "years": list(range(min_year, progress["year"] + 1)),
+            "start_sprint": start_bound,
             "end_sprint": end_sprint,
             "sprints": history_items,
         }

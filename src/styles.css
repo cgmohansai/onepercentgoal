@@ -978,7 +978,11 @@ a:focus-visible,
 .completion-modal input { width:100%; margin-top:8px; padding:11px 12px; border:1px solid #41443d; color:#ededeb; background:#171916; outline:none; font:13px 'DM Sans', sans-serif; border-radius:8px; transition:border-color 0.18s ease; }
 .completion-modal input:focus { border-color:#c9f36a; }
 .confirm-summary { padding:16px 18px; border:1px solid #3d4038; background:#191b18; margin-bottom:16px; }.confirm-summary b { display:block; font-size:18px; font-weight:500; letter-spacing:-.03em; }.confirm-summary small { display:block; margin-top:6px; color:#a6a89f; font-family:'DM Mono'; font-size:10px; line-height:1.5; }.confirm-quote { margin:0 0 18px; color:#e9eadf; font-family:'Instrument Serif'; font-size:22px; line-height:1.1; letter-spacing:-.02em; }.completion-modal > div { display:flex; justify-content:center; gap:12px; margin-top:19px; }.completion-modal button { border:1px solid #44473f; padding:9px 12px; background:transparent; color:#d8dad3; cursor:pointer; font-size:12px; }.completion-modal button[type=submit] { border-color:#c9f36a; color:#182013; background:#c9f36a; }
-.sprint-modal { width:min(620px, 100%); }.sprint-modal-dates { margin:-10px 0 20px; color:#a8aca1; font-family:'DM Mono'; font-size:11px; }.sprint-modal-metrics { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:20px; }.sprint-modal-metrics div { padding:14px; background:#191b18; border:1px solid #383b34; }.sprint-modal-metrics small { display:block; color:#8d9086; font-family:'DM Mono'; font-size:9px; letter-spacing:.11em; }.sprint-modal-metrics b { display:block; margin-top:10px; color:#eef0e9; font-size:26px; font-weight:500; letter-spacing:-.05em; }.sprint-history-list { max-height:320px; overflow:auto; border-top:1px solid #30322d; }.sprint-history-goal { display:flex; justify-content:space-between; gap:14px; padding:16px 0; border-bottom:1px solid #30322d; }.sprint-history-goal b,.sprint-history-goal small,.sprint-history-goal strong { display:block; }.sprint-history-goal b { font-size:14px; font-weight:500; }.sprint-history-goal small { margin-top:5px; color:#8f9288; font-family:'DM Mono'; font-size:9px; line-height:1.5; }.sprint-history-goal strong { color:#c9f36a; font-family:'DM Mono'; font-size:13px; white-space:nowrap; }.sprint-history-empty { margin:0; padding:22px 0 8px; color:#a0a39a; font-size:13px; }.timeline-years { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }.timeline-year { border:1px solid #3a3d35; background:#1c1e1b; color:#a9aca3; padding:10px 14px; cursor:pointer; font-family:'DM Mono'; font-size:11px; }.timeline-year.active { border-color:#c9f36a; background:#283121; color:#eef0e9; }
+.sprint-modal { width:min(900px, 92vw); max-width:900px; padding:32px; box-sizing:border-box; }
+.sprint-modal-columns { display:flex; gap:32px; flex-wrap:wrap; }
+.sprint-history-panel,
+.sprint-history-list { max-height:380px; overflow-y:auto; margin-bottom:20px; display:flex; flex-direction:column; gap:12px; padding-right:4px; box-sizing:border-box; }
+.sprint-modal-dates { margin:-10px 0 20px; color:#a8aca1; font-family:'DM Mono'; font-size:11px; }.sprint-modal-metrics { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:20px; }.sprint-modal-metrics div { padding:14px; background:#191b18; border:1px solid #383b34; }.sprint-modal-metrics small { display:block; color:#8d9086; font-family:'DM Mono'; font-size:9px; letter-spacing:.11em; }.sprint-modal-metrics b { display:block; margin-top:10px; color:#eef0e9; font-size:26px; font-weight:500; letter-spacing:-.05em; }.sprint-history-goal { display:flex; justify-content:space-between; gap:14px; padding:16px 0; border-bottom:1px solid #30322d; }.sprint-history-goal b,.sprint-history-goal small,.sprint-history-goal strong { display:block; }.sprint-history-goal b { font-size:14px; font-weight:500; }.sprint-history-goal small { margin-top:5px; color:#8f9288; font-family:'DM Mono'; font-size:9px; line-height:1.5; }.sprint-history-goal strong { color:#c9f36a; font-family:'DM Mono'; font-size:13px; white-space:nowrap; }.sprint-history-empty { margin:0; padding:22px 0 8px; color:#a0a39a; font-size:13px; }.timeline-years { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }.timeline-year { border:1px solid #3a3d35; background:#1c1e1b; color:#a9aca3; padding:10px 14px; cursor:pointer; font-family:'DM Mono'; font-size:11px; }.timeline-year.active { border-color:#c9f36a; background:#283121; color:#eef0e9; }
 
 
 /* Profile alignment overrides */
@@ -1697,7 +1701,7 @@ a:focus-visible,
   justify-content: flex-start;
   flex-wrap: nowrap;
   white-space: nowrap;
-  gap: 0.38em;
+  gap: 0.28em;
 }
 .h1-scalingSize em {
   font-family: 'Instrument Serif', serif;
@@ -1755,36 +1759,176 @@ a:focus-visible,
   }
 }
 
-/* Custom mini scrollbar for sprint checklist */
-.sprint-goals-mini-list::-webkit-scrollbar {
-  width: 4px;
-}
-.sprint-goals-mini-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-.sprint-goals-mini-list::-webkit-scrollbar-thumb {
-  background: #343731;
-  border-radius: 99px;
-}
-.sprint-goals-mini-list::-webkit-scrollbar-thumb:hover {
-  background: #c9f36a;
+/* ================================================================
+   Universal Minimalist Scrollbar (Active Sprint Checklist Rail)
+   Clean 4px width, transparent track, #343731 thumb
+   Arrows hidden. Color remains normal #343731 during normal scrolling,
+   and ONLY changes to green (#c9f36a) when directly hovered over thumb.
+   ================================================================ */
+html,
+body,
+#root,
+.app-shell,
+.content,
+.sprint-goals-mini-list,
+.sprint-history-list,
+.sprint-history-panel,
+.sprint-modal,
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #343731 transparent;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Custom dark scrollbar for sprint history modal list */
-.sprint-history-list::-webkit-scrollbar {
-  width: 6px;
+/* Hide all scrollbar arrows/buttons across all browsers */
+::-webkit-scrollbar-button,
+::-webkit-scrollbar-button:single-button,
+::-webkit-scrollbar-button:vertical:decrement,
+::-webkit-scrollbar-button:vertical:increment,
+::-webkit-scrollbar-button:horizontal:decrement,
+::-webkit-scrollbar-button:horizontal:increment {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
 }
-.sprint-history-list::-webkit-scrollbar-track {
-  background: #121411;
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #343731;
   border-radius: 99px;
+  transition: background 0.15s ease;
 }
-.sprint-history-list::-webkit-scrollbar-thumb {
-  background: #282a25;
-  border-radius: 99px;
-  border: 1px solid #121411;
+
+/* Color ONLY changes when mouse cursor is directly hovered over the scrollbar thumb */
+::-webkit-scrollbar-thumb:hover {
+  background: #c9f36a !important;
 }
-.sprint-history-list::-webkit-scrollbar-thumb:hover {
-  background: #c9f36a;
+
+::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+/* Cloud-like info bubble & tooltip */
+.cloud-info-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-left: 8px;
+  vertical-align: middle;
+  align-self: center !important;
+  font-size: 14px;
+  font-weight: normal;
+  line-height: 1;
+}
+
+.cloud-info-btn {
+  background: #1c1e1a;
+  border: 1px solid #383b33;
+  color: #a2a69b;
+  width: 21px;
+  height: 21px;
+  min-width: 21px;
+  min-height: 21px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transform: none !important;
+}
+
+.cloud-info-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.cloud-info-btn:hover,
+.cloud-info-btn.is-active,
+.cloud-info-btn:active {
+  background: #22261e;
+  border-color: #c9f36a;
+  color: #c9f36a;
+  box-shadow: 0 0 12px rgba(201, 243, 106, 0.5);
+  transform: none !important;
+}
+
+.cloud-bubble {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: -12px;
+  width: min(390px, 86vw);
+  background: linear-gradient(145deg, #1f231c 0%, #151813 100%);
+  border: 1px solid #3e4435;
+  border-radius: 20px;
+  padding: 16px 20px;
+  box-shadow: 
+    0 16px 36px rgba(0, 0, 0, 0.7),
+    0 0 24px rgba(201, 243, 106, 0.12);
+  z-index: 1200;
+  animation: cloudBubblePopIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: auto;
+  text-align: left;
+}
+
+/* Cloud speech bubble pointer */
+.cloud-bubble::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: var(--bubble-arrow-left, 20px);
+  width: 12px;
+  height: 12px;
+  background: #1f231c;
+  border-top: 1px solid #3e4435;
+  border-left: 1px solid #3e4435;
+  transform: rotate(45deg);
+}
+
+.cloud-bubble-content {
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #b4b8ab;
+  font-weight: 400;
+  letter-spacing: normal;
+  word-spacing: normal;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  margin: 0;
+  padding: 0;
+}
+
+@keyframes cloudBubblePopIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .cloud-bubble {
+    max-width: calc(100vw - 28px);
+    box-sizing: border-box;
+    padding: 14px 18px;
+  }
 }
 
 /* Avatar hover overlay for upload */
@@ -2397,14 +2541,24 @@ a:focus-visible,
 }
 .goals-page-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 32px;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
   border-bottom: 1px solid #2f322b;
   padding-top: 0;
-  padding-bottom: 32px;
-  gap: 24px;
+  padding-bottom: 24px;
+}
+.goals-badge-row {
+  display: flex;
+  align-items: center;
+}
+.goals-title-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
   flex-wrap: wrap;
+  width: 100%;
 }
 .goals-header-left {
   flex: 1 1 400px;
@@ -2420,16 +2574,16 @@ a:focus-visible,
   letter-spacing: 0.14em;
   font-weight: 600;
   display: inline-block;
-  margin-bottom: 14px;
+  margin: 0;
 }
 .goals-sprint-title {
   font-size: clamp(38px, 5.5vw, 60px);
   font-weight: 700;
   letter-spacing: -0.04em;
-  margin: 0 0 10px;
+  margin: 0;
   color: #f6f5f1;
-  display: flex;
-  align-items: baseline;
+  display: inline-flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 14px;
 }
@@ -2494,7 +2648,7 @@ a:focus-visible,
   .goals-page-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 20px;
+    gap: 8px !important;
     padding-top: 18px;
     padding-bottom: 24px;
     margin-bottom: 22px;
@@ -2524,13 +2678,11 @@ a:focus-visible,
 }
 .timeline-page-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 32px;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
   border-bottom: 1px solid #2f322b;
   padding-bottom: 24px;
-  gap: 24px;
-  flex-wrap: wrap;
 }
 .timeline-header-left {
   flex: 1 1 400px;
@@ -2546,16 +2698,16 @@ a:focus-visible,
   letter-spacing: 0.14em;
   font-weight: 600;
   display: inline-block;
-  margin-bottom: 14px;
+  margin: 0;
 }
 .timeline-title {
   font-size: clamp(38px, 5.5vw, 60px);
   font-weight: 700;
   letter-spacing: -0.04em;
-  margin: 0 0 10px;
+  margin: 0;
   color: #f6f5f1;
-  display: flex;
-  align-items: baseline;
+  display: inline-flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 14px;
 }
@@ -2607,7 +2759,7 @@ a:focus-visible,
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   border-bottom: 1px solid #2f322b;
   padding-bottom: 24px;
   gap: 24px;
@@ -2748,23 +2900,28 @@ a:focus-visible,
   opacity: 0.5;
   cursor: not-allowed;
 }
-.reminders-save {
+.reminders-save,
+.reminders-save:focus,
+.reminders-save:active {
   align-self: flex-start;
-  background: #c9f36a;
-  color: #121410;
-  border: none;
+  background: #c9f36a !important;
+  color: #121410 !important;
+  border: none !important;
   border-radius: 8px;
   padding: 10px 18px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  outline: none;
 }
 .reminders-save:hover {
-  background: #d4f682;
+  background: #d4f682 !important;
+  color: #121410 !important;
 }
 .reminders-save:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  color: #121410 !important;
 }
 .reminders-note {
   margin: 0;
@@ -3540,7 +3697,7 @@ a:focus-visible,
     margin: 10px 0 !important;
     flex-wrap: nowrap !important;
     white-space: nowrap !important;
-    gap: 0.38em !important;
+    gap: 0.28em !important;
     justify-content: center !important;
     font-weight: 700 !important;
     letter-spacing: -0.04em !important;
@@ -4319,11 +4476,21 @@ footer.app-main-footer, footer {
 
 /* Glass Dock Mobile Navigation (Bottom Pinned on Phone) */
 .glass-dock-mobile-wrapper {
-  display: none;
+  display: none !important;
 }
 
 .glass-dock-mobile-wrapper.dock-hidden {
   display: none !important;
+}
+
+/* Strictly hide mobile dock on desktop */
+@media (min-width: 769px) {
+  .glass-dock-mobile-wrapper,
+  .glass-dock {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
 }
 
 @media (max-width: 768px) {
@@ -4333,28 +4500,25 @@ footer.app-main-footer, footer {
   }
 
   .spotlight-brand-inside img {
-    width: 22px !important;
-    height: 22px !important;
+    width: 21px !important;
+    height: 21px !important;
   }
 
   .spotlight-brand-inside span {
-    font-size: 17px !important;
+    font-size: 16px !important;
   }
 
-  .spotlight-nav-wrapper,
-  .glass-dock-mobile-wrapper {
-    width: 90vw !important;
-    max-width: 90vw !important;
+  .spotlight-nav-wrapper {
+    transform: scale(0.92) !important;
+    transform-origin: top center !important;
+    width: auto !important;
+    max-width: max-content !important;
   }
 
-  .spotlight-nav,
-  .glass-dock {
-    width: 100% !important;
-  }
-
-  .glass-dock {
-    justify-content: space-between;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6) !important;
+  .spotlight-nav {
+    height: 38px !important;
+    padding: 0 14px !important;
+    width: auto !important;
   }
 
   .glass-dock-mobile-wrapper {
@@ -4368,8 +4532,29 @@ footer.app-main-footer, footer {
     max-width: 90vw !important;
   }
 
+  .glass-dock {
+    width: 100% !important;
+    padding: 7px 14px !important;
+    gap: 8px !important;
+    justify-content: space-between;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6) !important;
+  }
 
+  .glass-dock-item {
+    width: 40px !important;
+    height: 40px !important;
+  }
 
+  .glass-dock-item svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .glass-dock-item-dot {
+    bottom: 3.5px !important;
+    width: 4px !important;
+    height: 4px !important;
+  }
 
   /* Hide old mobile dropdown when glass dock is active */
   .app-shell.logged-in .spotlight-mobile-toggle,
@@ -4745,7 +4930,7 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     width: 100% !important;
     flex-wrap: nowrap !important;
     white-space: nowrap !important;
-    gap: 0.38em !important;
+    gap: 0.28em !important;
     font-weight: 700 !important;
   }
 
@@ -4915,7 +5100,7 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   .timeline-page-header,
   .profile-page-header,
   .rote-page-header {
-    gap: 18px !important;
+    gap: 8px !important;
     padding-top: 8px !important;
     padding-bottom: 24px !important;
     margin-bottom: 22px !important;
@@ -4929,7 +5114,7 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     font-size: 10px !important;
     padding: 3px 8px !important;
     letter-spacing: 0.1em !important;
-    margin-bottom: 6px !important;
+    margin-bottom: 0 !important;
     width: fit-content !important;
     max-width: fit-content !important;
     align-self: flex-start !important;
@@ -5007,32 +5192,64 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   }
 }
 
+@keyframes mobileToastPopupIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (max-width: 768px) {
   .toast-popup {
-    bottom: calc(160px + var(--safe-bottom, 0px));
-    font-size: 13px;
-    padding: 11px 14px;
+    position: fixed !important;
+    bottom: calc(86px + var(--safe-bottom, 0px)) !important;
+    left: 16px !important;
+    right: 16px !important;
+    width: calc(100vw - 32px) !important;
+    max-width: calc(100vw - 32px) !important;
+    margin: 0 !important;
+    border-radius: 10px !important;
+    font-size: 13px !important;
+    padding: 12px 16px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    animation: mobileToastPopupIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+    z-index: 100001 !important;
+  }
+  .app-shell.logged-out .toast-popup {
+    bottom: calc(30px + var(--safe-bottom, 0px)) !important;
   }
 }
 
 /* MobileTopToast — mobile-app-only top toast. Desktop keeps ToastPopup.
-   Slick glass card sliding down from under the status bar. */
+   Slick glass card sliding down from under the status bar as a full rectangle. */
 .mobile-top-toast {
   position: fixed;
   top: calc(var(--safe-top, 0px) + 12px);
-  left: 12px;
-  right: 12px;
+  left: 16px;
+  right: 16px;
+  width: calc(100vw - 32px);
+  max-width: calc(100vw - 32px);
   z-index: 99999;
   display: flex;
   align-items: center;
+  justify-content: center;
+  text-align: center;
   gap: 10px;
-  padding: 13px 15px;
+  padding: 13px 16px;
   overflow: hidden;
   background: rgba(22, 25, 21, 0.92);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   border: 1px solid rgba(201, 243, 106, 0.45);
-  border-radius: 18px;
+  border-radius: 10px;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6), 0 0 22px rgba(201, 243, 106, 0.14);
   color: #f6f5f1;
   font-family: 'DM Sans', sans-serif;
@@ -5163,9 +5380,37 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   .app-shell.logged-out .content {
     padding-bottom: 56px !important;
   }
+  /* Mobile & application: completely remove all scrollbars */
+  *::-webkit-scrollbar,
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
   .app-shell > .content::-webkit-scrollbar,
-  .content::-webkit-scrollbar {
+  .content::-webkit-scrollbar,
+  .sprint-history-panel::-webkit-scrollbar,
+  .sprint-history-list::-webkit-scrollbar {
     display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+  *, html, body {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  /* Info icon: 30% smaller on mobile */
+  .cloud-info-container {
+    margin-left: 6px !important;
+  }
+  .cloud-info-btn {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    min-height: 18px !important;
+  }
+  .cloud-info-btn svg {
+    width: 11px !important;
+    height: 11px !important;
   }
 
 
@@ -5270,14 +5515,79 @@ button.mini-goal-item:disabled { cursor: default; opacity: .85; }
   .completion-modal input,
   .completion-modal textarea,
   .auth-card input { font-size: 16px; }
-  .completion-modal {
-    max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
   .modal-backdrop {
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding-top: calc(75px + var(--safe-top, 0px)) !important;
+    padding-bottom: calc(85px + var(--safe-bottom, 0px)) !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    box-sizing: border-box !important;
+    overflow-y: auto !important;
+    z-index: 10050 !important;
   }
+  .completion-modal,
+  .sprint-modal {
+    max-height: calc(100dvh - 165px - var(--safe-top, 0px) - var(--safe-bottom, 0px)) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 18px 14px !important;
+    margin: auto 0 !important;
+    border-radius: 14px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    box-sizing: border-box !important;
+  }
+  .sprint-modal-columns {
+    gap: 16px !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+  }
+  .sprint-history-panel,
+  .sprint-history-list {
+    max-height: 200px !important;
+    margin-bottom: 12px !important;
+  }
+}
+
+/* Native Capacitor Shell Overrides */
+body.capacitor-native *::-webkit-scrollbar,
+body.capacitor-native::-webkit-scrollbar,
+html.capacitor-native::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+body.capacitor-native,
+body.capacitor-native * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+body.capacitor-native .cloud-info-container {
+  margin-left: 6px !important;
+}
+body.capacitor-native .cloud-info-btn {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+}
+body.capacitor-native .cloud-info-btn svg {
+  width: 11px !important;
+  height: 11px !important;
+}
+
+body.capacitor-native .modal-backdrop {
+  padding-top: calc(75px + var(--safe-top, 0px)) !important;
+  padding-bottom: calc(85px + var(--safe-bottom, 0px)) !important;
+  z-index: 10050 !important;
+}
+body.capacitor-native .completion-modal,
+body.capacitor-native .sprint-modal {
+  max-height: calc(100dvh - 165px - var(--safe-top, 0px) - var(--safe-bottom, 0px)) !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .silk-bg-container { display: none; }

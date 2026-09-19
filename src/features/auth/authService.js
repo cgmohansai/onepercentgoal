@@ -32,7 +32,10 @@ import {
  */
 export async function getCurrentUser(token = null) {
   const authToken = token !== null && token !== undefined ? token : getStoredToken()
-  const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {}
+  if (!authToken) {
+    return null
+  }
+  const headers = { Authorization: `Bearer ${authToken}` }
   const res = await apiFetch('/api/auth/me', { headers })
   if (!res.ok) {
     throw new Error(`Failed to authenticate session (${res.status})`)

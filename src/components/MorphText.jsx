@@ -1,63 +1,93 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 
 // ============================================================================
-// MorphText - Smooth text morphing switcher with dynamic width transition
+// MorphText - Smooth text morphing switcher with global background progression
 // ============================================================================
+const words = Array.from({ length: 100 }, (_, i) => `${i + 1}%`)
+
+let globalMorphIndex = 0
+const morphListeners = new Set()
+let globalIntervalId = null
+let currentIntervalMs = 5000
+
+function ensureGlobalMorphTimer(interval = 5000) {
+  if (typeof window === 'undefined') return
+  if (globalIntervalId && currentIntervalMs !== interval) {
+    clearInterval(globalIntervalId)
+    globalIntervalId = null
+  }
+  currentIntervalMs = interval
+  if (!globalIntervalId) {
+    globalIntervalId = setInterval(() => {
+      if (globalMorphIndex < words.length - 1) {
+        globalMorphIndex += 1
+        morphListeners.forEach((fn) => fn(globalMorphIndex))
+      }
+    }, interval)
+  }
+}
+
+// Start timer immediately with 5000ms (5 seconds) cadence
+ensureGlobalMorphTimer(5000)
+
 export const MorphText = React.memo(function MorphText({
-  interval = 2500,
+  interval = 5000,
   fontSize = "1em",
   fontFamily = "'Instrument Serif', serif",
   className,
 }) {
-  const words = React.useMemo(() => Array.from({ length: 100 }, (_, i) => `${i + 1}%`), [])
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [widths, setWidths] = useState({})
-  const [measured, setMeasured] = useState(false)
-  const morphRootRef = useRef(null)
-  
-  // Measure word widths on mount/update to prevent jumps
-  useEffect(() => {
-    const newWidths = {}
-    const parentFontSize = morphRootRef.current?.parentElement
-      ? getComputedStyle(morphRootRef.current.parentElement).fontSize
-      : fontSize
-    words.forEach((word) => {
-      const measureEl = document.createElement('span')
-      measureEl.style.fontFamily = fontFamily
-      measureEl.style.fontSize = parentFontSize
-      measureEl.style.fontWeight = '700'
-      measureEl.style.fontStyle = 'italic'
-      measureEl.style.position = 'absolute'
-      measureEl.style.visibility = 'hidden'
-      measureEl.style.whiteSpace = 'nowrap'
-      measureEl.innerText = word
-      document.body.appendChild(measureEl)
-      newWidths[word] = measureEl.getBoundingClientRect().width
-      document.body.removeChild(measureEl)
-    })
-    setWidths(newWidths)
-    setMeasured(true)
-  }, [words, fontSize, fontFamily])
+  const [currentIndex, setCurrentIndex] = useState(globalMorphIndex)
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  })
 
-  // Cycle index smoothly and stop at 100%
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setCurrentIndex((prev) => {
-        if (prev >= words.length - 1) {
-          clearInterval(intervalId)
-          return prev
-        }
-        return prev + 1
-      })
-    }, interval)
-    return () => clearInterval(intervalId)
-  }, [words.length, interval])
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(max-width: 768px)')
+    const handleMedia = () => setIsMobile(mq.matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))
+    if (mq.addEventListener) {
+      mq.addEventListener('change', handleMedia)
+    }
+    return () => {
+      if (mq.removeEventListener) {
+        mq.removeEventListener('change', handleMedia)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    ensureGlobalMorphTimer(interval)
+    // Sync with global index on mount (keeps progress even when switching tabs)
+    setCurrentIndex(globalMorphIndex)
+    const listener = (idx) => setCurrentIndex(idx)
+    morphListeners.add(listener)
+    return () => {
+      morphListeners.delete(listener)
+    }
+  }, [interval])
+
   const filterId = "morph-threshold-filter"
   const currentWord = words[currentIndex]
-  const currentWidth = (widths[currentWord] || 60) + 8
+
+  // Dynamic responsive width in em so it scales in lockstep with font-size on both phone and desktop
+  // Maintains equal, constant spacing on left and right without jarring shifts
+  const charCount = currentWord.length
+  const currentWidthEm = charCount === 2 ? 1.05 : charCount === 3 ? 1.38 : 1.76
 
   return (
-    <div ref={morphRootRef} className={className} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle', position: 'relative', margin: '0 0.04em', visibility: measured ? 'visible' : 'hidden' }}>
+    <div
+      className={className}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        verticalAlign: 'middle',
+        position: 'relative',
+        margin: '0',
+        padding: '0'
+      }}
+    >
       <svg
         aria-hidden="true"
         focusable="false"
@@ -68,7 +98,9 @@ export const MorphText = React.memo(function MorphText({
             <feColorMatrix
               in="SourceGraphic"
               type="matrix"
-              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -6"
+              values={isMobile
+                ? "1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 16 -3"
+                : "1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -6"}
               result="goo"
             />
             <feComposite in="SourceGraphic" in2="goo" operator="atop" />
@@ -86,45 +118,60 @@ export const MorphText = React.memo(function MorphText({
           filter: `url(#${filterId})`,
           fontFamily,
           userSelect: 'none',
-          pointerEvents: 'none'
+          pointerEvents: 'none',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '0',
+          padding: '0'
         }}
       >
         <div
           className="morph-word-rotator"
           style={{
             height: "1.2em",
-            width: `${currentWidth}px`,
-            transition: 'width 2s cubic-bezier(0.25, 1, 0.5, 1)',
+            width: `${currentWidthEm}em`,
+            transition: isMobile
+              ? 'width 1.7s cubic-bezier(0.35, 0, 0.25, 1)'
+              : 'width 1.6s cubic-bezier(0.25, 1, 0.5, 1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
             overflow: 'visible',
-            paddingRight: '0'
+            margin: '0',
+            padding: '0'
           }}
         >
           {words.map((word, i) => {
             const isActive = i === currentIndex
             const isPrev = i === (currentIndex - 1 + words.length) % words.length
-            
+
+            // Desktop mode restores the normal animation as before
             let opacity = 0
-            let scale = 0.8
-            let blur = '14px'
-            // Outgoing and incoming share the same duration and start on the
-            // same frame, so the old number dims while the new one sharpens
-            // simultaneously — no empty flash between numbers.
-            let transitionStr = 'opacity 2.2s ease-in-out, filter 2.2s ease-in-out, transform 2.2s ease-in-out'
+            let scale = isMobile ? 0.95 : 0.8
+            let blur = isMobile ? '8px' : '20px'
+            let transitionStr = isMobile
+              ? 'opacity 1.7s cubic-bezier(0.35, 0, 0.25, 1), filter 1.7s cubic-bezier(0.35, 0, 0.25, 1), transform 1.7s cubic-bezier(0.35, 0, 0.25, 1)'
+              : 'opacity 1.4s ease-in-out, filter 1.6s ease-in-out, transform 1.6s ease-in-out'
 
             if (isActive) {
               opacity = 1
               scale = 1
               blur = '0px'
-              transitionStr = 'opacity 2.2s cubic-bezier(0.16, 1, 0.3, 1), filter 2.2s cubic-bezier(0.25, 1, 0.5, 1), transform 2.2s cubic-bezier(0.25, 1, 0.5, 1)'
+              transitionStr = isMobile
+                ? 'opacity 1.7s cubic-bezier(0.35, 0, 0.25, 1), filter 1.7s cubic-bezier(0.35, 0, 0.25, 1), transform 1.7s cubic-bezier(0.35, 0, 0.25, 1)'
+                : 'opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1), filter 1.6s cubic-bezier(0.25, 1, 0.5, 1), transform 1.6s cubic-bezier(0.25, 1, 0.5, 1)'
             } else if (isPrev) {
               opacity = 0
-              scale = 1.08
-              blur = '14px'
-              transitionStr = 'opacity 2.2s cubic-bezier(0.7, 0, 0.84, 0), filter 2.2s cubic-bezier(0.25, 1, 0.5, 1), transform 2.2s cubic-bezier(0.25, 1, 0.5, 1)'
+              scale = isMobile ? 1.04 : 1.2
+              blur = isMobile ? '8px' : '20px'
+              transitionStr = isMobile
+                ? 'opacity 1.7s cubic-bezier(0.35, 0, 0.25, 1), filter 1.7s cubic-bezier(0.35, 0, 0.25, 1), transform 1.7s cubic-bezier(0.35, 0, 0.25, 1)'
+                : 'opacity 1.4s cubic-bezier(0.7, 0, 0.84, 0), filter 1.6s cubic-bezier(0.25, 1, 0.5, 1), transform 1.6s cubic-bezier(0.25, 1, 0.5, 1)'
+            } else {
+              // Non-active items stay hidden without consuming animation performance
+              transitionStr = 'none'
             }
 
             return (
@@ -138,7 +185,9 @@ export const MorphText = React.memo(function MorphText({
                   opacity,
                   filter: `blur(${blur})`,
                   whiteSpace: "nowrap",
-                  transition: transitionStr
+                  transition: transitionStr,
+                  margin: '0',
+                  padding: '0'
                 }}
               >
                 {word}

@@ -4,6 +4,33 @@ import { House, Target, Repeat, Clock, User } from '@phosphor-icons/react'
 import { cn } from '../utils/cn'
 
 export function GlassDock({ items, active, setActive, keyboardHidden }) {
+  const [mounted, setMounted] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return (
+      window.innerWidth <= 768 ||
+      Boolean(window.Capacitor?.isNativePlatform?.())
+    )
+  })
+
+  useEffect(() => {
+    setMounted(true)
+    const handleResize = () => {
+      setIsMobile(
+        window.innerWidth <= 768 ||
+        Boolean(window.Capacitor?.isNativePlatform?.())
+      )
+    }
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('orientationchange', handleResize)
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleResize)
+    }
+  }, [])
+
+  // Never render dock on desktop mode — strictly mobile view only
+  if (!mounted || !isMobile) return null
   if (!items || items.length <= 1) return null
 
   const getIcon = (label, isActive) => {
@@ -12,7 +39,7 @@ export function GlassDock({ items, active, setActive, keyboardHidden }) {
       case 'Overview':
         return <House size={22} weight={weight} />
       case 'Goals':
-        return <Target size={22} weight={weight} />
+        return <Target size={22} weight={isActive ? 'bold' : 'regular'} />
       case 'Rote':
         return <Repeat size={22} weight={weight} />
       case 'Timeline':
@@ -23,14 +50,6 @@ export function GlassDock({ items, active, setActive, keyboardHidden }) {
         return <House size={22} weight={weight} />
     }
   }
-
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) return null
 
   return createPortal(
     <div className={`glass-dock-mobile-wrapper${keyboardHidden ? ' dock-hidden' : ''}`}>

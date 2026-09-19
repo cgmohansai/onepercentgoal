@@ -59,6 +59,7 @@ import {
 import {
   createEmptyTimeline,
   updateSprintInTimeline,
+  syncTimelineWithGoals,
 } from './features/timeline/timelineUtils'
 import {
   DAY,
@@ -70,7 +71,7 @@ import {
 } from './utils/dateUtils'
 
 import { useEscapeKey } from './hooks/useEscapeKey'
-import KineticTextLoader from './components/KineticTextLoader'
+import AdaptiveLoader, { isMobileDevice } from './components/AdaptiveBootLoader'
 import SpotlightNavbar from './components/SpotlightNavbar'
 import ToastPopup from './components/ToastPopup'
 import MobileTopToast from './components/MobileTopToast'
@@ -255,7 +256,7 @@ function App() {
   const shareMatch = window.location.pathname.match(/^\/u\/([a-zA-Z0-9_-]+)/)
   const shareUsername = shareMatch ? shareMatch[1] : null
   const [publicData, setPublicData] = useState(null)
-  const [publicLoading, setPublicLoading] = useState(false)
+  const [publicLoading, setPublicLoading] = useState(Boolean(shareUsername))
   const [publicError, setPublicError] = useState('')
   const [publicYear, setPublicYear] = useState(new Date().getFullYear())
 
@@ -265,9 +266,24 @@ function App() {
         setPublicLoading(true)
         setPublicError('')
         try {
-          const response = await apiFetch(`/api/u/${shareUsername}?year=${publicYear}`)
+          let response
+          try {
+            response = await apiFetch(`/api/u/${shareUsername}?year=${publicYear}`)
+          } catch {
+            response = await fetch(`https://onepercentgoal.onrender.com/api/u/${shareUsername}?year=${publicYear}`)
+          }
           if (!response.ok) {
-            const err = await response.json()
+            if (response.status !== 404) {
+              try {
+                const direct = await fetch(`https://onepercentgoal.onrender.com/api/u/${shareUsername}?year=${publicYear}`)
+                if (direct.ok) {
+                  const result = await direct.json()
+                  setPublicData(result)
+                  return
+                }
+              } catch {}
+            }
+            const err = await response.json().catch(() => ({}))
             throw new Error(err.detail || 'User profile not found')
           }
           const result = await response.json()
@@ -299,28 +315,29 @@ function App() {
   const [appReturnFlow, setAppReturnFlow] = useState(null)
 
   useEffect(() => {
-    if (window.hideBootLoader) {
-      window.hideBootLoader()
-    } else {
+    if (authReady) {
+      if (window.hideBootLoader) window.hideBootLoader()
+      const el = document.getElementById('boot-loader')
+      if (el && el.parentNode) {
+        setTimeout(() => {
+          if (el && el.parentNode) el.parentNode.removeChild(el)
+        }, 200)
+      }
+    }
+  }, [authReady, shareUsername])
+
+  useEffect(() => {
+    // Desktop web: remove any static boot-loader immediately so only React's AdaptiveLoader is active
+    if (!isNativeShell() && !isMobileDevice()) {
       const el = document.getElementById('boot-loader')
       if (el && el.parentNode) el.parentNode.removeChild(el)
     }
-  }, [authReady])
+  }, [])
 
   useEffect(() => {
     // Mark the native shell so it gets the same end-of-page clearance as
     // the mobile website, regardless of WebView viewport width.
     if (isNativeShell()) document.body.classList.add('capacitor-native')
-  }, [])
-
-  useEffect(() => {
-    // Web: drop the static boot loader as soon as React mounts so the
-    // KineticTextLoader takes over. Native keeps it until auth is ready
-    // (faded by the effect below) so there is never a blank screen.
-    if (!isNativeShell()) {
-      const node = document.getElementById('boot-loader')
-      if (node && node.parentNode) node.parentNode.removeChild(node)
-    }
   }, [])
 
   const [authLoading, setAuthLoading] = useState(false)
@@ -357,27 +374,48 @@ function App() {
       return () => { handles.forEach(h => { if (h && h.remove) h.remove() }) }
     }
 
+    // On web / mobile browser: only hide the dock when an input field is currently active/focused
+    const checkWebKeyboard = () => {
+      const activeEl = document.activeElement
+      const isInput = activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+         activeEl.tagName === 'TEXTAREA' ||
+         activeEl.isContentEditable)
+      if (!isInput) {
+        setKeyboardOpen(false)
+        return
+      }
+      const vv = window.visualViewport
+      if (vv) {
+        setKeyboardOpen(vv.height < window.innerHeight - 120)
+      } else {
+        setKeyboardOpen(true)
+      }
+    }
+
+    const onFocusIn = (e) => {
+      const tag = e.target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) {
+        setTimeout(checkWebKeyboard, 300)
+      }
+    }
+    const onFocusOut = () => {
+      setTimeout(() => setKeyboardOpen(false), 100)
+    }
+
+    window.addEventListener('focusin', onFocusIn)
+    window.addEventListener('focusout', onFocusOut)
     const vv = window.visualViewport
-    if (!vv) return
-    let baseline = window.innerHeight || vv.height
-    const check = () => {
-      const cur = window.innerHeight || vv.height
-      setKeyboardOpen(cur < baseline - 120)
+    if (vv) {
+      vv.addEventListener('resize', checkWebKeyboard)
     }
-    const onOrientation = () => {
-      setTimeout(() => {
-        baseline = window.innerHeight || vv.height
-        check()
-      }, 300)
-    }
-    vv.addEventListener('resize', check)
-    vv.addEventListener('scroll', check)
-    window.addEventListener('orientationchange', onOrientation)
-    check()
+
     return () => {
-      vv.removeEventListener('resize', check)
-      vv.removeEventListener('scroll', check)
-      window.removeEventListener('orientationchange', onOrientation)
+      window.removeEventListener('focusin', onFocusIn)
+      window.removeEventListener('focusout', onFocusOut)
+      if (vv) {
+        vv.removeEventListener('resize', checkWebKeyboard)
+      }
     }
   }, [])
 
@@ -439,16 +477,6 @@ function App() {
       })
   }, [])
 
-  useEffect(() => {
-    const isMobileBrowser = /Android|iPhone|iPad|iPod|Mobile|wv/i.test(navigator.userAgent)
-    if (isNativeShell() || !isMobileBrowser || !currentUser) return
-    const handler = event => {
-      event.preventDefault()
-      event.returnValue = ''
-    }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [currentUser])
 
   useEffect(() => {
     if (!isNativeShell()) return
@@ -835,12 +863,45 @@ function App() {
     } catch { return false }
   }
 
+  const updateGoalsAndSyncTimeline = updater => {
+    setGoals(prevGoals => {
+      const nextGoals = typeof updater === 'function' ? updater(prevGoals) : updater
+      setTimelineHistory(prevTimeline => syncTimelineWithGoals(prevTimeline, data.year, data.sprint, nextGoals))
+      setHistoryModal(prevModal => {
+        if (prevModal && Number(prevModal.sprint_number) === Number(data.sprint) && Number(prevModal.year) === Number(data.year)) {
+          const total = nextGoals.length
+          const completed = nextGoals.filter(g => Boolean(g.done || g.completed)).length
+          const totalPercent = nextGoals.reduce((sum, g) => sum + (Number(g.value ?? g.progress_percent ?? g.progress ?? 0)), 0)
+          const average_progress = total ? Math.round(totalPercent / total) : 0
+          return {
+            ...prevModal,
+            goal_count: total,
+            completed_count: completed,
+            average_progress,
+            goals: nextGoals.map(g => ({
+              id: g.id,
+              title: g.title,
+              target: g.target || 100,
+              progress: g.progress || 0,
+              progress_percent: g.value ?? g.progress_percent ?? (g.target ? Math.round((g.progress / g.target) * 100) : 0),
+              completed: Boolean(g.done || g.completed),
+              completion_note: g.completion_note || null,
+              created_at: g.created_at,
+            }))
+          }
+        }
+        return prevModal
+      })
+      return nextGoals
+    })
+  }
+
   const updateProgress = async (goal, progress_percent) => {
     const previous = goal.value
-    setGoals(items => items.map(item => item.id === goal.id ? presentGoal({ ...item, progress_percent }) : item))
+    updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? presentGoal({ ...item, progress_percent }) : item))
     const saved = await updateGoal(goal, { progress_percent })
     if (!saved) {
-      setGoals(items => items.map(item => item.id === goal.id ? presentGoal({ ...item, progress_percent: previous }) : item))
+      updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? presentGoal({ ...item, progress_percent: previous }) : item))
     }
   }
 
@@ -857,8 +918,8 @@ function App() {
     if (!completionFlow) return
     const note = completionFlow.note.trim()
     const goal = completionFlow.goal
-    const tempCompleted = { ...goal, done: true, value: 100 }
-    setGoals(items => items.map(item => item.id === goal.id ? tempCompleted : item))
+    const tempCompleted = { ...goal, done: true, value: 100, completion_note: note }
+    updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? tempCompleted : item))
     setCompletionFlow(null)
     setCompletedShare({ goal: tempCompleted, note, image: null })
     showToast('Goal Completed')
@@ -868,7 +929,7 @@ function App() {
     try {
       const updated = await completeGoalApi(goal.id, note, sessionToken)
       const saved = presentGoal(updated)
-      setGoals(items => items.map(item => item.id === saved.id ? saved : item))
+      updateGoalsAndSyncTimeline(items => items.map(item => item.id === saved.id ? saved : item))
       refreshProfile()
       createCompletionCard(saved, note)
         .then(image => setCompletedShare(prev => prev && prev.goal.id === saved.id ? { ...prev, image } : prev))
@@ -883,7 +944,7 @@ function App() {
   }
 
   const confirmDeleteGoal = async (goal) => {
-    setGoals(items => items.filter(item => item.id !== goal.id))
+    updateGoalsAndSyncTimeline(items => items.filter(item => item.id !== goal.id))
 
     if (String(goal.id).startsWith('temp-')) return
 
@@ -903,29 +964,65 @@ function App() {
     // 1. Immediately close modal so user is never stuck waiting on "Saving..."
     setAddGoalModalOpen(false)
 
-    // 2. Immediately create an optimistic goal and update entire website instantly
+    // 2. Immediately create an optimistic goal and update entire website & timeline instantly
     const tempGoal = createOptimisticGoal(cleanTitle)
-    setGoals(items => [...items, tempGoal])
+    updateGoalsAndSyncTimeline(items => [...items, tempGoal])
 
     // 3. Persist to server in background
     try {
       const created = await createGoalApi(cleanTitle, sessionToken)
       const saved = presentGoal(created)
-      setGoals(items => items.map(item => item.id === tempGoal.id ? saved : item))
+      updateGoalsAndSyncTimeline(items => items.map(item => item.id === tempGoal.id ? saved : item))
       await refreshProfile()
     } catch (err) {
       console.error('Failed to create goal:', err)
-      setGoals(items => items.filter(item => item.id !== tempGoal.id))
+      updateGoalsAndSyncTimeline(items => items.filter(item => item.id !== tempGoal.id))
       showToast('The goal could not be saved')
     }
   }
 
   const openSprintHistory = async sprintNumber => {
-    const cached = timelineHistory.sprints.find(sprint => sprint.sprint_number === sprintNumber)
+    const sNum = Number(sprintNumber)
+    const isCurrentActiveSprint = sNum === Number(data.sprint) && Number(selectedTimelineYear) === Number(data.year)
+
+    // If opening the active sprint, construct and display IMMEDIATELY from live state (0ms delay)
+    if (isCurrentActiveSprint) {
+      const currentGoalsList = goals.map(g => ({
+        id: g.id,
+        title: g.title,
+        target: g.target || 100,
+        progress: g.progress || 0,
+        progress_percent: g.value ?? g.progress_percent ?? (g.target ? Math.round((g.progress / g.target) * 100) : 0),
+        completed: Boolean(g.done || g.completed),
+        completion_note: g.completion_note || null,
+        created_at: g.created_at,
+      }))
+      const total = currentGoalsList.length
+      const completed = currentGoalsList.filter(g => g.completed).length
+      const totalPercent = currentGoalsList.reduce((sum, g) => sum + (Number(g.progress_percent || 0)), 0)
+      const avg = total ? Math.round(totalPercent / total) : 0
+
+      const cached = (timelineHistory.sprints || []).find(s => Number(s.sprint_number) === sNum)
+      const activeSprintData = {
+        year: data.year,
+        sprint_number: sNum,
+        sprint_start: cached?.sprint_start || getSprintBoundary(data.year, sNum - 1),
+        sprint_end: cached?.sprint_end || getSprintBoundary(data.year, sNum),
+        goal_count: total,
+        completed_count: completed,
+        average_progress: avg,
+        goals: currentGoalsList,
+      }
+      setHistoryModal(activeSprintData)
+      setTimelineHistory(items => updateSprintInTimeline(items, sNum, activeSprintData))
+      return
+    }
+
+    const cached = (timelineHistory.sprints || []).find(s => Number(s.sprint_number) === sNum)
     if (cached?.goals) return setHistoryModal(cached)
     try {
-      const sprint = await fetchSprintHistoryApi(sprintNumber, selectedTimelineYear, sessionToken)
-      setTimelineHistory(items => updateSprintInTimeline(items, sprintNumber, sprint))
+      const sprint = await fetchSprintHistoryApi(sNum, selectedTimelineYear, sessionToken)
+      setTimelineHistory(items => updateSprintInTimeline(items, sNum, sprint))
       setHistoryModal(sprint)
     } catch {}
   }
@@ -956,15 +1053,6 @@ function App() {
   const streak = profile?.stats?.current_streak ?? 0
   const completionRate = profile?.stats?.completion_rate ?? 0
 
-  if (!authReady) {
-    if (isNativeApp()) return null
-    return (
-      <div className="ktl-fullscreen-overlay">
-        <KineticTextLoader text="Loading" />
-      </div>
-    )
-  }
-
   if (shareUsername) {
     return (
       <PublicProfilePage
@@ -977,6 +1065,10 @@ function App() {
         headerHidden={headerHidden}
       />
     )
+  }
+
+  if (!authReady) {
+    return <AdaptiveLoader text="Loading" />
   }
 
   if (!currentUser) {
@@ -1020,6 +1112,7 @@ function App() {
     <main className="app-shell">
       <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
         <SpotlightNavbar
+          key={currentUser ? 'logged-in' : 'logged-out'}
           active={active}
           setActive={setActive}
           keyboardHidden={keyboardOpen}
@@ -1109,15 +1202,16 @@ function App() {
           onCancel={() => setDeleteConfirmFlow(null)}
           onConfirm={confirmDeleteGoal}
         />
-        {toastMsg && (isNativeShell()
-          ? <MobileTopToast message={toastMsg} showTick={!toastNoTick} />
-          : <ToastPopup message={toastMsg} showTick={!toastNoTick} />)}
-        <AppReturnModal
-          appReturnFlow={appReturnFlow}
-          onClose={() => setAppReturnFlow(null)}
-        />
-        <AuthTransitionOverlay active={authLoading} message={authStatus} />
       </section>
+
+      {toastMsg && (isNativeShell()
+        ? <MobileTopToast message={toastMsg} showTick={!toastNoTick} />
+        : <ToastPopup message={toastMsg} showTick={!toastNoTick} />)}
+      <AppReturnModal
+        appReturnFlow={appReturnFlow}
+        onClose={() => setAppReturnFlow(null)}
+      />
+      <AuthTransitionOverlay active={authLoading} message={authStatus} />
     </main>
   )
 }

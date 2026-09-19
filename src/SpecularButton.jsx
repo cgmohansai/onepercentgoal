@@ -120,11 +120,17 @@ const SpecularButton = ({
     gl.clearColor(0, 0, 0, 0);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.canvas.style.opacity = '0';
+    gl.canvas.style.visibility = 'hidden';
+    gl.canvas.style.backgroundColor = 'transparent';
 
     let isContextLost = false;
     const onContextLost = (e) => {
       e.preventDefault();
       isContextLost = true;
+      gl.canvas.classList.remove('is-ready');
+      gl.canvas.style.opacity = '0';
+      gl.canvas.style.visibility = 'hidden';
       if (raf) cancelAnimationFrame(raf);
     };
     gl.canvas.addEventListener('webglcontextlost', onContextLost, false);
@@ -153,7 +159,7 @@ const SpecularButton = ({
     });
 
     const mesh = new Mesh(gl, { geometry, program });
-    fx.appendChild(gl.canvas);
+    let isAppended = false;
 
     const sizeRef = { w: 0, h: 0 };
     const resize = () => {
@@ -252,6 +258,19 @@ const SpecularButton = ({
       program.uniforms.uThickness.value = (p.thickness || 1) * dpr;
       try {
         renderer.render({ scene: mesh });
+        if (!isAppended && fx && sizeRef.w > 0 && sizeRef.h > 0) {
+          fx.appendChild(gl.canvas);
+          isAppended = true;
+          // Defer visibility by 2 RAFs so the WebGL texture has fully swapped
+          // into the hardware compositor backbuffer before becoming visible
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (gl.canvas && !isContextLost) {
+                gl.canvas.classList.add('is-ready');
+              }
+            });
+          });
+        }
       } catch (err) {
         // Suppress any render errors on context loss
       }
@@ -263,7 +282,10 @@ const SpecularButton = ({
       ro.disconnect();
       window.removeEventListener('pointermove', onPointerMove);
       gl.canvas.removeEventListener('webglcontextlost', onContextLost);
-      if (gl.canvas.parentNode === fx) fx.removeChild(gl.canvas);
+      gl.canvas.classList.remove('is-ready');
+      gl.canvas.style.opacity = '0';
+      gl.canvas.style.visibility = 'hidden';
+      if (gl.canvas.parentNode) gl.canvas.parentNode.removeChild(gl.canvas);
       gl.getExtension('WEBGL_lose_context')?.loseContext();
     };
   }, []);
@@ -276,6 +298,9 @@ const SpecularButton = ({
       onClick={onClick}
       className={`specular-button specular-button--${size}${className ? ` ${className}` : ''}`}
       style={{
+        backgroundColor: '#1e201b',
+        background: '#1e201b',
+        borderRadius: `${radius}px`,
         '--sb-radius': `${radius}px`,
         '--sb-tint': tint,
         '--sb-tint-opacity': tintOpacity,

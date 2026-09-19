@@ -1,5 +1,5 @@
 import React from 'react'
-import KineticTextLoader from './KineticTextLoader'
+import AdaptiveLoader from './AdaptiveBootLoader'
 import SpotlightNavbar from './SpotlightNavbar'
 import { formatDateOnly } from '../utils/dateUtils'
 
@@ -22,9 +22,7 @@ export function PublicProfilePage({
 
       <section className="content" style={{ paddingBottom: '60px' }}>
         {publicLoading && (
-          <div className="ktl-fullscreen-overlay">
-            <KineticTextLoader text="Loading" />
-          </div>
+          <AdaptiveLoader text="Loading" />
         )}
         {publicError && (
           <div style={{ textAlign: 'center', padding: '40px 20px' }}>
@@ -89,7 +87,12 @@ export function PublicProfilePage({
               <section className="profile-brand-card card">
                 <div className="profile-brand-header-row">
                   <div className="profile-brand-logo-wrap">
-                    <img src="/favicon.ico" alt="OnePercentGoal" className="profile-brand-logo-img" />
+                    <img
+                      src="/icons/icon-192.png"
+                      alt="OnePercentGoal"
+                      className="profile-brand-logo-img"
+                      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/icon.png'; }}
+                    />
                   </div>
                   <span className="profile-brand-title">OnePercentGoal</span>
                 </div>

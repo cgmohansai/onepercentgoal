@@ -97,24 +97,39 @@ export function SpotlightNavbar({
   useEffect(() => {
     if (!navRef.current) return
     const nav = navRef.current
-    const activeItem = nav.querySelector(`[data-index="${activeIndex}"]`)
 
-    if (activeItem) {
+    const updateAmbience = (immediate = false) => {
+      const activeItem = nav.querySelector(`[data-index="${activeIndex}"]`)
+      if (!activeItem) return
       const navRect = nav.getBoundingClientRect()
       const itemRect = activeItem.getBoundingClientRect()
+      if (itemRect.width === 0) return
       const targetX = itemRect.left - navRect.left + itemRect.width / 2
 
-      animate(ambienceX.current, targetX, {
-        type: "spring",
-        stiffness: 200,
-        damping: 20,
-        onUpdate: (v) => {
-          ambienceX.current = v
-          nav.style.setProperty("--ambience-x", `${v}px`)
-        },
-      })
+      if (immediate || ambienceX.current === 0) {
+        ambienceX.current = targetX
+        nav.style.setProperty("--ambience-x", `${targetX}px`)
+      } else {
+        animate(ambienceX.current, targetX, {
+          type: "spring",
+          stiffness: 220,
+          damping: 22,
+          onUpdate: (v) => {
+            ambienceX.current = v
+            nav.style.setProperty("--ambience-x", `${v}px`)
+          },
+        })
+      }
     }
-  }, [activeIndex])
+
+    updateAmbience(true)
+    const timer = setTimeout(() => updateAmbience(true), 50)
+    window.addEventListener("resize", updateAmbience)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener("resize", updateAmbience)
+    }
+  }, [activeIndex, items, active])
 
   if (normalizedItems.length <= 1) {
     return (
@@ -154,7 +169,7 @@ export function SpotlightNavbar({
 
             const renderNavIcon = (lbl) => {
               if (lbl === 'Overview') return <House size={16} weight={weight} />
-              if (lbl === 'Goals') return <Target size={16} weight={weight} />
+              if (lbl === 'Goals') return <Target size={16} weight="bold" />
               if (lbl === 'Rote') return <Repeat size={16} weight={weight} />
               if (lbl === 'Timeline') return <Clock size={16} weight={weight} />
               if (lbl === 'Profile') return <User size={16} weight={weight} />

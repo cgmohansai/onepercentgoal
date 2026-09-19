@@ -139,3 +139,68 @@ export function calculateTimelineStats(sprints = []) {
     average_progress: avgProgress,
   }
 }
+
+/**
+ * Synchronizes the active sprint in timelineHistory with the current goals list immediately.
+ *
+ * @param {object} timeline - Current timeline state
+ * @param {number} currentYear - Current active sprint year
+ * @param {number} currentSprintNumber - Current active sprint number
+ * @param {Array<object>} goalsList - Current active goals array
+ * @returns {object} Updated timeline
+ */
+export function syncTimelineWithGoals(timeline, currentYear, currentSprintNumber, goalsList = []) {
+  if (!timeline || Number(timeline.year) !== Number(currentYear)) {
+    return timeline
+  }
+  const sNum = Number(currentSprintNumber)
+  const total = goalsList.length
+  const completed = goalsList.filter(g => Boolean(g.done || g.completed)).length
+  const totalPercent = goalsList.reduce((sum, g) => sum + (Number(g.value ?? g.progress_percent ?? g.progress ?? 0)), 0)
+  const average_progress = total ? Math.round(totalPercent / total) : 0
+
+  const mappedGoals = goalsList.map(g => ({
+    id: g.id,
+    title: g.title,
+    target: g.target || 100,
+    progress: g.progress || 0,
+    progress_percent: g.value ?? g.progress_percent ?? (g.target ? Math.round((g.progress / g.target) * 100) : 0),
+    completed: Boolean(g.done || g.completed),
+    completion_note: g.completion_note || null,
+    created_at: g.created_at,
+  }))
+
+  const existingSprints = Array.isArray(timeline.sprints) ? timeline.sprints : []
+  const found = existingSprints.some(s => Number(s.sprint_number) === sNum)
+
+  const updatedSprints = found
+    ? existingSprints.map(s => {
+        if (Number(s.sprint_number) === sNum) {
+          return {
+            ...s,
+            goal_count: total,
+            completed_count: completed,
+            average_progress,
+            goals: mappedGoals,
+          }
+        }
+        return s
+      })
+    : [
+        ...existingSprints,
+        {
+          year: currentYear,
+          sprint_number: sNum,
+          goal_count: total,
+          completed_count: completed,
+          average_progress,
+          goals: mappedGoals,
+        }
+      ]
+
+  return {
+    ...timeline,
+    sprints: updatedSprints,
+  }
+}
+
