@@ -2765,6 +2765,24 @@ body,
   display: block;
 }
 
+@keyframes sprintTilePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(201, 243, 106, 0.6);
+    border-color: #c9f36a;
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(201, 243, 106, 0.25);
+    border-color: #c9f36a;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(201, 243, 106, 0);
+    border-color: #4b583c;
+  }
+}
+.sprint-tile.sprint-tile-highlight-pulse {
+  animation: sprintTilePulse 1.4s ease-out;
+}
+
 /* Profile page custom header styles */
 .profile-page-custom {
   animation: fadeIn 0.3s ease;

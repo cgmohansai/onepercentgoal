@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Gear, SignOut } from '@phosphor-icons/react'
 import SpecularButton from '../SpecularButton'
 import {
@@ -79,6 +79,51 @@ export function WorkspacePage({
   const [editLoading, setEditLoading] = useState(false)
   const [showSettingsMenu, setShowSettingsMenu] = useState(false)
   const settingsMenuRef = useRef(null)
+
+  const currentSprintRef = useRef(null)
+
+  const handleScrollToCurrentSprint = useCallback(() => {
+    const doScroll = () => {
+      const el =
+        currentSprintRef.current ||
+        document.getElementById('current-sprint-tile') ||
+        document.querySelector('.sprint-tile.current')
+      if (!el) return
+
+      try {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+      } catch (err) {
+        el.scrollIntoView(true)
+      }
+
+      // Also ensure mobile scroll container (.content) is centered smoothly
+      const content = el.closest('.content')
+      if (content && content.scrollHeight > content.clientHeight) {
+        const elRect = el.getBoundingClientRect()
+        const contentRect = content.getBoundingClientRect()
+        const targetScrollTop =
+          content.scrollTop + (elRect.top - contentRect.top) - (content.clientHeight / 2) + (el.clientHeight / 2)
+        content.scrollTo({ top: targetScrollTop, behavior: 'smooth' })
+      }
+
+      el.classList.remove('sprint-tile-highlight-pulse')
+      void el.offsetWidth
+      el.classList.add('sprint-tile-highlight-pulse')
+      setTimeout(() => {
+        el.classList.remove('sprint-tile-highlight-pulse')
+      }, 1600)
+    }
+
+    if (selectedYear !== data.year) {
+      if (typeof onSelectYear === 'function') {
+        onSelectYear(data.year)
+      }
+      setTimeout(doScroll, 180)
+      return
+    }
+
+    doScroll()
+  }, [selectedYear, data.year, onSelectYear])
 
   const [remindersEnabled, setRemindersEnabled] = useState(() => localStorage.getItem('opg.reminders.enabled') === '1')
   const [reminderTime, setReminderTime] = useState(() => localStorage.getItem('opg.reminders.time') || '21:00')
@@ -281,6 +326,27 @@ export function WorkspacePage({
                 description="Track your compounding progress across all 100 sprints. Click a sprint tile to inspect detailed history."
               />
             </h1>
+            <SpecularButton
+              size="md"
+              radius={18}
+              tint="#ffffff"
+              tintOpacity={0}
+              blur={0}
+              textColor="#f5f5f5"
+              lineColor="#ffffff"
+              baseColor="#525252"
+              intensity={1}
+              shineSize={10}
+              shineFade={40}
+              thickness={1}
+              speed={0.35}
+              followMouse
+              proximity={250}
+              autoAnimate={false}
+              onClick={handleScrollToCurrentSprint}
+            >
+              Current Sprint
+            </SpecularButton>
           </div>
         </header>
 
@@ -290,7 +356,13 @@ export function WorkspacePage({
             const state = getSprintTileState(number, selectedYear, data.year, data.sprint)
             const tileDateStr = formatSprintDateRange(summary.sprint_start, summary.sprint_end)
             return (
-              <button className={`sprint-tile ${state}`} key={number} onClick={() => onOpenSprint(number)}>
+              <button
+                className={`sprint-tile ${state}`}
+                key={number}
+                ref={state === 'current' && selectedYear === data.year ? currentSprintRef : null}
+                id={state === 'current' && selectedYear === data.year ? 'current-sprint-tile' : undefined}
+                onClick={() => onOpenSprint(number)}
+              >
                 <span>SPRINT</span>
                 <b>
                   #{String(number).padStart(2, '0')}
