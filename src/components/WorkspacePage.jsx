@@ -9,7 +9,7 @@ import {
   cancelDailyReminders,
   areExactAlarmsAllowed,
   requestExactAlarmAccess,
-  isScheduledForToday,
+  getTargetDates,
 } from '../reminders'
 import {
   DAY,
@@ -165,11 +165,13 @@ export function WorkspacePage({
         localStorage.setItem('opg.reminders.enabled', '1')
         localStorage.setItem('opg.reminders.time', reminderTime)
         const exactAlarms = await areExactAlarmsAllowed()
-        const isToday = isScheduledForToday(hour, minute)
+        const { targetGoal } = getTargetDates(hour, minute)
+        const now = new Date()
+        const isToday = targetGoal.getDate() === now.getDate() && targetGoal.getMonth() === now.getMonth()
         const dayLabel = isToday ? 'today' : '(starts tomorrow)'
         if (!exactAlarms) {
           requestExactAlarmAccess()
-          showToast(pending >= 1 ? `Reminders set for ${reminderTime} ${dayLabel} — enable "Alarms & reminders"` : 'Reminders could not be scheduled')
+          showToast(pending >= 1 ? `Reminders set for ${reminderTime} ${dayLabel} — allow "Alarms & reminders"` : 'Reminders could not be scheduled')
         } else {
           showToast(pending >= 1 ? `Daily reminders scheduled for ${reminderTime} ${dayLabel}` : 'Reminders could not be scheduled')
         }
@@ -198,7 +200,7 @@ export function WorkspacePage({
   // the updated time: cancel the old alarms and schedule the new ones.
   const handleReminderTimeChange = value => {
     setReminderTime(value)
-    if (!isNativeApp() || !remindersEnabled || remindersBusy) return
+    if (!isNativeApp() || !remindersEnabled) return
     if (reminderRescheduleTimer.current) clearTimeout(reminderRescheduleTimer.current)
     reminderRescheduleTimer.current = setTimeout(async () => {
       try {
@@ -213,7 +215,9 @@ export function WorkspacePage({
         localStorage.setItem('opg.reminders.enabled', '1')
         localStorage.setItem('opg.reminders.time', value)
         const exactAlarms = await areExactAlarmsAllowed()
-        const isToday = isScheduledForToday(hour, minute)
+        const { targetGoal } = getTargetDates(hour, minute)
+        const now = new Date()
+        const isToday = targetGoal.getDate() === now.getDate() && targetGoal.getMonth() === now.getMonth()
         const dayLabel = isToday ? 'today' : '(starts tomorrow)'
         if (!exactAlarms) {
           requestExactAlarmAccess()
@@ -224,7 +228,7 @@ export function WorkspacePage({
       } catch (err) {
         console.error('Failed to reschedule reminders:', err)
       }
-    }, 800)
+    }, 100)
   }
 
   useEffect(() => () => {
@@ -792,7 +796,14 @@ export function WorkspacePage({
                   {remindersBusy
                     ? 'Updating…'
                     : remindersEnabled
-                      ? `Daily reminders at ${formatDisplayReminderTime(reminderTime)}`
+                      ? (() => {
+                          const [h, m] = String(reminderTime || '').split(':').map(Number)
+                          if (Number.isNaN(h) || Number.isNaN(m)) return `Daily reminders at ${formatDisplayReminderTime(reminderTime)}`
+                          const { targetGoal } = getTargetDates(h, m)
+                          const now = new Date()
+                          const isToday = targetGoal.getDate() === now.getDate() && targetGoal.getMonth() === now.getMonth()
+                          return `Daily reminders at ${formatDisplayReminderTime(reminderTime)} (${isToday ? 'fires today' : 'starts tomorrow'})`
+                        })()
                       : 'Scheduled reminders is off'}
                 </span>
               </div>
