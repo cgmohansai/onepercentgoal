@@ -4,6 +4,8 @@
  * Preserves the exact storage key format: 'opg.rotes.<dateStr>'
  */
 
+import { isRoteInFlight } from '../../services/syncManager.js'
+
 export const ROTES_STORAGE_PREFIX = 'opg.rotes.'
 
 /**
@@ -103,20 +105,22 @@ export function mergeRotes(serverRotes = [], localRotes = [], pendingTempToggles
   const safeLocal = Array.isArray(localRotes) ? localRotes : []
   const localMap = new Map(safeLocal.map(r => [String(r.id), r]))
 
-  const isPendingTemp = id => {
+  const isPending = id => {
+    const idStr = String(id)
+    if (isRoteInFlight(idStr)) return true
     if (!pendingTempToggles) return false
     if (typeof pendingTempToggles.has === 'function') {
-      return pendingTempToggles.has(id)
+      return pendingTempToggles.has(idStr)
     }
     if (Array.isArray(pendingTempToggles)) {
-      return pendingTempToggles.includes(id)
+      return pendingTempToggles.includes(idStr)
     }
     return false
   }
 
   let merged = safeServer.map(sr => {
     const lr = localMap.get(String(sr.id))
-    if (lr && (isPendingTemp(String(sr.id)) || lr.completed !== sr.completed)) {
+    if (lr && isPending(String(sr.id))) {
       return { ...sr, completed: lr.completed }
     }
     return sr
@@ -130,6 +134,29 @@ export function mergeRotes(serverRotes = [], localRotes = [], pendingTempToggles
   }
 
   return merged
+}
+
+/**
+ * Compares two rotes lists to detect whether server data differs from client state
+ * (e.g. routine completed/pending toggled, rotes created or deleted on another device).
+ *
+ * @param {Array} prevRotes - Previous rotes array
+ * @param {Array} newRotes - Incoming rotes array
+ * @returns {boolean} True if differences were found
+ */
+export function haveRotesDiffered(prevRotes = [], newRotes = []) {
+  if (!prevRotes || !newRotes) return false
+  if (prevRotes.length !== newRotes.length) return true
+  const prevMap = new Map(prevRotes.map(r => [String(r.id), r]))
+  for (const n of newRotes) {
+    const idStr = String(n.id)
+    if (isRoteInFlight(idStr)) continue
+    const p = prevMap.get(idStr)
+    if (!p) return true
+    if (Boolean(p.completed) !== Boolean(n.completed)) return true
+    if (p.title !== n.title) return true
+  }
+  return false
 }
 
 /**

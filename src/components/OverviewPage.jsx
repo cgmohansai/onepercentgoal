@@ -218,12 +218,7 @@ export function OverviewPage({
 
             {/* Real-time Sprint Checklist */}
             <div className="sprint-goals-mini-list" style={{ flex: 1, marginBottom: '15px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
-              {isGoalsLoading && (!goals || goals.length === 0) ? (
-                <p style={{ margin: '10px 0', fontSize: '12px', color: '#c9f36a', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="sync-spinner" style={{ width: '12px', height: '12px', border: '1.5px solid rgba(201, 243, 106, 0.25)', borderTopColor: '#c9f36a', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
-                  <span>Syncing sprint goals from cloud…</span>
-                </p>
-              ) : goals.length === 0 ? (
+              {goals.length === 0 ? (
                 <p style={{ margin: '10px 0', fontSize: '12px', color: '#8c9085', fontStyle: 'italic' }}>No goals set for this sprint. Get started!</p>
               ) : (
                 goals.map(g => (

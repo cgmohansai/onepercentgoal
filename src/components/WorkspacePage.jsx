@@ -311,21 +311,9 @@ export function WorkspacePage({
           </div>
         </header>
         
-        <section className="all-goals card" style={{ position: 'relative', overflow: 'hidden' }}>
-          {isGoalsLoading && (
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'rgba(54, 108, 243, 0.15)', overflow: 'hidden', zIndex: 5 }}>
-              <div style={{ height: '100%', width: '40%', background: '#366cf3', animation: 'sideLoad 1.2s ease-in-out infinite' }} />
-            </div>
-          )}
+        <section className="all-goals card">
           <div className="goal-list">
-            {isGoalsLoading && (!goals || goals.length === 0) ? (
-              <div className="rote-empty-state goals-empty-state" style={{ padding: '40px 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', color: '#c8f26a', fontSize: '13px', fontFamily: '"DM Mono", monospace' }}>
-                  <span className="sync-spinner" style={{ width: '16px', height: '16px', border: '2px solid rgba(54, 108, 243, 0.25)', borderTopColor: '#366cf3', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
-                  <span>Syncing sprint goals from cloud…</span>
-                </div>
-              </div>
-            ) : (goals && goals.length > 0) ? (
+            {(goals && goals.length > 0) ? (
               goals.map(goal => (
                 <GoalRow
                   goal={goal}

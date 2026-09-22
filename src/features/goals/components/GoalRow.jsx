@@ -8,15 +8,18 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
-    setDraft(goal.value)
-  }, [goal.value])
+    if (!isSaving) {
+      setDraft(goal.value)
+    }
+  }, [goal.value, isSaving])
 
   const hasChanged = draft !== goal.value
-  const showActions = isSelected || isHovered || hasChanged
+  const isEditing = hasChanged || isSaving
+  const showActions = (isSelected || isHovered) && !isEditing
 
   // Deselect and revert uncommitted changes if user taps or presses any other part of the screen
   useEffect(() => {
-    if (!isSelected && !hasChanged && !isHovered) return
+    if (isSaving || (!isSelected && !hasChanged && !isHovered)) return
 
     const handlePointerDownOutside = (event) => {
       if (rowRef.current && !rowRef.current.contains(event.target)) {
@@ -40,7 +43,7 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
       document.removeEventListener('pointerdown', handlePointerDownOutside)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isSelected, hasChanged, isHovered, goal.value])
+  }, [isSelected, hasChanged, isHovered, goal.value, isSaving])
 
   const commitProgress = async (e) => {
     if (e) e.stopPropagation()
@@ -119,7 +122,7 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
           </span>
           {!goal.done && (
             <span className="goal-inline-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {hasChanged && (
+              {isEditing && (
                 <>
                   <button
                     type="button"
@@ -141,7 +144,7 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
                   </button>
                 </>
               )}
-              {!hasChanged && showActions && (
+              {!isEditing && showActions && (
                 <>
                   <button
                     type="button"
@@ -180,7 +183,7 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
           className={goal.done ? 'mini-track static' : 'mini-track editable'}
           onClick={(e) => e.stopPropagation()}
         >
-          <i style={{ width: `${hasChanged ? draft : goal.value}%` }} />
+          <i style={{ width: `${isEditing ? draft : goal.value}%` }} />
           {!goal.done && (
             <input
               aria-label={`Update ${goal.title} progress`}
@@ -188,6 +191,7 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
               min="0"
               max="100"
               value={draft}
+              disabled={isSaving}
               onPointerDown={() => setIsSelected(true)}
               onChange={(event) => {
                 setIsSelected(true)
@@ -199,14 +203,14 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
             <span
               className="track-thumb"
               style={{
-                left: `${hasChanged ? draft : goal.value}%`,
-                opacity: showActions ? 1 : undefined,
+                left: `${isEditing ? draft : goal.value}%`,
+                opacity: (showActions || isEditing) ? 1 : undefined,
               }}
             />
           )}
         </label>
       </span>
-      <strong>{hasChanged ? draft : goal.value}%</strong>
+      <strong>{isEditing ? draft : goal.value}%</strong>
     </div>
   )
 }

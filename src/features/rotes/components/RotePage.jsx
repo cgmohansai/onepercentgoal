@@ -12,10 +12,20 @@ import {
   persistRotes,
   createOptimisticRote,
   reconcileRotesData,
+  haveRotesDiffered,
 } from '../roteUtils'
 import AddRoteModal from './AddRoteModal'
 import HeaderInfoTooltip from '../../../components/HeaderInfoTooltip'
-import { enqueueSyncAction, setSyncStatus, SyncStatus } from '../../../services/syncManager.js'
+import {
+  enqueueSyncAction,
+  setSyncStatus,
+  triggerTransientSync,
+  executeSyncWithRipple,
+  markRoteInFlight,
+  unmarkRoteInFlight,
+  getSyncState,
+  SyncStatus,
+} from '../../../services/syncManager.js'
 
 export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
   const todayStr = getTodayYMD()
@@ -34,16 +44,18 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
   const [deletingRoteId, setDeletingRoteId] = useState(null)
   const [syncingRoteId, setSyncingRoteId] = useState(null)
 
-  const fetchRotes = async (dateStr) => {
-    if (cacheRef.current[dateStr]) {
-      setRotesData(cacheRef.current[dateStr])
-      setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
-    } else {
-      const stored = getStoredRotes(dateStr)
-      if (stored && Array.isArray(stored.rotes)) {
-        cacheRef.current[dateStr] = stored
-        setRotesData(stored)
+  const fetchRotes = async (dateStr, isSilent = false) => {
+    if (!isSilent) {
+      if (cacheRef.current[dateStr]) {
+        setRotesData(cacheRef.current[dateStr])
         setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+      } else {
+        const stored = getStoredRotes(dateStr)
+        if (stored && Array.isArray(stored.rotes)) {
+          cacheRef.current[dateStr] = stored
+          setRotesData(stored)
+          setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+        }
       }
     }
 
@@ -53,26 +65,66 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
       const localRotes = stored?.rotes || []
       const mergedData = reconcileRotesData(serverData, localRotes, pendingTempTogglesRef.current)
 
-      cacheRef.current[dateStr] = mergedData
-      persistRotes(dateStr, mergedData)
-      setRotesData(mergedData)
-      setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
-      if (dateStr === todayStr && onRotesChanged) {
-        onRotesChanged(mergedData)
+      if (isSilent && haveRotesDiffered(localRotes, mergedData.rotes)) {
+        // Cross-device update detected in real time!
+        // 1. Immediately start blue ripple
+        setSyncStatus(SyncStatus.SYNCING)
+        // 2. Wait 700ms so ripple is clearly seen radiating
+        setTimeout(() => {
+          // 3. When loaded, show the update on screen
+          cacheRef.current[dateStr] = mergedData
+          persistRotes(dateStr, mergedData)
+          setRotesData(mergedData)
+          setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+          if (dateStr === todayStr && onRotesChanged) {
+            onRotesChanged(mergedData)
+          }
+          // 4. Blue ripple completes and goes back to green
+          setSyncStatus(SyncStatus.SYNCED)
+        }, 700)
+      } else {
+        cacheRef.current[dateStr] = mergedData
+        persistRotes(dateStr, mergedData)
+        setRotesData(mergedData)
+        setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+        if (dateStr === todayStr && onRotesChanged) {
+          onRotesChanged(mergedData)
+        }
       }
     } catch (err) {
-      console.error('Failed to fetch rotes:', err)
-      setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+      if (!isSilent) {
+        console.error('Failed to fetch rotes:', err)
+        setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
+      }
     }
   }
 
   useEffect(() => {
     // Initial fetch for the currently selected date
     fetchRotes(selectedDate)
+
+    const triggerLiveRotePoll = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return
+      // Pause background poll while active local mutation is syncing to prevent race conditions
+      if (getSyncState().status === SyncStatus.SYNCING) return
+      fetchRotes(selectedDate, true)
+    }
+
+    const interval = setInterval(triggerLiveRotePoll, 1000)
+    window.addEventListener('focus', triggerLiveRotePoll)
+    document.addEventListener('visibilitychange', triggerLiveRotePoll)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', triggerLiveRotePoll)
+      document.removeEventListener('visibilitychange', triggerLiveRotePoll)
+    }
   }, [selectedDate])
 
   const toggleRote = async (roteId) => {
     const targetIdStr = String(roteId)
+    markRoteInFlight(targetIdStr)
     
     // Determine target completed status
     const currentRotes = rotesData?.rotes || []
@@ -97,46 +149,53 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
 
     if (targetIdStr.startsWith('temp-')) {
       pendingTempTogglesRef.current.add(targetIdStr)
+      unmarkRoteInFlight(targetIdStr)
       if (onShowToast) onShowToast(targetStatus ? 'Routine completed locally' : 'Routine marked pending', false)
       return
     }
 
-    // Indicate syncing to trigger ripple animation
-    setSyncStatus(SyncStatus.SYNCING)
-
-    // Send update request to backend in background
+    // Send update request to backend with guaranteed blue ripple duration and smooth toast
     try {
-      const result = await toggleRoteApi(roteId, { date: selectedDate, completed: targetStatus })
-      const confirmedStatus = Boolean(result.completed)
-      setSyncStatus(SyncStatus.SYNCED)
-      if (onShowToast) {
-        onShowToast(confirmedStatus ? 'Routine completed' : 'Routine marked pending', false)
-      }
-      if (confirmedStatus !== targetStatus) {
-        setRotesData(prev => {
-          const reUpdated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
-          const reDoneCount = reUpdated.filter(r => r.completed).length
-          const reNextState = {
-            ...prev,
-            rotes: reUpdated,
-            stats: { ...prev.stats, completed_rotes: reDoneCount }
+      await executeSyncWithRipple(async () => {
+        const result = await toggleRoteApi(roteId, { date: selectedDate, completed: targetStatus })
+        const confirmedStatus = Boolean(result.completed)
+        if (confirmedStatus !== targetStatus) {
+          setRotesData(prev => {
+            const reUpdated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
+            const reDoneCount = reUpdated.filter(r => r.completed).length
+            const reNextState = {
+              ...prev,
+              rotes: reUpdated,
+              stats: { ...prev.stats, completed_rotes: reDoneCount }
+            }
+            cacheRef.current[selectedDate] = reNextState
+            persistRotes(selectedDate, reNextState)
+            if (selectedDate === todayStr && onRotesChanged) {
+              onRotesChanged(reNextState)
+            }
+            return reNextState
+          })
+        }
+        return confirmedStatus
+      }, {
+        minRippleMs: 850,
+        onSuccess: (confirmed) => {
+          unmarkRoteInFlight(targetIdStr)
+          if (onShowToast) {
+            onShowToast(confirmed ? 'Routine completed' : 'Routine marked pending', false)
           }
-          cacheRef.current[selectedDate] = reNextState
-          persistRotes(selectedDate, reNextState)
-          if (selectedDate === todayStr && onRotesChanged) {
-            onRotesChanged(reNextState)
+        },
+        onError: () => {
+          unmarkRoteInFlight(targetIdStr)
+          enqueueSyncAction({ type: 'TOGGLE_ROTE', roteId, date: selectedDate, completed: targetStatus })
+          if (onShowToast) {
+            onShowToast('Routine saved locally (waiting for internet)', true)
           }
-          return reNextState
-        })
-      }
+        }
+      })
     } catch (err) {
+      unmarkRoteInFlight(targetIdStr)
       console.warn('Network error updating rote on server; queuing offline sync:', err)
-      // Do NOT revert! Keep in local storage and queue for server sync
-      enqueueSyncAction({ type: 'TOGGLE_ROTE', roteId, date: selectedDate, completed: targetStatus })
-      setSyncStatus(SyncStatus.PENDING)
-      if (onShowToast) {
-        onShowToast('Routine saved locally (waiting for internet)', true)
-      }
     }
   }
 
@@ -163,23 +222,23 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
       return
     }
 
-    setSyncStatus(SyncStatus.SYNCING)
-
     try {
-      const ok = await deleteRoteApi(roteId)
-      if (ok) {
-        setSyncStatus(SyncStatus.SYNCED)
-        if (onShowToast) onShowToast('Routine deleted', false)
-      } else {
-        enqueueSyncAction({ type: 'DELETE_ROTE', roteId })
-        setSyncStatus(SyncStatus.PENDING)
-        if (onShowToast) onShowToast('Routine deleted locally (waiting for internet)', true)
-      }
+      await executeSyncWithRipple(async () => {
+        const ok = await deleteRoteApi(roteId)
+        if (!ok) throw new Error('Delete failed on server')
+        return ok
+      }, {
+        minRippleMs: 850,
+        onSuccess: () => {
+          if (onShowToast) onShowToast('Routine deleted', false)
+        },
+        onError: () => {
+          enqueueSyncAction({ type: 'DELETE_ROTE', roteId })
+          if (onShowToast) onShowToast('Routine deleted locally (waiting for internet)', true)
+        }
+      })
     } catch (err) {
       console.warn('Failed to delete rote on server; queuing offline sync:', err)
-      enqueueSyncAction({ type: 'DELETE_ROTE', roteId })
-      setSyncStatus(SyncStatus.PENDING)
-      if (onShowToast) onShowToast('Routine deleted locally (waiting for internet)', true)
     }
   }
 
@@ -205,33 +264,38 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
       onRotesChanged(nextState)
     }
 
-    setSyncStatus(SyncStatus.SYNCING)
-
     try {
-      const newItem = await createRoteApi({ title, description: '', date: todayStr })
-      setSyncStatus(SyncStatus.SYNCED)
-      if (onShowToast) onShowToast('Routine added', false)
-      setRotesData(prev => {
-        const wasCompleted = pendingTempTogglesRef.current.has(tempId)
-        pendingTempTogglesRef.current.delete(tempId)
+      await executeSyncWithRipple(async () => {
+        const newItem = await createRoteApi({ title, description: '', date: todayStr })
+        setRotesData(prev => {
+          const wasCompleted = pendingTempTogglesRef.current.has(tempId)
+          pendingTempTogglesRef.current.delete(tempId)
 
-        const reUpdated = prev.rotes.map(r => r.id === tempId ? { ...newItem, completed: wasCompleted || r.completed } : r)
-        const reDoneCount = reUpdated.filter(r => r.completed).length
-        const updatedNextState = {
-          ...prev,
-          rotes: reUpdated,
-          stats: { ...prev.stats, total_rotes: reUpdated.length, completed_rotes: reDoneCount }
+          const reUpdated = prev.rotes.map(r => r.id === tempId ? { ...newItem, completed: wasCompleted || r.completed } : r)
+          const reDoneCount = reUpdated.filter(r => r.completed).length
+          const updatedNextState = {
+            ...prev,
+            rotes: reUpdated,
+            stats: { ...prev.stats, total_rotes: reUpdated.length, completed_rotes: reDoneCount }
+          }
+          cacheRef.current[todayStr] = updatedNextState
+          persistRotes(todayStr, updatedNextState)
+          if (onRotesChanged) onRotesChanged(updatedNextState)
+          return updatedNextState
+        })
+        return newItem
+      }, {
+        minRippleMs: 850,
+        onSuccess: () => {
+          if (onShowToast) onShowToast('Routine added', false)
+        },
+        onError: () => {
+          enqueueSyncAction({ type: 'CREATE_ROTE', tempId, title, date: todayStr })
+          if (onShowToast) onShowToast('Routine saved locally (waiting for internet)', true)
         }
-        cacheRef.current[todayStr] = updatedNextState
-        persistRotes(todayStr, updatedNextState)
-        if (onRotesChanged) onRotesChanged(updatedNextState)
-        return updatedNextState
       })
     } catch (err) {
       console.warn('Network error creating rote on server; queuing offline sync:', err)
-      enqueueSyncAction({ type: 'CREATE_ROTE', tempId, title, date: todayStr })
-      setSyncStatus(SyncStatus.PENDING)
-      if (onShowToast) onShowToast('Routine saved locally (waiting for internet)', true)
     }
   }
 
@@ -390,13 +454,7 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
           </div>
         </div>
 
-        <div className="rote-checklist-card card" style={{ position: 'relative', overflow: 'hidden' }}>
-          {(isLoading || !isCurrentDateLoaded) && (
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'rgba(54, 108, 243, 0.15)', overflow: 'hidden', zIndex: 5 }}>
-              <div style={{ height: '100%', width: '40%', background: '#366cf3', animation: 'sideLoad 1.2s ease-in-out infinite' }} />
-            </div>
-          )}
-
+        <div className="rote-checklist-card card">
           <div className="rote-day-header">
             <div>
               <span className="rote-day-label">
@@ -417,7 +475,7 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
           )}
 
           <div className="rote-list">
-            {!isCurrentDateLoaded ? (
+            {!isCurrentDateLoaded && (!rotesData.rotes || rotesData.rotes.length === 0) ? (
               <div className="rote-skeleton-wrap">
                 <div className="rote-skeleton-row" />
                 <div className="rote-skeleton-row" />

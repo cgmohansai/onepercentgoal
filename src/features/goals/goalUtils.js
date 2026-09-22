@@ -3,6 +3,7 @@
  */
 
 import { Media } from '@capacitor-community/media'
+import { isGoalInFlight } from '../../services/syncManager.js'
 
 /**
  * Normalizes a goal object from the API or local state into standard UI presentation format.
@@ -99,14 +100,52 @@ export function clearDeletedGoalIds() {
 export function mergeGoals(currentGoals = [], serverGoals = []) {
   const deletedIds = getDeletedGoalIds()
   const filteredServer = serverGoals.filter(g => !deletedIds.has(String(g.id)))
+  const currentMap = new Map(currentGoals.map(g => [String(g.id), g]))
+
+  const merged = filteredServer.map(sg => {
+    const cg = currentMap.get(String(sg.id))
+    if (cg && isGoalInFlight(String(sg.id))) {
+      return { ...sg, value: cg.value, progress_percent: cg.progress_percent, done: cg.done, completed: cg.completed }
+    }
+    return sg
+  })
+
   const pendingTemps = currentGoals.filter(g => String(g.id).startsWith('temp-') && !deletedIds.has(String(g.id)))
-  const merged = [...filteredServer]
   for (const tg of pendingTemps) {
     if (!merged.some(m => m.id === tg.id || m.title === tg.title)) {
       merged.push(tg)
     }
   }
   return merged
+}
+
+/**
+ * Compares two goal lists to detect whether server data differs from client state
+ * (e.g. progress updated, completed status changed, goals added or removed on another device).
+ *
+ * @param {Array} prevGoals - Previous goals array
+ * @param {Array} newGoals - Incoming goals array
+ * @returns {boolean} True if differences were found
+ */
+export function haveGoalsDiffered(prevGoals = [], newGoals = []) {
+  if (!prevGoals || !newGoals) return false
+  if (prevGoals.length !== newGoals.length) return true
+  const prevMap = new Map(prevGoals.map(g => [String(g.id), g]))
+  for (const n of newGoals) {
+    const idStr = String(n.id)
+    if (isGoalInFlight(idStr)) continue
+    const p = prevMap.get(idStr)
+    if (!p) return true
+    const pVal = Number(p.value ?? p.progress_percent ?? 0)
+    const nVal = Number(n.value ?? n.progress_percent ?? 0)
+    if (pVal !== nVal) return true
+    const pDone = Boolean(p.done || p.completed)
+    const nDone = Boolean(n.done || n.completed)
+    if (pDone !== nDone) return true
+    if (p.title !== n.title) return true
+    if ((p.completion_note || '') !== (n.completion_note || '')) return true
+  }
+  return false
 }
 
 /**

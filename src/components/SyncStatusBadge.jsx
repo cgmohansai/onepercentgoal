@@ -54,7 +54,7 @@ export function SyncStatusBadge({ onShowToast }) {
     tooltip = 'Waiting for internet to sync'
   } else if (isSyncing) {
     dotColor = '#366cf3'
-    dotShadow = '0 0 7px rgba(54, 108, 243, 0.7)'
+    dotShadow = '0 0 6px rgba(54, 108, 243, 0.75)'
     tooltip = 'Syncing with cloud…'
   }
 
@@ -79,38 +79,22 @@ export function SyncStatusBadge({ onShowToast }) {
         overflow: 'visible',
       }}
     >
-      {/* Ripple concentric wave animation radiating in Silk blue (#366cf3) when syncing */}
+      {/* Single clean ripple wave radiating in Silk blue (#366cf3) when syncing */}
       {isSyncing && (
-        <>
-          <span
-            className="sync-ripple-ring"
-            style={{
-              gridArea: '1 / 1',
-              width: '18px',
-              height: '18px',
-              borderRadius: '50%',
-              border: '1.5px solid #366cf3',
-              boxSizing: 'border-box',
-              animation: 'syncRipple 1.4s cubic-bezier(0, 0.2, 0.8, 1) infinite',
-              pointerEvents: 'none',
-              margin: 'auto',
-            }}
-          />
-          <span
-            className="sync-ripple-ring"
-            style={{
-              gridArea: '1 / 1',
-              width: '18px',
-              height: '18px',
-              borderRadius: '50%',
-              border: '1.5px solid #366cf3',
-              boxSizing: 'border-box',
-              animation: 'syncRipple 1.4s cubic-bezier(0, 0.2, 0.8, 1) 0.7s infinite',
-              pointerEvents: 'none',
-              margin: 'auto',
-            }}
-          />
-        </>
+        <span
+          className="sync-ripple-ring"
+          style={{
+            gridArea: '1 / 1',
+            width: '18px',
+            height: '18px',
+            borderRadius: '50%',
+            border: '1.5px solid #366cf3',
+            boxSizing: 'border-box',
+            animation: 'syncRipple 1.15s cubic-bezier(0, 0.2, 0.8, 1) infinite',
+            pointerEvents: 'none',
+            margin: 'auto',
+          }}
+        />
       )}
 
       {/* Center dot only: completely borderless and boundary-free */}

@@ -37,6 +37,7 @@ import {
   presentGoal,
   createOptimisticGoal,
   mergeGoals,
+  haveGoalsDiffered,
   getFallbackGoals,
   trackDeletedGoalId,
   getDeletedGoalIds,
@@ -54,6 +55,7 @@ import {
   persistRotes,
   computeRoteStats,
   mergeRotes,
+  haveRotesDiffered,
 } from './features/rotes/roteUtils'
 import {
   fetchTimeline as fetchTimelineApi,
@@ -95,6 +97,13 @@ import SyncStatusBadge from './components/SyncStatusBadge'
 import {
   enqueueSyncAction,
   setSyncStatus,
+  triggerTransientSync,
+  executeSyncWithRipple,
+  markRoteInFlight,
+  unmarkRoteInFlight,
+  markGoalInFlight,
+  unmarkGoalInFlight,
+  getSyncState,
   flushSyncQueue,
   SyncStatus
 } from './services/syncManager'
@@ -243,6 +252,8 @@ function App() {
   const toggleRoteFromOverview = async (roteId) => {
     const todayStr = getTodayYMD()
     const targetIdStr = String(roteId)
+    markRoteInFlight(targetIdStr)
+
     const currentRotes = roteOverviewStats.rotes || []
     const currentItem = currentRotes.find(r => String(r.id) === targetIdStr)
     const targetStatus = currentItem ? !currentItem.completed : true
@@ -257,25 +268,42 @@ function App() {
     }
     handleRotesChanged(nextData)
 
-    if (targetIdStr.startsWith('temp-')) return
+    if (targetIdStr.startsWith('temp-')) {
+      unmarkRoteInFlight(targetIdStr)
+      showToast(targetStatus ? 'Routine completed locally' : 'Routine marked pending', false)
+      return
+    }
 
-    // 2. Sync to server in background
+    // 2. Sync to server with guaranteed blue ripple duration and smooth toast after ripple
     try {
-      const result = await toggleRoteApi(roteId, { date: todayStr, completed: targetStatus })
-      const confirmedStatus = Boolean(result.completed)
-      setSyncStatus(SyncStatus.SYNCED)
-      if (confirmedStatus !== targetStatus) {
-        const reUpdated = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
-        const reDoneCount = reUpdated.filter(r => r.completed).length
-        handleRotesChanged({
-          date: todayStr,
-          rotes: reUpdated,
-          stats: { total_rotes: reUpdated.length, completed_rotes: reDoneCount }
-        })
-      }
+      await executeSyncWithRipple(async () => {
+        const result = await toggleRoteApi(roteId, { date: todayStr, completed: targetStatus })
+        const confirmedStatus = Boolean(result.completed)
+        if (confirmedStatus !== targetStatus) {
+          const reUpdated = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
+          const reDoneCount = reUpdated.filter(r => r.completed).length
+          handleRotesChanged({
+            date: todayStr,
+            rotes: reUpdated,
+            stats: { total_rotes: reUpdated.length, completed_rotes: reDoneCount }
+          })
+        }
+        return confirmedStatus
+      }, {
+        minRippleMs: 850,
+        onSuccess: (confirmed) => {
+          unmarkRoteInFlight(targetIdStr)
+          showToast(confirmed ? 'Routine completed' : 'Routine marked pending', false)
+        },
+        onError: () => {
+          unmarkRoteInFlight(targetIdStr)
+          enqueueSyncAction({ type: 'TOGGLE_ROTE', roteId, date: todayStr, completed: targetStatus })
+          showToast('Routine saved locally (waiting for internet)', true)
+        }
+      })
     } catch (err) {
+      unmarkRoteInFlight(targetIdStr)
       console.warn('Network error toggling rote from overview; queued offline sync:', err)
-      enqueueSyncAction({ type: 'TOGGLE_ROTE', roteId, date: todayStr, completed: targetStatus })
     }
   }
 
@@ -611,20 +639,48 @@ function App() {
         setActive('Overview')
         setShowAuthModal(false)
         Browser.close().catch(() => {})
-        getCurrentUser(token)
-          .then(user => {
-            setCurrentUser(user)
-            setActive('Overview')
-            setShowAuthModal(false)
-            showToast('Welcome to OnePercentGoal')
-          })
-          .catch(() => {
-            removeStoredToken()
-            setSessionToken('')
-            setAuthError('Your sign-in session could not be restored. Please try again.')
-            setShowAuthModal(true)
-          })
-          .finally(() => setAuthLoading(false))
+        try {
+          const user = await getCurrentUser(token)
+          setCurrentUser(user)
+          setAuthStatus('Preparing your dashboard…')
+          const todayStr = getTodayYMD()
+          const [dashResult, rotesResult] = await Promise.allSettled([
+            fetchDashboard(token),
+            fetchRotesApi(todayStr, token),
+          ])
+
+          if (dashResult.status === 'fulfilled' && dashResult.value) {
+            const dashData = dashResult.value
+            if (dashData.year) {
+              setServerSprint(dashData.year)
+              try { localStorage.setItem('opg.sprint.current', JSON.stringify(dashData.year)) } catch {}
+            }
+            const deletedIds = getDeletedGoalIds()
+            const freshGoals = (dashData.goals || [])
+              .filter(g => !deletedIds.has(String(g.id)))
+              .map(presentGoal)
+            updateGoalsAndSyncTimeline(freshGoals)
+          }
+
+          if (rotesResult.status === 'fulfilled' && rotesResult.value) {
+            const rotesData = rotesResult.value
+            if (rotesData && Array.isArray(rotesData.rotes)) {
+              const stored = getStoredRotes(todayStr)
+              const localRotes = stored?.rotes || []
+              const mergedRotes = mergeRotes(rotesData.rotes, localRotes)
+              handleRotesChanged({ ...rotesData, rotes: mergedRotes })
+            }
+          }
+          setSyncStatus(SyncStatus.SYNCED)
+          showToast('Welcome to OnePercentGoal')
+        } catch {
+          removeStoredToken()
+          setSessionToken('')
+          setAuthError('Your sign-in session could not be restored. Please try again.')
+          setShowAuthModal(true)
+        } finally {
+          setAuthLoading(false)
+        }
       }
     }
     // If the user backs out of the external sign-in browser without
@@ -765,8 +821,22 @@ function App() {
       const serverGoals = (dashData.goals || [])
         .filter(g => !deletedIds.has(String(g.id)))
         .map(presentGoal)
+
       setGoals(prev => {
         const merged = mergeGoals(prev, serverGoals)
+        if (isBackground && haveGoalsDiffered(prev, merged)) {
+          // Cross-device update incoming from server!
+          // 1. Immediately start blue ripple
+          setSyncStatus(SyncStatus.SYNCING)
+          // 2. Wait 700ms so ripple is clearly seen radiating
+          setTimeout(() => {
+            // 3. When loaded, update entire app (goals, timeline, stats) simultaneously
+            updateGoalsAndSyncTimeline(merged)
+            // 4. Blue ripple completes and goes back to green
+            setSyncStatus(SyncStatus.SYNCED)
+          }, 700)
+          return prev
+        }
         try { localStorage.setItem('opg.dashboard.goals', JSON.stringify(merged)) } catch {}
         return merged
       })
@@ -787,7 +857,7 @@ function App() {
     }
   }
 
-  const loadRotes = async token => {
+  const loadRotes = async (token, isBackground = false) => {
     const todayStr = getTodayYMD()
     const activeToken = token || sessionToken || localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
     if (!activeToken) return
@@ -797,24 +867,34 @@ function App() {
         const stored = getStoredRotes(todayStr)
         const localRotes = stored?.rotes || []
         const merged = mergeRotes(rotesData.rotes, localRotes)
-        handleRotesChanged({ ...rotesData, rotes: merged })
+        if (isBackground && haveRotesDiffered(localRotes, merged)) {
+          setSyncStatus(SyncStatus.SYNCING)
+          setTimeout(() => {
+            handleRotesChanged({ ...rotesData, rotes: merged })
+            setSyncStatus(SyncStatus.SYNCED)
+          }, 700)
+        } else {
+          handleRotesChanged({ ...rotesData, rotes: merged })
+        }
       }
     } catch {}
   }
 
-  // Cross-device live synchronization: silent poll every 12 seconds and on focus/resume
+  // Cross-device live synchronization: fast poll every 1 second and on focus/resume
   useEffect(() => {
     if (!currentUser || !sessionToken) return
 
     const triggerSilentSync = () => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       if (typeof navigator !== 'undefined' && !navigator.onLine) return
+      // Pause background poll while active local mutation is syncing to prevent race conditions
+      if (getSyncState().status === SyncStatus.SYNCING) return
       loadDashboard(sessionToken, true)
-      loadRotes(sessionToken)
+      loadRotes(sessionToken, true)
       flushSyncQueue(sessionToken)
     }
 
-    const interval = setInterval(triggerSilentSync, 12000)
+    const interval = setInterval(triggerSilentSync, 1000)
     window.addEventListener('focus', triggerSilentSync)
     document.addEventListener('visibilitychange', triggerSilentSync)
 
@@ -825,11 +905,79 @@ function App() {
     }
   }, [currentUser, sessionToken])
 
+  // Startup & Post-Login Synchronization:
+  // Immediately start the blue ripple, fetch updated goals & rotes from the server in parallel,
+  // and smoothly update the entire application (overview, goals, routines) simultaneously when complete.
   useEffect(() => {
     if (!currentUser || !sessionToken) return
-    loadDashboard(sessionToken)
-    loadRotes(sessionToken)
-    flushSyncQueue(sessionToken)
+
+    let cancelled = false
+    const initialSync = async () => {
+      setSyncStatus(SyncStatus.SYNCING)
+      const startTime = Date.now()
+      const todayStr = getTodayYMD()
+
+      try {
+        const [dashResult, rotesResult] = await Promise.allSettled([
+          fetchDashboard(sessionToken),
+          fetchRotesApi(todayStr, sessionToken),
+          flushSyncQueue(sessionToken),
+        ])
+
+        if (cancelled) return
+
+        let freshGoals = null
+        if (dashResult.status === 'fulfilled' && dashResult.value) {
+          const dashData = dashResult.value
+          if (dashData.year) {
+            setServerSprint(dashData.year)
+            try { localStorage.setItem('opg.sprint.current', JSON.stringify(dashData.year)) } catch {}
+          }
+          const deletedIds = getDeletedGoalIds()
+          freshGoals = (dashData.goals || [])
+            .filter(g => !deletedIds.has(String(g.id)))
+            .map(presentGoal)
+        }
+
+        let freshRotesPayload = null
+        if (rotesResult.status === 'fulfilled' && rotesResult.value) {
+          const rotesData = rotesResult.value
+          if (rotesData && Array.isArray(rotesData.rotes)) {
+            const stored = getStoredRotes(todayStr)
+            const localRotes = stored?.rotes || []
+            const mergedRotes = mergeRotes(rotesData.rotes, localRotes)
+            freshRotesPayload = { ...rotesData, rotes: mergedRotes }
+          }
+        }
+
+        // Smooth perception: guarantee blue ripple is visibly radiating for at least 750ms
+        const elapsed = Date.now() - startTime
+        if (elapsed < 750) {
+          await new Promise(r => setTimeout(r, 750 - elapsed))
+        }
+        if (cancelled) return
+
+        // Update entire app simultaneously with real server data
+        if (freshGoals !== null) {
+          updateGoalsAndSyncTimeline(prev => mergeGoals(prev, freshGoals))
+        }
+        if (freshRotesPayload !== null) {
+          handleRotesChanged(freshRotesPayload)
+        }
+
+        setSyncStatus(SyncStatus.SYNCED)
+      } catch (err) {
+        if (!cancelled) setSyncStatus(SyncStatus.SYNCED)
+      } finally {
+        if (!cancelled) setIsGoalsLoading(false)
+      }
+    }
+
+    initialSync()
+
+    return () => {
+      cancelled = true
+    }
   }, [currentUser, sessionToken])
 
   useEffect(() => {
@@ -868,9 +1016,46 @@ function App() {
       resetMorphIndex()
       setActive('Overview')
       setShowAuthModal(false)
-      showToast('Welcome to OnePercentGoal')
       setAuthError('')
       resetScrollToTop()
+
+      // Fetch fresh goals & routines from server while "Your dashboard is almost ready" is showing!
+      setAuthStatus('Preparing your dashboard…')
+      const todayStr = getTodayYMD()
+      try {
+        const [dashResult, rotesResult] = await Promise.allSettled([
+          fetchDashboard(result.token),
+          fetchRotesApi(todayStr, result.token),
+        ])
+
+        if (dashResult.status === 'fulfilled' && dashResult.value) {
+          const dashData = dashResult.value
+          if (dashData.year) {
+            setServerSprint(dashData.year)
+            try { localStorage.setItem('opg.sprint.current', JSON.stringify(dashData.year)) } catch {}
+          }
+          const deletedIds = getDeletedGoalIds()
+          const freshGoals = (dashData.goals || [])
+            .filter(g => !deletedIds.has(String(g.id)))
+            .map(presentGoal)
+          updateGoalsAndSyncTimeline(freshGoals)
+        }
+
+        if (rotesResult.status === 'fulfilled' && rotesResult.value) {
+          const rotesData = rotesResult.value
+          if (rotesData && Array.isArray(rotesData.rotes)) {
+            const stored = getStoredRotes(todayStr)
+            const localRotes = stored?.rotes || []
+            const mergedRotes = mergeRotes(rotesData.rotes, localRotes)
+            handleRotesChanged({ ...rotesData, rotes: mergedRotes })
+          }
+        }
+      } catch (loadErr) {
+        console.warn('Initial data load warning:', loadErr)
+      }
+
+      setSyncStatus(SyncStatus.SYNCED)
+      showToast('Welcome to OnePercentGoal')
 
       // If launched from native app with auth_return, provide seamless transition
       if (nativeAuthReturn) {
@@ -1020,12 +1205,23 @@ function App() {
 
   const updateGoal = async (goal, payload) => {
     if (String(goal.id).startsWith('temp-')) return true
+    const token = sessionToken || getStoredToken()
     try {
-      const updated = await updateGoalApi(goal.id, payload, sessionToken)
-      const saved = presentGoal(updated)
-      setGoals(items => items.map(item => item.id === goal.id ? saved : item))
-      await refreshProfile()
-      return true
+      return await executeSyncWithRipple(async () => {
+        const updated = await updateGoalApi(goal.id, payload, token)
+        const saved = presentGoal(updated)
+        setGoals(items => items.map(item => item.id === goal.id ? saved : item))
+        await refreshProfile()
+        return true
+      }, {
+        minRippleMs: 850,
+        onSuccess: () => {
+          showToast('Goal updated', false)
+        },
+        onError: () => {
+          showToast('Goal updated locally (waiting for internet)', true)
+        }
+      })
     } catch { return false }
   }
 
@@ -1072,14 +1268,13 @@ function App() {
   }
 
   const updateProgress = async (goal, progress_percent) => {
+    markGoalInFlight(goal.id)
     // 1. Instantly update in-memory state, timeline, and persist to localStorage
     updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? presentGoal({ ...item, progress_percent }) : item))
 
-    // 2. Set syncing status to trigger ripple on sync badge
-    setSyncStatus(SyncStatus.SYNCING)
-
     const token = sessionToken || getStoredToken()
     if (!token || String(goal.id).startsWith('temp-')) {
+      unmarkGoalInFlight(goal.id)
       enqueueSyncAction({ type: 'UPDATE_GOAL', goalId: goal.id, payload: { progress_percent } })
       setSyncStatus(SyncStatus.SYNCED)
       showToast('Progress saved locally', false)
@@ -1087,17 +1282,27 @@ function App() {
     }
 
     try {
-      const updated = await updateGoalApi(goal.id, { progress_percent }, token)
-      const saved = presentGoal(updated)
-      setGoals(items => items.map(item => item.id === goal.id ? saved : item))
-      setSyncStatus(SyncStatus.SYNCED)
-      showToast('Sprint progress updated', false)
-      refreshProfile(token).catch(() => {})
+      await executeSyncWithRipple(async () => {
+        const updated = await updateGoalApi(goal.id, { progress_percent }, token)
+        const saved = presentGoal(updated)
+        updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? saved : item))
+        refreshProfile(token).catch(() => {})
+        return saved
+      }, {
+        minRippleMs: 850,
+        onSuccess: () => {
+          unmarkGoalInFlight(goal.id)
+          showToast('Sprint progress updated', false)
+        },
+        onError: () => {
+          unmarkGoalInFlight(goal.id)
+          enqueueSyncAction({ type: 'UPDATE_GOAL', goalId: goal.id, payload: { progress_percent } })
+          showToast('Progress saved locally (waiting for internet)', true)
+        }
+      })
     } catch (err) {
+      unmarkGoalInFlight(goal.id)
       console.warn('Network error updating goal progress on server; saved locally:', err)
-      enqueueSyncAction({ type: 'UPDATE_GOAL', goalId: goal.id, payload: { progress_percent } })
-      setSyncStatus(SyncStatus.PENDING)
-      showToast('Progress saved locally (waiting for internet)', true)
     }
   }
 
@@ -1114,6 +1319,7 @@ function App() {
     if (!completionFlow) return
     const note = completionFlow.note.trim()
     const goal = completionFlow.goal
+    markGoalInFlight(goal.id)
     const tempCompleted = { ...goal, done: true, value: 100, completion_note: note }
     updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? tempCompleted : item))
     setCompletionFlow(null)
@@ -1121,33 +1327,44 @@ function App() {
     triggerSideCannons()
 
     if (String(goal.id).startsWith('temp-')) {
+      unmarkGoalInFlight(goal.id)
       showToast('Goal completed locally', false)
       return
     }
 
-    setSyncStatus(SyncStatus.SYNCING)
-
     const token = sessionToken || getStoredToken()
-    if (token) {
-      try {
+    if (!token) {
+      unmarkGoalInFlight(goal.id)
+      setSyncStatus(SyncStatus.SYNCED)
+      showToast('Goal completed locally', false)
+      return
+    }
+
+    try {
+      await executeSyncWithRipple(async () => {
         const updated = await completeGoalApi(goal.id, note, token)
         const saved = presentGoal(updated)
         updateGoalsAndSyncTimeline(items => items.map(item => item.id === saved.id ? saved : item))
-        setSyncStatus(SyncStatus.SYNCED)
-        showToast('Goal completed', false)
         refreshProfile(token).catch(() => {})
         createCompletionCard(saved, note)
           .then(image => setCompletedShare(prev => prev && prev.goal.id === saved.id ? { ...prev, image } : prev))
           .catch(() => {})
-      } catch (err) {
-        console.warn('Network error completing goal on server; queued offline sync:', err)
-        enqueueSyncAction({ type: 'COMPLETE_GOAL', goalId: goal.id, note })
-        setSyncStatus(SyncStatus.PENDING)
-        showToast('Goal completed locally (waiting for internet)', true)
-      }
-    } else {
-      setSyncStatus(SyncStatus.SYNCED)
-      showToast('Goal completed locally', false)
+        return saved
+      }, {
+        minRippleMs: 850,
+        onSuccess: () => {
+          unmarkGoalInFlight(goal.id)
+          showToast('Goal completed', false)
+        },
+        onError: () => {
+          unmarkGoalInFlight(goal.id)
+          enqueueSyncAction({ type: 'COMPLETE_GOAL', goalId: goal.id, note })
+          showToast('Goal completed locally (waiting for internet)', true)
+        }
+      })
+    } catch (err) {
+      unmarkGoalInFlight(goal.id)
+      console.warn('Network error completing goal on server; queued offline sync:', err)
     }
   }
 
@@ -1158,6 +1375,7 @@ function App() {
   const confirmDeleteGoal = async (goal) => {
     if (!goal) return
     const goalToDelete = goal
+    markGoalInFlight(goalToDelete.id)
     setDeleteConfirmFlow(null)
 
     // 1. Optimistically remove from state, timeline, and instantly persist to localStorage
@@ -1168,34 +1386,40 @@ function App() {
 
     // 3. Persist deletion to server in background if authenticated
     if (String(goalToDelete.id).startsWith('temp-')) {
+      unmarkGoalInFlight(goalToDelete.id)
       showToast('Goal deleted', false)
       return
     }
 
-    setSyncStatus(SyncStatus.SYNCING)
-
     const token = sessionToken || getStoredToken()
-    if (token) {
-      try {
-        const ok = await deleteGoalApi(goalToDelete.id, token)
-        if (ok) {
-          setSyncStatus(SyncStatus.SYNCED)
-          showToast('Goal deleted', false)
-          refreshProfile(token).catch(() => {})
-        } else {
-          enqueueSyncAction({ type: 'DELETE_GOAL', goalId: goalToDelete.id })
-          setSyncStatus(SyncStatus.PENDING)
-          showToast('Goal deleted locally (waiting for internet)', true)
-        }
-      } catch (err) {
-        console.warn('Failed to delete goal on server; queued offline sync:', err)
-        enqueueSyncAction({ type: 'DELETE_GOAL', goalId: goalToDelete.id })
-        setSyncStatus(SyncStatus.PENDING)
-        showToast('Goal deleted locally (waiting for internet)', true)
-      }
-    } else {
+    if (!token) {
+      unmarkGoalInFlight(goalToDelete.id)
       setSyncStatus(SyncStatus.SYNCED)
       showToast('Goal deleted', false)
+      return
+    }
+
+    try {
+      await executeSyncWithRipple(async () => {
+        const ok = await deleteGoalApi(goalToDelete.id, token)
+        if (!ok) throw new Error('Delete failed on server')
+        refreshProfile(token).catch(() => {})
+        return ok
+      }, {
+        minRippleMs: 850,
+        onSuccess: () => {
+          unmarkGoalInFlight(goalToDelete.id)
+          showToast('Goal deleted', false)
+        },
+        onError: () => {
+          unmarkGoalInFlight(goalToDelete.id)
+          enqueueSyncAction({ type: 'DELETE_GOAL', goalId: goalToDelete.id })
+          showToast('Goal deleted locally (waiting for internet)', true)
+        }
+      })
+    } catch (err) {
+      unmarkGoalInFlight(goalToDelete.id)
+      console.warn('Failed to delete goal on server; queued offline sync:', err)
     }
   }
 
@@ -1210,10 +1434,7 @@ function App() {
     const tempGoal = createOptimisticGoal(cleanTitle)
     updateGoalsAndSyncTimeline(items => [...items, tempGoal])
 
-    // 3. Set syncing status to trigger ripple on sync badge
-    setSyncStatus(SyncStatus.SYNCING)
-
-    // 4. Persist to server in background
+    // 3. Persist to server in background with guaranteed visible blue ripple and smooth toast
     const token = sessionToken || getStoredToken()
     if (!token) {
       setSyncStatus(SyncStatus.PENDING)
@@ -1223,17 +1444,24 @@ function App() {
     }
 
     try {
-      const created = await createGoalApi(cleanTitle, token)
-      const saved = presentGoal(created)
-      updateGoalsAndSyncTimeline(items => items.map(item => item.id === tempGoal.id ? saved : item))
-      setSyncStatus(SyncStatus.SYNCED)
-      showToast('Goal created', false)
-      refreshProfile(token).catch(() => {})
+      await executeSyncWithRipple(async () => {
+        const created = await createGoalApi(cleanTitle, token)
+        const saved = presentGoal(created)
+        updateGoalsAndSyncTimeline(items => items.map(item => item.id === tempGoal.id ? saved : item))
+        refreshProfile(token).catch(() => {})
+        return saved
+      }, {
+        minRippleMs: 850,
+        onSuccess: () => {
+          showToast('Goal created', false)
+        },
+        onError: () => {
+          enqueueSyncAction({ type: 'CREATE_GOAL', tempId: tempGoal.id, title: cleanTitle })
+          showToast('Goal created locally (waiting for internet)', true)
+        }
+      })
     } catch (err) {
       console.warn('Network error creating goal on server; saved locally:', err)
-      enqueueSyncAction({ type: 'CREATE_GOAL', tempId: tempGoal.id, title: cleanTitle })
-      setSyncStatus(SyncStatus.PENDING)
-      showToast('Goal created locally (waiting for internet)', true)
     }
   }
 

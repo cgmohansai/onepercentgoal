@@ -79,10 +79,109 @@ export function getSyncState() {
   }
 }
 
+// Active in-flight entity mutation tracking to prevent background polling race conditions
+const inFlightRotes = new Set()
+const inFlightGoals = new Set()
+
+export function markRoteInFlight(id) {
+  if (id !== null && id !== undefined) inFlightRotes.add(String(id))
+}
+
+export function unmarkRoteInFlight(id) {
+  if (id !== null && id !== undefined) inFlightRotes.delete(String(id))
+}
+
+export function isRoteInFlight(id) {
+  return inFlightRotes.has(String(id))
+}
+
+export function markGoalInFlight(id) {
+  if (id !== null && id !== undefined) inFlightGoals.add(String(id))
+}
+
+export function unmarkGoalInFlight(id) {
+  if (id !== null && id !== undefined) inFlightGoals.delete(String(id))
+}
+
+export function isGoalInFlight(id) {
+  return inFlightGoals.has(String(id))
+}
+
+let transientSyncTimeout = null
+
 export function setSyncStatus(status) {
+  if (transientSyncTimeout && status !== SyncStatus.SYNCING) {
+    clearTimeout(transientSyncTimeout)
+    transientSyncTimeout = null
+  }
   if (currentStatus !== status) {
     currentStatus = status
     notifyListeners()
+  }
+}
+
+/**
+ * Triggers a temporary blue ripple sync status (e.g. when detecting real-time
+ * cross-device updates) that automatically settles back to synced or pending.
+ *
+ * @param {number} durationMs - Duration in milliseconds (default: 1200ms)
+ */
+export function triggerTransientSync(durationMs = 1200) {
+  setSyncStatus(SyncStatus.SYNCING)
+  if (transientSyncTimeout) clearTimeout(transientSyncTimeout)
+  transientSyncTimeout = setTimeout(() => {
+    transientSyncTimeout = null
+    const queue = getSyncQueue()
+    if (!isOnline()) {
+      setSyncStatus(SyncStatus.OFFLINE)
+    } else if (queue.length > 0) {
+      setSyncStatus(SyncStatus.PENDING)
+    } else {
+      setSyncStatus(SyncStatus.SYNCED)
+    }
+  }, durationMs)
+}
+
+/**
+ * Executes a sync action with guaranteed minimum blue ripple duration and smooth toast presentation.
+ * 1. Immediately turns ON the blue ripple.
+ * 2. Runs the async operation (server API update).
+ * 3. Awaits both the operation and minRippleMs (default 850ms).
+ * 4. Turns OFF the blue ripple (settling back to SYNCED).
+ * 5. Calls onSuccess callback (e.g. to show toast msg) AFTER the ripple is completely gone.
+ *
+ * @param {Function} asyncOperation - () => Promise<any>
+ * @param {object} options
+ * @param {number} [options.minRippleMs=850]
+ * @param {Function} [options.onSuccess] - (result) => void
+ * @param {Function} [options.onError] - (error) => void
+ * @returns {Promise<any>}
+ */
+export async function executeSyncWithRipple(asyncOperation, { minRippleMs = 850, onSuccess, onError } = {}) {
+  setSyncStatus(SyncStatus.SYNCING)
+  const startTime = Date.now()
+  try {
+    const result = await asyncOperation()
+    const elapsed = Date.now() - startTime
+    if (elapsed < minRippleMs) {
+      await new Promise(r => setTimeout(r, minRippleMs - elapsed))
+    }
+    setSyncStatus(SyncStatus.SYNCED)
+    if (onSuccess) {
+      setTimeout(() => onSuccess(result), 120)
+    }
+    return result
+  } catch (err) {
+    const elapsed = Date.now() - startTime
+    if (elapsed < minRippleMs) {
+      await new Promise(r => setTimeout(r, minRippleMs - elapsed))
+    }
+    const queue = getSyncQueue()
+    setSyncStatus(queue.length > 0 ? SyncStatus.PENDING : (!isOnline() ? SyncStatus.OFFLINE : SyncStatus.SYNCED))
+    if (onError) {
+      setTimeout(() => onError(err), 120)
+    }
+    throw err
   }
 }
 
