@@ -4906,9 +4906,10 @@ h1 em, h2 em, h3 em, .profile-title em, .goals-section-title em, .profile-sectio
     padding: 18px 12px;
   }
   .rote-row {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 12px;
     padding: 12px 14px;
+    align-items: center;
   }
   
   .rote-checkbox {
@@ -4916,26 +4917,70 @@ h1 em, h2 em, h3 em, .profile-title em, .goals-section-title em, .profile-sectio
   }
 
   .rote-info {
-    flex: 1 1 calc(100% - 44px);
+    flex: 1;
     min-width: 0;
   }
 
   .rote-title {
-    font-size: 16px;
+    font-size: 15px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .rote-desc {
-    font-size: 13px;
+    display: none;
   }
 
   .rote-meta {
-    width: 100%;
-    justify-content: space-between;
+    width: auto;
+    flex-shrink: 0;
+    display: flex;
     align-items: center;
-    margin-top: 4px;
-    padding-top: 10px;
-    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+    gap: 6px;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
   }
+
+.rote-inline-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.rote-confirm-btn {
+  background: #c8f26a;
+  color: #121411;
+  border: none;
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: opacity 0.15s ease;
+}
+.rote-confirm-btn:hover {
+  opacity: 0.9;
+}
+.rote-confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.rote-cancel-btn {
+  background: transparent;
+  color: #8c9085;
+  border: 1px solid #34382f;
+  border-radius: 8px;
+  padding: 4px 7px;
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.rote-cancel-btn:hover {
+  color: #f6f5f1;
+  border-color: #55594f;
+}
 
   .rote-status-tag {
     padding: 4px 10px !important;
@@ -6540,3 +6585,103 @@ body.capacitor-native .sprint-modal {
   margin-bottom: 0 !important;
   border-top: 1px solid #282b24 !important;
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulseGlow {
+  0% { opacity: 0.7; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1.04); }
+}
+
+@keyframes sideLoad {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(250%); }
+}
+
+/* Universal Ripple Loader & Sync Animations (Silk Blue #366cf3) */
+.ripple-loader {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.ripple-loader .ripple-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #366cf3;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 0 5px rgba(54, 108, 243, 0.6);
+}
+
+.ripple-loader .ripple-wave {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  margin-left: -8px;
+  border-radius: 50%;
+  border: 1.5px solid #366cf3;
+  box-sizing: border-box;
+  animation: rippleWave 1.4s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+  pointer-events: none;
+}
+
+.ripple-loader .ripple-wave.delay {
+  animation-delay: 0.7s;
+}
+
+@keyframes rippleWave {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes syncRipple {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+/* App Default Accent #c8f26a for completed checkboxes and tags */
+.rote-row.completed .rote-checkbox {
+  background: #c8f26a !important;
+  border-color: #c8f26a !important;
+  color: #121411 !important;
+  box-shadow: 0 1px 4px rgba(200, 242, 106, 0.3) !important;
+}
+
+.goal.complete .checkbox {
+  background: #c8f26a !important;
+  border-color: #c8f26a !important;
+  color: #121411 !important;
+}
+
+.rote-status-tag.done {
+  background: rgba(200, 242, 106, 0.15) !important;
+  color: #c8f26a !important;
+  border: 1px solid rgba(200, 242, 106, 0.35) !important;
+}
+

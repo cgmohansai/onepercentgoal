@@ -5,6 +5,7 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
   const [draft, setDraft] = useState(goal.value)
   const [isSelected, setIsSelected] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     setDraft(goal.value)
@@ -41,15 +42,27 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
     }
   }, [isSelected, hasChanged, isHovered, goal.value])
 
-  const commitProgress = (e) => {
+  const commitProgress = async (e) => {
     if (e) e.stopPropagation()
     const next = Math.max(goal.value, Math.min(100, Number(draft) || goal.value))
-    setIsSelected(false)
-    setIsHovered(false)
     if (next === 100) {
+      setIsSelected(false)
+      setIsHovered(false)
       onComplete(goal)
-    } else if (next !== goal.value) {
-      onProgress(goal, next)
+      return
+    }
+    if (next !== goal.value) {
+      setIsSaving(true)
+      try {
+        await onProgress(goal, next)
+      } finally {
+        setIsSaving(false)
+        setIsSelected(false)
+        setIsHovered(false)
+      }
+    } else {
+      setIsSelected(false)
+      setIsHovered(false)
     }
   }
 
@@ -81,7 +94,23 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <span className="checkbox">{goal.done && '✓'}</span>
+      <span
+        className={`checkbox${goal.done ? ' complete' : ''}`}
+        style={{
+          width: '24px',
+          height: '24px',
+          borderRadius: '5px',
+          display: 'grid',
+          placeItems: 'center',
+          border: goal.done ? '1.5px solid #c8f26a' : '1.5px solid #5a5e54',
+          background: goal.done ? '#c8f26a' : 'transparent',
+          color: '#121411',
+          fontWeight: 'bold',
+          flexShrink: 0,
+        }}
+      >
+        {goal.done && '✓'}
+      </span>
       <span className="goal-content">
         <span className="goal-topline">
           <span className="goal-copy">
@@ -89,11 +118,27 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
             <small>{goal.label}</small>
           </span>
           {!goal.done && (
-            <span className="goal-inline-actions">
+            <span className="goal-inline-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {hasChanged && (
                 <>
-                  <button type="button" className="ghost" onPointerDown={(e) => e.stopPropagation()} onClick={commitProgress}>Save</button>
-                  <button type="button" className="ghost" onPointerDown={(e) => e.stopPropagation()} onClick={resetDraft}>Cancel</button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={isSaving}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={commitProgress}
+                  >
+                    {isSaving ? 'Updating…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={isSaving}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={resetDraft}
+                  >
+                    Cancel
+                  </button>
                 </>
               )}
               {!hasChanged && showActions && (
@@ -123,6 +168,11 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
                   </button>
                 </>
               )}
+            </span>
+          )}
+          {goal.done && (
+            <span className="rote-status-tag done" style={{ marginLeft: 'auto' }}>
+              DONE
             </span>
           )}
         </span>

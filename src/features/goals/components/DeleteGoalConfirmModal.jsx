@@ -2,11 +2,24 @@ import React from 'react'
 import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
 export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm, loading = false }) {
+  const [isDeleting, setIsDeleting] = React.useState(false)
   useEscapeKey(onCancel, !goal)
   if (!goal) return null
 
+  const isLoading = loading || isDeleting
+
+  const handleConfirm = async (e) => {
+    e.stopPropagation()
+    setIsDeleting(true)
+    try {
+      await onConfirm(goal)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   return (
-    <div className="modal-backdrop" role="presentation" onClick={loading ? undefined : onCancel}>
+    <div className="modal-backdrop" role="presentation" onClick={isLoading ? undefined : onCancel}>
       <div className="completion-modal confirm-modal" onClick={event => event.stopPropagation()} style={{ maxWidth: '440px', padding: '28px' }}>
         <p className="eyebrow" style={{ color: '#ff6b6b' }}>DESTRUCTIVE ACTION</p>
         <h2 style={{ fontSize: '24px', marginBottom: '16px', fontWeight: '500', letterSpacing: '-.035em' }}>Delete Sprint Goal?</h2>
@@ -25,20 +38,17 @@ export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm, loading = fa
             type="button"
             onClick={onCancel}
             onPointerDown={(e) => e.stopPropagation()}
-            disabled={loading}
-            style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: loading ? 'default' : 'pointer', fontSize: '12px' }}
+            disabled={isLoading}
+            style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: isLoading ? 'default' : 'pointer', fontSize: '12px' }}
           >
             Cancel
           </button>
           <button
             type="button"
             className="add-button"
-            disabled={loading}
+            disabled={isLoading}
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation()
-              onConfirm(goal)
-            }}
+            onClick={handleConfirm}
             style={{
               background: '#ff6b6b',
               color: '#141513',
@@ -47,11 +57,11 @@ export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm, loading = fa
               padding: '10px 24px',
               fontSize: '13px',
               fontWeight: '600',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              opacity: isLoading ? 0.7 : 1
             }}
           >
-            {loading ? 'Deleting…' : 'Delete Goal'}
+            {isLoading ? 'Deleting…' : 'Delete Goal'}
           </button>
         </div>
       </div>

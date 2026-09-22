@@ -17,7 +17,7 @@ import AddRoteModal from './AddRoteModal'
 import HeaderInfoTooltip from '../../../components/HeaderInfoTooltip'
 import { enqueueSyncAction, setSyncStatus, SyncStatus } from '../../../services/syncManager.js'
 
-export function RotePage({ user, onRotesChanged }) {
+export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
   const todayStr = getTodayYMD()
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear())
@@ -30,6 +30,9 @@ export function RotePage({ user, onRotesChanged }) {
   
   const [rotesData, setRotesData] = useState({ date: todayStr, user_joined_date: todayStr, rotes: [], completed_dates: [], stats: { total_rotes: 0, completed_rotes: 0 } })
   const [addModalOpen, setAddModalOpen] = useState(false)
+  const [confirmingRoteId, setConfirmingRoteId] = useState(null)
+  const [deletingRoteId, setDeletingRoteId] = useState(null)
+  const [syncingRoteId, setSyncingRoteId] = useState(null)
 
   const fetchRotes = async (dateStr) => {
     if (cacheRef.current[dateStr]) {
@@ -64,6 +67,7 @@ export function RotePage({ user, onRotesChanged }) {
   }
 
   useEffect(() => {
+    // Initial fetch for the currently selected date
     fetchRotes(selectedDate)
   }, [selectedDate])
 
@@ -93,14 +97,21 @@ export function RotePage({ user, onRotesChanged }) {
 
     if (targetIdStr.startsWith('temp-')) {
       pendingTempTogglesRef.current.add(targetIdStr)
+      if (onShowToast) onShowToast(targetStatus ? 'Routine completed locally' : 'Routine marked pending', false)
       return
     }
+
+    // Indicate syncing to trigger ripple animation
+    setSyncStatus(SyncStatus.SYNCING)
 
     // Send update request to backend in background
     try {
       const result = await toggleRoteApi(roteId, { date: selectedDate, completed: targetStatus })
       const confirmedStatus = Boolean(result.completed)
       setSyncStatus(SyncStatus.SYNCED)
+      if (onShowToast) {
+        onShowToast(confirmedStatus ? 'Routine completed' : 'Routine marked pending', false)
+      }
       if (confirmedStatus !== targetStatus) {
         setRotesData(prev => {
           const reUpdated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
@@ -122,6 +133,10 @@ export function RotePage({ user, onRotesChanged }) {
       console.warn('Network error updating rote on server; queuing offline sync:', err)
       // Do NOT revert! Keep in local storage and queue for server sync
       enqueueSyncAction({ type: 'TOGGLE_ROTE', roteId, date: selectedDate, completed: targetStatus })
+      setSyncStatus(SyncStatus.PENDING)
+      if (onShowToast) {
+        onShowToast('Routine saved locally (waiting for internet)', true)
+      }
     }
   }
 
@@ -143,18 +158,28 @@ export function RotePage({ user, onRotesChanged }) {
       onRotesChanged(nextState)
     }
 
-    if (String(roteId).startsWith('temp-')) return
+    if (String(roteId).startsWith('temp-')) {
+      if (onShowToast) onShowToast('Routine deleted locally', false)
+      return
+    }
+
+    setSyncStatus(SyncStatus.SYNCING)
 
     try {
       const ok = await deleteRoteApi(roteId)
       if (ok) {
         setSyncStatus(SyncStatus.SYNCED)
+        if (onShowToast) onShowToast('Routine deleted', false)
       } else {
         enqueueSyncAction({ type: 'DELETE_ROTE', roteId })
+        setSyncStatus(SyncStatus.PENDING)
+        if (onShowToast) onShowToast('Routine deleted locally (waiting for internet)', true)
       }
     } catch (err) {
       console.warn('Failed to delete rote on server; queuing offline sync:', err)
       enqueueSyncAction({ type: 'DELETE_ROTE', roteId })
+      setSyncStatus(SyncStatus.PENDING)
+      if (onShowToast) onShowToast('Routine deleted locally (waiting for internet)', true)
     }
   }
 
@@ -180,9 +205,12 @@ export function RotePage({ user, onRotesChanged }) {
       onRotesChanged(nextState)
     }
 
+    setSyncStatus(SyncStatus.SYNCING)
+
     try {
       const newItem = await createRoteApi({ title, description: '', date: todayStr })
       setSyncStatus(SyncStatus.SYNCED)
+      if (onShowToast) onShowToast('Routine added', false)
       setRotesData(prev => {
         const wasCompleted = pendingTempTogglesRef.current.has(tempId)
         pendingTempTogglesRef.current.delete(tempId)
@@ -196,17 +224,14 @@ export function RotePage({ user, onRotesChanged }) {
         }
         cacheRef.current[todayStr] = updatedNextState
         persistRotes(todayStr, updatedNextState)
-        if (onRotesChanged) {
-          onRotesChanged(updatedNextState)
-        }
+        if (onRotesChanged) onRotesChanged(updatedNextState)
         return updatedNextState
       })
-      if (pendingTempTogglesRef.current.has(tempId)) {
-        toggleRote(newItem.id)
-      }
     } catch (err) {
-      console.warn('Failed to create rote on server; queuing offline sync:', err)
+      console.warn('Network error creating rote on server; queuing offline sync:', err)
       enqueueSyncAction({ type: 'CREATE_ROTE', tempId, title, date: todayStr })
+      setSyncStatus(SyncStatus.PENDING)
+      if (onShowToast) onShowToast('Routine saved locally (waiting for internet)', true)
     }
   }
 
@@ -365,7 +390,13 @@ export function RotePage({ user, onRotesChanged }) {
           </div>
         </div>
 
-        <div className="rote-checklist-card card">
+        <div className="rote-checklist-card card" style={{ position: 'relative', overflow: 'hidden' }}>
+          {(isLoading || !isCurrentDateLoaded) && (
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'rgba(54, 108, 243, 0.15)', overflow: 'hidden', zIndex: 5 }}>
+              <div style={{ height: '100%', width: '40%', background: '#366cf3', animation: 'sideLoad 1.2s ease-in-out infinite' }} />
+            </div>
+          )}
+
           <div className="rote-day-header">
             <div>
               <span className="rote-day-label">
@@ -393,31 +424,223 @@ export function RotePage({ user, onRotesChanged }) {
               </div>
             ) : rotesData.rotes && rotesData.rotes.length > 0 ? (
               rotesData.rotes.map(rote => {
+                const isConfirming = confirmingRoteId === rote.id
+                const isDeleting = deletingRoteId === rote.id
+                const isSyncing = syncingRoteId === rote.id
+
                 return (
                   <div
                     key={rote.id}
                     className={`rote-row ${rote.completed ? 'completed' : ''}`}
-                    role="checkbox"
-                    aria-checked={!!rote.completed}
-                    aria-label={`Mark ${rote.title} as ${rote.completed ? 'not done' : 'done'}`}
-                    tabIndex={0}
-                    onClick={() => toggleRote(rote.id)}
-                    onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleRote(rote.id) } }}
-                    style={{ cursor: 'pointer', touchAction: 'manipulation' }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
+                      padding: '16px 20px',
+                      background: '#1c1e1a',
+                      border: '1px solid #2b2d27',
+                      borderRadius: '10px',
+                      boxSizing: 'border-box',
+                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                    }}
                   >
-                    <div className="rote-checkbox" aria-hidden="true">
+                    <div
+                      className="rote-checkbox"
+                      role="checkbox"
+                      aria-checked={!!rote.completed}
+                      aria-label={`Mark ${rote.title} as ${rote.completed ? 'not done' : 'done'}`}
+                      tabIndex={0}
+                      onClick={() => {
+                        if (!isSyncing) {
+                          setConfirmingRoteId(prev => prev === rote.id ? null : rote.id)
+                        }
+                      }}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '5px',
+                        border: rote.completed ? '1.5px solid #c8f26a' : '1.5px solid #5a5e54',
+                        background: rote.completed ? '#c8f26a' : 'transparent',
+                        color: '#121411',
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        flexShrink: 0,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
                       {rote.completed ? '✓' : ''}
                     </div>
-                    <div className="rote-info">
-                      <span className="rote-title">{rote.title}</span>
-                    </div>
-                    <div className="rote-meta">
-                      <span className={`rote-status-tag ${rote.completed ? 'done' : 'pending'}`}>
-                        {rote.completed ? 'DONE' : 'PENDING'}
+
+                    <div
+                      className="rote-info"
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => {
+                        if (!isSyncing) {
+                          setConfirmingRoteId(prev => prev === rote.id ? null : rote.id)
+                        }
+                      }}
+                    >
+                      <span
+                        className="rote-title"
+                        style={{
+                          fontSize: '18px',
+                          fontWeight: 500,
+                          color: rote.completed ? '#8c9085' : '#f6f5f1',
+                          textDecoration: rote.completed ? 'line-through' : 'none',
+                          margin: 0,
+                          padding: 0,
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        {rote.title}
                       </span>
-                      <button type="button" className="rote-delete-btn" onClick={(e) => { e.stopPropagation(); deleteRote(rote.id); }}>
-                        Delete
-                      </button>
+                    </div>
+
+                    <div
+                      className="rote-meta"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {isDeleting ? (
+                        <div className="rote-inline-confirm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '11px', color: '#fca5a5', fontFamily: '"DM Mono", monospace' }}>Delete?</span>
+                          <button
+                            type="button"
+                            className="rote-confirm-btn"
+                            style={{
+                              background: '#ef4444',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '4px 9px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              lineHeight: 1.2,
+                            }}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              setDeletingRoteId(null)
+                              await deleteRote(rote.id)
+                            }}
+                          >
+                            Yes
+                          </button>
+                          <button
+                            type="button"
+                            className="rote-cancel-btn"
+                            style={{
+                              background: 'transparent',
+                              color: '#8c9085',
+                              border: '1px solid #34382f',
+                              borderRadius: '8px',
+                              padding: '4px 7px',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              lineHeight: 1.2,
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDeletingRoteId(null)
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : isConfirming ? (
+                        <div className="rote-inline-confirm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            className="rote-confirm-btn"
+                            disabled={isSyncing}
+                            style={{
+                              background: '#c8f26a',
+                              color: '#121411',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '4px 10px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: isSyncing ? 'not-allowed' : 'pointer',
+                              lineHeight: 1.2,
+                            }}
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              setSyncingRoteId(rote.id)
+                              try {
+                                await toggleRote(rote.id)
+                              } finally {
+                                setSyncingRoteId(null)
+                                setConfirmingRoteId(null)
+                              }
+                            }}
+                          >
+                            {isSyncing ? 'Updating…' : (rote.completed ? 'Undo' : 'Confirm ✓')}
+                          </button>
+                          <button
+                            type="button"
+                            className="rote-cancel-btn"
+                            disabled={isSyncing}
+                            style={{
+                              background: 'transparent',
+                              color: '#8c9085',
+                              border: '1px solid #34382f',
+                              borderRadius: '8px',
+                              padding: '4px 7px',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              lineHeight: 1.2,
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setConfirmingRoteId(null)
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <span
+                            className={`rote-status-tag ${rote.completed ? 'done' : 'pending'}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!isSyncing) {
+                                setDeletingRoteId(null)
+                                setConfirmingRoteId(rote.id)
+                              }
+                            }}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            {rote.completed ? 'DONE' : 'PENDING'}
+                          </span>
+                          <button
+                            type="button"
+                            className="rote-delete-btn"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setConfirmingRoteId(null)
+                              setDeletingRoteId(rote.id)
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 )

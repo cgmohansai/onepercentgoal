@@ -212,6 +212,8 @@ function App() {
     return getFallbackGoals()
   })
 
+  const [isGoalsLoading, setIsGoalsLoading] = useState(true)
+
   const [roteOverviewStats, setRoteOverviewStats] = useState(() => {
     const todayStr = getTodayYMD()
     const data = getStoredRotes(todayStr)
@@ -751,7 +753,8 @@ function App() {
     }
   }
 
-  const loadDashboard = async token => {
+  const loadDashboard = async (token, isBackground = false) => {
+    if (!isBackground) setIsGoalsLoading(true)
     try {
       const dashData = await fetchDashboard(token)
       if (dashData.year) {
@@ -779,6 +782,8 @@ function App() {
         }
         return getFallbackGoals()
       })
+    } finally {
+      setIsGoalsLoading(false)
     }
   }
 
@@ -796,6 +801,29 @@ function App() {
       }
     } catch {}
   }
+
+  // Cross-device live synchronization: silent poll every 12 seconds and on focus/resume
+  useEffect(() => {
+    if (!currentUser || !sessionToken) return
+
+    const triggerSilentSync = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return
+      loadDashboard(sessionToken, true)
+      loadRotes(sessionToken)
+      flushSyncQueue(sessionToken)
+    }
+
+    const interval = setInterval(triggerSilentSync, 12000)
+    window.addEventListener('focus', triggerSilentSync)
+    document.addEventListener('visibilitychange', triggerSilentSync)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', triggerSilentSync)
+      document.removeEventListener('visibilitychange', triggerSilentSync)
+    }
+  }, [currentUser, sessionToken])
 
   useEffect(() => {
     if (!currentUser || !sessionToken) return
@@ -1047,11 +1075,14 @@ function App() {
     // 1. Instantly update in-memory state, timeline, and persist to localStorage
     updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? presentGoal({ ...item, progress_percent }) : item))
 
-    // 2. Immediately send update to server
+    // 2. Set syncing status to trigger ripple on sync badge
+    setSyncStatus(SyncStatus.SYNCING)
+
     const token = sessionToken || getStoredToken()
     if (!token || String(goal.id).startsWith('temp-')) {
-      showToast('Progress saved locally', false)
       enqueueSyncAction({ type: 'UPDATE_GOAL', goalId: goal.id, payload: { progress_percent } })
+      setSyncStatus(SyncStatus.SYNCED)
+      showToast('Progress saved locally', false)
       return
     }
 
@@ -1060,11 +1091,12 @@ function App() {
       const saved = presentGoal(updated)
       setGoals(items => items.map(item => item.id === goal.id ? saved : item))
       setSyncStatus(SyncStatus.SYNCED)
-      showToast('Goal updated', false)
+      showToast('Sprint progress updated', false)
       refreshProfile(token).catch(() => {})
     } catch (err) {
       console.warn('Network error updating goal progress on server; saved locally:', err)
       enqueueSyncAction({ type: 'UPDATE_GOAL', goalId: goal.id, payload: { progress_percent } })
+      setSyncStatus(SyncStatus.PENDING)
       showToast('Progress saved locally (waiting for internet)', true)
     }
   }
@@ -1093,6 +1125,8 @@ function App() {
       return
     }
 
+    setSyncStatus(SyncStatus.SYNCING)
+
     const token = sessionToken || getStoredToken()
     if (token) {
       try {
@@ -1108,9 +1142,11 @@ function App() {
       } catch (err) {
         console.warn('Network error completing goal on server; queued offline sync:', err)
         enqueueSyncAction({ type: 'COMPLETE_GOAL', goalId: goal.id, note })
+        setSyncStatus(SyncStatus.PENDING)
         showToast('Goal completed locally (waiting for internet)', true)
       }
     } else {
+      setSyncStatus(SyncStatus.SYNCED)
       showToast('Goal completed locally', false)
     }
   }
@@ -1125,7 +1161,7 @@ function App() {
     setDeleteConfirmFlow(null)
 
     // 1. Optimistically remove from state, timeline, and instantly persist to localStorage
-    updateGoalsAndSyncTimeline(items => items.filter(item => item.id !== goalToDelete.id))
+    updateGoalsAndSyncTimeline(items => items.filter(item => String(item.id) !== String(goalToDelete.id)))
 
     // 2. Persistently track deleted ID so stale server sync or page refreshes NEVER resurrect it
     trackDeletedGoalId(goalToDelete.id)
@@ -1135,6 +1171,8 @@ function App() {
       showToast('Goal deleted', false)
       return
     }
+
+    setSyncStatus(SyncStatus.SYNCING)
 
     const token = sessionToken || getStoredToken()
     if (token) {
@@ -1146,14 +1184,17 @@ function App() {
           refreshProfile(token).catch(() => {})
         } else {
           enqueueSyncAction({ type: 'DELETE_GOAL', goalId: goalToDelete.id })
+          setSyncStatus(SyncStatus.PENDING)
           showToast('Goal deleted locally (waiting for internet)', true)
         }
       } catch (err) {
         console.warn('Failed to delete goal on server; queued offline sync:', err)
         enqueueSyncAction({ type: 'DELETE_GOAL', goalId: goalToDelete.id })
+        setSyncStatus(SyncStatus.PENDING)
         showToast('Goal deleted locally (waiting for internet)', true)
       }
     } else {
+      setSyncStatus(SyncStatus.SYNCED)
       showToast('Goal deleted', false)
     }
   }
@@ -1169,9 +1210,13 @@ function App() {
     const tempGoal = createOptimisticGoal(cleanTitle)
     updateGoalsAndSyncTimeline(items => [...items, tempGoal])
 
-    // 3. Persist to server in background
+    // 3. Set syncing status to trigger ripple on sync badge
+    setSyncStatus(SyncStatus.SYNCING)
+
+    // 4. Persist to server in background
     const token = sessionToken || getStoredToken()
     if (!token) {
+      setSyncStatus(SyncStatus.PENDING)
       showToast('Goal created locally (waiting for internet)', true)
       enqueueSyncAction({ type: 'CREATE_GOAL', tempId: tempGoal.id, title: cleanTitle })
       return
@@ -1187,6 +1232,7 @@ function App() {
     } catch (err) {
       console.warn('Network error creating goal on server; saved locally:', err)
       enqueueSyncAction({ type: 'CREATE_GOAL', tempId: tempGoal.id, title: cleanTitle })
+      setSyncStatus(SyncStatus.PENDING)
       showToast('Goal created locally (waiting for internet)', true)
     }
   }
@@ -1345,7 +1391,7 @@ function App() {
           position: 'fixed',
           top: 'calc(14px + var(--safe-top, 0px))',
           right: '16px',
-          zIndex: 1002,
+          zIndex: 9999,
           pointerEvents: 'auto',
         }}
       >
@@ -1393,6 +1439,7 @@ function App() {
             editModalOpen={editModalOpen}
             setEditModalOpen={setEditModalOpen}
             roteStats={roteOverviewStats}
+            isGoalsLoading={isGoalsLoading}
           />
         ) : (
           <OverviewPage
@@ -1410,6 +1457,7 @@ function App() {
             setAddGoalModalOpen={setAddGoalModalOpen}
             showGoalDetails={showGoalDetails}
             toggleRoteFromOverview={toggleRoteFromOverview}
+            isGoalsLoading={isGoalsLoading}
           />
         )}
 
