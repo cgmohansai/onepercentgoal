@@ -6602,7 +6602,7 @@ body.capacitor-native .sprint-modal {
   100% { transform: translateX(250%); }
 }
 
-/* Universal Ripple Loader & Sync Animations (Silk Blue #366cf3) */
+/* Universal Ripple Loader & Sync Animations (Legacy Green #c8f26a) */
 .ripple-loader {
   position: relative;
   width: 18px;
@@ -6618,10 +6618,10 @@ body.capacitor-native .sprint-modal {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #366cf3;
+  background: #c8f26a;
   position: relative;
   z-index: 2;
-  box-shadow: 0 0 5px rgba(54, 108, 243, 0.6);
+  box-shadow: 0 0 5px rgba(200, 242, 106, 0.6);
 }
 
 .ripple-loader .ripple-wave {
@@ -6633,7 +6633,7 @@ body.capacitor-native .sprint-modal {
   margin-top: -8px;
   margin-left: -8px;
   border-radius: 50%;
-  border: 1.5px solid #366cf3;
+  border: 1.5px solid #c8f26a;
   box-sizing: border-box;
   animation: rippleWave 1.4s cubic-bezier(0, 0.2, 0.8, 1) infinite;
   pointer-events: none;
