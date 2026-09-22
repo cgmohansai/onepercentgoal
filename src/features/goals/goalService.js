@@ -141,12 +141,13 @@ export async function deleteGoal(goalId, token = null) {
     headers,
   })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || `Unable to delete goal (${res.status})`)
+  // 204 No Content, 200 OK, or 404 (already absent on server) all indicate the goal is deleted
+  if (res.status === 204 || res.status === 404 || res.ok) {
+    return true
   }
 
-  return true
+  const err = await res.json().catch(() => ({}))
+  throw new Error(err.detail || `Unable to delete goal (${res.status})`)
 }
 
 export default {

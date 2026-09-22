@@ -194,12 +194,12 @@ function App() {
   const [goals, setGoals] = useState(() => {
     try {
       const stored = localStorage.getItem('opg.dashboard.goals')
-      if (stored) {
+      if (stored !== null) {
         const parsed = JSON.parse(stored)
         if (Array.isArray(parsed)) return parsed.map(presentGoal)
       }
     } catch {}
-    return []
+    return getFallbackGoals()
   })
 
   const [roteOverviewStats, setRoteOverviewStats] = useState(() => {
@@ -763,6 +763,13 @@ function App() {
     } catch {
       setGoals(prev => {
         if (prev && prev.length > 0) return prev
+        const stored = localStorage.getItem('opg.dashboard.goals')
+        if (stored !== null) {
+          try {
+            const parsed = JSON.parse(stored)
+            if (Array.isArray(parsed)) return parsed.map(presentGoal)
+          } catch {}
+        }
         return getFallbackGoals()
       })
     }
@@ -988,7 +995,16 @@ function App() {
   const updateGoalsAndSyncTimeline = updater => {
     setGoals(prevGoals => {
       const nextGoals = typeof updater === 'function' ? updater(prevGoals) : updater
-      setTimelineHistory(prevTimeline => syncTimelineWithGoals(prevTimeline, data.year, data.sprint, nextGoals))
+      try {
+        localStorage.setItem('opg.dashboard.goals', JSON.stringify(nextGoals))
+      } catch {}
+      setTimelineHistory(prevTimeline => {
+        const nextTimeline = syncTimelineWithGoals(prevTimeline, data.year, data.sprint, nextGoals)
+        try {
+          localStorage.setItem(`opg.timeline.${data.year}`, JSON.stringify(nextTimeline))
+        } catch {}
+        return nextTimeline
+      })
       setHistoryModal(prevModal => {
         if (prevModal && Number(prevModal.sprint_number) === Number(data.sprint) && Number(prevModal.year) === Number(data.year)) {
           const total = nextGoals.length
@@ -1021,6 +1037,7 @@ function App() {
   const updateProgress = async (goal, progress_percent) => {
     const previous = goal.value
     updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? presentGoal({ ...item, progress_percent }) : item))
+    const token = sessionToken || getStoredToken()
     const saved = await updateGoal(goal, { progress_percent })
     if (!saved) {
       updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? presentGoal({ ...item, progress_percent: previous }) : item))
@@ -1049,8 +1066,9 @@ function App() {
 
     if (String(goal.id).startsWith('temp-')) return
 
+    const token = sessionToken || getStoredToken()
     try {
-      const updated = await completeGoalApi(goal.id, note, sessionToken)
+      const updated = await completeGoalApi(goal.id, note, token)
       const saved = presentGoal(updated)
       updateGoalsAndSyncTimeline(items => items.map(item => item.id === saved.id ? saved : item))
       refreshProfile()
@@ -1067,16 +1085,29 @@ function App() {
   }
 
   const confirmDeleteGoal = async (goal) => {
-    updateGoalsAndSyncTimeline(items => items.filter(item => item.id !== goal.id))
+    if (!goal) return
+    const goalToDelete = goal
+    setDeleteConfirmFlow(null)
 
-    if (String(goal.id).startsWith('temp-')) return
+    // Optimistically remove from state, timeline, and instantly persist to localStorage
+    updateGoalsAndSyncTimeline(items => items.filter(item => item.id !== goalToDelete.id))
+    showToast('Goal deleted')
 
+    // If client-only temporary goal, done
+    if (String(goalToDelete.id).startsWith('temp-')) return
+
+    const token = sessionToken || getStoredToken()
     try {
-      await deleteGoalApi(goal.id, sessionToken)
+      await deleteGoalApi(goalToDelete.id, token)
       await refreshProfile()
     } catch (err) {
-      console.error('Failed to delete goal:', err)
+      console.error('Failed to delete goal on server:', err)
       showToast('The goal could not be deleted')
+      // Rollback if server refused
+      updateGoalsAndSyncTimeline(items => {
+        if (items.some(item => item.id === goalToDelete.id)) return items
+        return [...items, goalToDelete]
+      })
     }
   }
 
@@ -1092,8 +1123,9 @@ function App() {
     updateGoalsAndSyncTimeline(items => [...items, tempGoal])
 
     // 3. Persist to server in background
+    const token = sessionToken || getStoredToken()
     try {
-      const created = await createGoalApi(cleanTitle, sessionToken)
+      const created = await createGoalApi(cleanTitle, token)
       const saved = presentGoal(created)
       updateGoalsAndSyncTimeline(items => items.map(item => item.id === tempGoal.id ? saved : item))
       await refreshProfile()

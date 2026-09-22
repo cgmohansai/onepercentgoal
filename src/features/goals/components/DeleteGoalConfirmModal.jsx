@@ -1,12 +1,12 @@
 import React from 'react'
 import { useEscapeKey } from '../../../hooks/useEscapeKey'
 
-export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm }) {
+export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm, loading = false }) {
   useEscapeKey(onCancel, !goal)
   if (!goal) return null
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onCancel}>
+    <div className="modal-backdrop" role="presentation" onClick={loading ? undefined : onCancel}>
       <div className="completion-modal confirm-modal" onClick={event => event.stopPropagation()} style={{ maxWidth: '440px', padding: '28px' }}>
         <p className="eyebrow" style={{ color: '#ff6b6b' }}>DESTRUCTIVE ACTION</p>
         <h2 style={{ fontSize: '24px', marginBottom: '16px', fontWeight: '500', letterSpacing: '-.035em' }}>Delete Sprint Goal?</h2>
@@ -21,10 +21,18 @@ export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm }) {
         </p>
         
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
-          <button type="button" onClick={onCancel} style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: loading ? 'default' : 'pointer', fontSize: '12px' }}
+          >
+            Cancel
+          </button>
           <button
             type="button"
             className="add-button"
+            disabled={loading}
             onClick={() => onConfirm(goal)}
             style={{
               background: '#ff6b6b',
@@ -34,10 +42,11 @@ export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm }) {
               padding: '10px 24px',
               fontSize: '13px',
               fontWeight: '600',
-              cursor: 'pointer'
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1
             }}
           >
-            Delete Goal
+            {loading ? 'Deleting…' : 'Delete Goal'}
           </button>
         </div>
       </div>

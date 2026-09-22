@@ -92,29 +92,30 @@ export function GoalRow({ goal, onProgress, onComplete, onDelete, onShowDetails 
             <span className="goal-inline-actions">
               {hasChanged && (
                 <>
-                  <button className="ghost" onClick={commitProgress}>Save</button>
-                  <button className="ghost" onClick={resetDraft}>Cancel</button>
+                  <button type="button" className="ghost" onPointerDown={(e) => e.stopPropagation()} onClick={commitProgress}>Save</button>
+                  <button type="button" className="ghost" onPointerDown={(e) => e.stopPropagation()} onClick={resetDraft}>Cancel</button>
                 </>
               )}
               {!hasChanged && showActions && (
                 <>
                   <button
+                    type="button"
                     className="ghost"
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation()
-                      setIsSelected(false)
-                      setIsHovered(false)
                       onComplete(goal)
                     }}
                   >
                     Complete
                   </button>
                   <button
+                    type="button"
                     className="ghost btn-delete"
+                    aria-label={`Delete ${goal.title}`}
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation()
-                      setIsSelected(false)
-                      setIsHovered(false)
                       onDelete(goal)
                     }}
                   >

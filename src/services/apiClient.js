@@ -89,7 +89,7 @@ export function removeStoredToken() {
  * @returns {Record<string, string>}
  */
 export function buildHeaders(extra = {}, token = null) {
-  const authToken = token !== null && token !== undefined ? token : getStoredToken()
+  const authToken = token && typeof token === 'string' && token.trim() ? token.trim() : getStoredToken()
   const headers = { ...(extra || {}) }
   if (authToken && !headers.Authorization && !headers.authorization) {
     headers.Authorization = `Bearer ${authToken}`
