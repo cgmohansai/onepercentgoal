@@ -38,6 +38,9 @@ import {
   createOptimisticGoal,
   mergeGoals,
   getFallbackGoals,
+  trackDeletedGoalId,
+  getDeletedGoalIds,
+  clearDeletedGoalIds,
   createCompletionCard,
   saveImageToGallery,
   sanitizeFilename,
@@ -88,6 +91,13 @@ import CompletionFlowModal from './features/goals/components/CompletionFlowModal
 import CompletedShareModal from './features/goals/components/CompletedShareModal'
 import GoalDetailsModal from './features/goals/components/GoalDetailsModal'
 import DeleteGoalConfirmModal from './features/goals/components/DeleteGoalConfirmModal'
+import SyncStatusBadge from './components/SyncStatusBadge'
+import {
+  enqueueSyncAction,
+  setSyncStatus,
+  flushSyncQueue,
+  SyncStatus
+} from './services/syncManager'
 import ErrorBoundary from './components/ErrorBoundary'
 import { MOTIVATIONAL_QUOTES } from './constants/quotes'
 import { resetMorphIndex } from './components/MorphText'
@@ -251,6 +261,7 @@ function App() {
     try {
       const result = await toggleRoteApi(roteId, { date: todayStr, completed: targetStatus })
       const confirmedStatus = Boolean(result.completed)
+      setSyncStatus(SyncStatus.SYNCED)
       if (confirmedStatus !== targetStatus) {
         const reUpdated = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
         const reDoneCount = reUpdated.filter(r => r.completed).length
@@ -261,15 +272,8 @@ function App() {
         })
       }
     } catch (err) {
-      console.error('Failed to toggle rote from overview:', err)
-      // Revert optimistic update on failure
-      const reverted = currentRotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: !targetStatus } : r)
-      const revertedDone = reverted.filter(r => r.completed).length
-      handleRotesChanged({
-        date: todayStr,
-        rotes: reverted,
-        stats: { total_rotes: reverted.length, completed_rotes: revertedDone }
-      })
+      console.warn('Network error toggling rote from overview; queued offline sync:', err)
+      enqueueSyncAction({ type: 'TOGGLE_ROTE', roteId, date: todayStr, completed: targetStatus })
     }
   }
 
@@ -754,7 +758,10 @@ function App() {
         setServerSprint(dashData.year)
         try { localStorage.setItem('opg.sprint.current', JSON.stringify(dashData.year)) } catch {}
       }
-      const serverGoals = (dashData.goals || []).map(presentGoal)
+      const deletedIds = getDeletedGoalIds()
+      const serverGoals = (dashData.goals || [])
+        .filter(g => !deletedIds.has(String(g.id)))
+        .map(presentGoal)
       setGoals(prev => {
         const merged = mergeGoals(prev, serverGoals)
         try { localStorage.setItem('opg.dashboard.goals', JSON.stringify(merged)) } catch {}
@@ -794,6 +801,7 @@ function App() {
     if (!currentUser || !sessionToken) return
     loadDashboard(sessionToken)
     loadRotes(sessionToken)
+    flushSyncQueue(sessionToken)
   }, [currentUser, sessionToken])
 
   useEffect(() => {
@@ -977,6 +985,7 @@ function App() {
       localStorage.removeItem('opg.current_user')
       localStorage.removeItem('opg.profile')
       localStorage.removeItem('opg.dashboard.goals')
+      clearDeletedGoalIds()
     } catch {}
     resetScrollToTop()
   }
@@ -1035,12 +1044,28 @@ function App() {
   }
 
   const updateProgress = async (goal, progress_percent) => {
-    const previous = goal.value
+    // 1. Instantly update in-memory state, timeline, and persist to localStorage
     updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? presentGoal({ ...item, progress_percent }) : item))
+
+    // 2. Immediately send update to server
     const token = sessionToken || getStoredToken()
-    const saved = await updateGoal(goal, { progress_percent })
-    if (!saved) {
-      updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? presentGoal({ ...item, progress_percent: previous }) : item))
+    if (!token || String(goal.id).startsWith('temp-')) {
+      showToast('Progress saved locally', false)
+      enqueueSyncAction({ type: 'UPDATE_GOAL', goalId: goal.id, payload: { progress_percent } })
+      return
+    }
+
+    try {
+      const updated = await updateGoalApi(goal.id, { progress_percent }, token)
+      const saved = presentGoal(updated)
+      setGoals(items => items.map(item => item.id === goal.id ? saved : item))
+      setSyncStatus(SyncStatus.SYNCED)
+      showToast('Goal updated', false)
+      refreshProfile(token).catch(() => {})
+    } catch (err) {
+      console.warn('Network error updating goal progress on server; saved locally:', err)
+      enqueueSyncAction({ type: 'UPDATE_GOAL', goalId: goal.id, payload: { progress_percent } })
+      showToast('Progress saved locally (waiting for internet)', true)
     }
   }
 
@@ -1061,22 +1086,32 @@ function App() {
     updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? tempCompleted : item))
     setCompletionFlow(null)
     setCompletedShare({ goal: tempCompleted, note, image: null })
-    showToast('Goal Completed')
     triggerSideCannons()
 
-    if (String(goal.id).startsWith('temp-')) return
+    if (String(goal.id).startsWith('temp-')) {
+      showToast('Goal completed locally', false)
+      return
+    }
 
     const token = sessionToken || getStoredToken()
-    try {
-      const updated = await completeGoalApi(goal.id, note, token)
-      const saved = presentGoal(updated)
-      updateGoalsAndSyncTimeline(items => items.map(item => item.id === saved.id ? saved : item))
-      refreshProfile()
-      createCompletionCard(saved, note)
-        .then(image => setCompletedShare(prev => prev && prev.goal.id === saved.id ? { ...prev, image } : prev))
-        .catch(() => {})
-    } catch {
-      showToast('Could not complete goal')
+    if (token) {
+      try {
+        const updated = await completeGoalApi(goal.id, note, token)
+        const saved = presentGoal(updated)
+        updateGoalsAndSyncTimeline(items => items.map(item => item.id === saved.id ? saved : item))
+        setSyncStatus(SyncStatus.SYNCED)
+        showToast('Goal completed', false)
+        refreshProfile(token).catch(() => {})
+        createCompletionCard(saved, note)
+          .then(image => setCompletedShare(prev => prev && prev.goal.id === saved.id ? { ...prev, image } : prev))
+          .catch(() => {})
+      } catch (err) {
+        console.warn('Network error completing goal on server; queued offline sync:', err)
+        enqueueSyncAction({ type: 'COMPLETE_GOAL', goalId: goal.id, note })
+        showToast('Goal completed locally (waiting for internet)', true)
+      }
+    } else {
+      showToast('Goal completed locally', false)
     }
   }
 
@@ -1089,25 +1124,37 @@ function App() {
     const goalToDelete = goal
     setDeleteConfirmFlow(null)
 
-    // Optimistically remove from state, timeline, and instantly persist to localStorage
+    // 1. Optimistically remove from state, timeline, and instantly persist to localStorage
     updateGoalsAndSyncTimeline(items => items.filter(item => item.id !== goalToDelete.id))
-    showToast('Goal deleted')
 
-    // If client-only temporary goal, done
-    if (String(goalToDelete.id).startsWith('temp-')) return
+    // 2. Persistently track deleted ID so stale server sync or page refreshes NEVER resurrect it
+    trackDeletedGoalId(goalToDelete.id)
+
+    // 3. Persist deletion to server in background if authenticated
+    if (String(goalToDelete.id).startsWith('temp-')) {
+      showToast('Goal deleted', false)
+      return
+    }
 
     const token = sessionToken || getStoredToken()
-    try {
-      await deleteGoalApi(goalToDelete.id, token)
-      await refreshProfile()
-    } catch (err) {
-      console.error('Failed to delete goal on server:', err)
-      showToast('The goal could not be deleted')
-      // Rollback if server refused
-      updateGoalsAndSyncTimeline(items => {
-        if (items.some(item => item.id === goalToDelete.id)) return items
-        return [...items, goalToDelete]
-      })
+    if (token) {
+      try {
+        const ok = await deleteGoalApi(goalToDelete.id, token)
+        if (ok) {
+          setSyncStatus(SyncStatus.SYNCED)
+          showToast('Goal deleted', false)
+          refreshProfile(token).catch(() => {})
+        } else {
+          enqueueSyncAction({ type: 'DELETE_GOAL', goalId: goalToDelete.id })
+          showToast('Goal deleted locally (waiting for internet)', true)
+        }
+      } catch (err) {
+        console.warn('Failed to delete goal on server; queued offline sync:', err)
+        enqueueSyncAction({ type: 'DELETE_GOAL', goalId: goalToDelete.id })
+        showToast('Goal deleted locally (waiting for internet)', true)
+      }
+    } else {
+      showToast('Goal deleted', false)
     }
   }
 
@@ -1124,15 +1171,23 @@ function App() {
 
     // 3. Persist to server in background
     const token = sessionToken || getStoredToken()
+    if (!token) {
+      showToast('Goal created locally (waiting for internet)', true)
+      enqueueSyncAction({ type: 'CREATE_GOAL', tempId: tempGoal.id, title: cleanTitle })
+      return
+    }
+
     try {
       const created = await createGoalApi(cleanTitle, token)
       const saved = presentGoal(created)
       updateGoalsAndSyncTimeline(items => items.map(item => item.id === tempGoal.id ? saved : item))
-      await refreshProfile()
+      setSyncStatus(SyncStatus.SYNCED)
+      showToast('Goal created', false)
+      refreshProfile(token).catch(() => {})
     } catch (err) {
-      console.error('Failed to create goal:', err)
-      updateGoalsAndSyncTimeline(items => items.filter(item => item.id !== tempGoal.id))
-      showToast('The goal could not be saved')
+      console.warn('Network error creating goal on server; saved locally:', err)
+      enqueueSyncAction({ type: 'CREATE_GOAL', tempId: tempGoal.id, title: cleanTitle })
+      showToast('Goal created locally (waiting for internet)', true)
     }
   }
 
@@ -1284,6 +1339,19 @@ function App() {
 
   return (
     <main className="app-shell">
+      <div
+        className="sync-status-container"
+        style={{
+          position: 'fixed',
+          top: 'calc(14px + var(--safe-top, 0px))',
+          right: '16px',
+          zIndex: 1002,
+          pointerEvents: 'auto',
+        }}
+      >
+        <SyncStatusBadge onShowToast={showToast} />
+      </div>
+
       <header className={`shell-header ${headerHidden ? 'header-hidden' : ''}`}>
         <SpotlightNavbar
           key={currentUser ? 'logged-in' : 'logged-out'}

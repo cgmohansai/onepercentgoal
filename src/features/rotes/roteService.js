@@ -135,18 +135,32 @@ export async function toggleRote(roteId, payloadOrDate, completed = null, token 
  * @returns {Promise<boolean>} True if successfully deleted
  */
 export async function deleteRote(roteId, token = null) {
-  const headers = buildHeaders({}, token)
-  const res = await apiFetch(`/api/rotes/${roteId}`, {
-    method: 'DELETE',
-    headers,
-  })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || `Failed to delete rote (${res.status})`)
+  const authToken = token && typeof token === 'string' && token.trim() ? token.trim() : getStoredToken()
+  if (!authToken || String(roteId).startsWith('temp-')) {
+    return true
   }
 
-  return true
+  try {
+    const headers = buildHeaders({}, authToken)
+    const res = await apiFetch(`/api/rotes/${roteId}`, {
+      method: 'DELETE',
+      headers,
+    })
+
+    if (res.status === 204 || res.status === 404 || res.ok) {
+      return true
+    }
+
+    if (res.status === 401 || res.status === 403) {
+      console.warn(`Server rejected deletion for rote ${roteId} (${res.status}); treated as local delete`)
+      return true
+    }
+
+    return false
+  } catch (err) {
+    console.warn(`Network error deleting rote ${roteId} on server:`, err)
+    return false
+  }
 }
 
 const roteService = {

@@ -46,16 +46,61 @@ export function createOptimisticGoal(title, overrides = {}) {
   })
 }
 
+export const DELETED_GOALS_STORAGE_KEY = 'opg.deleted_goals'
+
 /**
- * Merges server goals with any client-side optimistic goals that are still in flight.
+ * Retrieves the set of goal IDs that have been explicitly deleted locally.
+ * @returns {Set<string>}
+ */
+export function getDeletedGoalIds() {
+  try {
+    if (typeof localStorage === 'undefined') return new Set()
+    const raw = localStorage.getItem(DELETED_GOALS_STORAGE_KEY)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw)
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+/**
+ * Records a goal ID as deleted in localStorage to prevent resurrecting on refresh or server sync.
+ * @param {string|number} goalId
+ */
+export function trackDeletedGoalId(goalId) {
+  if (!goalId) return
+  try {
+    if (typeof localStorage === 'undefined') return
+    const ids = getDeletedGoalIds()
+    ids.add(String(goalId))
+    localStorage.setItem(DELETED_GOALS_STORAGE_KEY, JSON.stringify(Array.from(ids)))
+  } catch {}
+}
+
+/**
+ * Clears the deleted goals record (e.g. on user logout).
+ */
+export function clearDeletedGoalIds() {
+  try {
+    if (typeof localStorage === 'undefined') return
+    localStorage.removeItem(DELETED_GOALS_STORAGE_KEY)
+  } catch {}
+}
+
+/**
+ * Merges server goals with any client-side optimistic goals that are still in flight,
+ * filtering out any goals that have been deleted locally.
  *
  * @param {Array} currentGoals - Current goal state
  * @param {Array} serverGoals - Fresh goals received from the server
  * @returns {Array} Merged goal list
  */
 export function mergeGoals(currentGoals = [], serverGoals = []) {
-  const pendingTemps = currentGoals.filter(g => String(g.id).startsWith('temp-'))
-  const merged = [...serverGoals]
+  const deletedIds = getDeletedGoalIds()
+  const filteredServer = serverGoals.filter(g => !deletedIds.has(String(g.id)))
+  const pendingTemps = currentGoals.filter(g => String(g.id).startsWith('temp-') && !deletedIds.has(String(g.id)))
+  const merged = [...filteredServer]
   for (const tg of pendingTemps) {
     if (!merged.some(m => m.id === tg.id || m.title === tg.title)) {
       merged.push(tg)
@@ -65,11 +110,13 @@ export function mergeGoals(currentGoals = [], serverGoals = []) {
 }
 
 /**
- * Returns fallback starter goals for offline or initial showcase state.
+ * Returns fallback starter goals for offline or initial showcase state,
+ * excluding any goals previously deleted by the user.
  * @returns {Array}
  */
 export function getFallbackGoals() {
-  return [
+  const deletedIds = getDeletedGoalIds()
+  const starters = [
     presentGoal({
       id: 1,
       title: 'Finish Palm Vein Recognition',
@@ -90,6 +137,7 @@ export function getFallbackGoals() {
       completed: false,
     }),
   ]
+  return starters.filter(g => !deletedIds.has(String(g.id)))
 }
 
 /**

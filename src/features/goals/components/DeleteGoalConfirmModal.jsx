@@ -24,6 +24,7 @@ export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm, loading = fa
           <button
             type="button"
             onClick={onCancel}
+            onPointerDown={(e) => e.stopPropagation()}
             disabled={loading}
             style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: loading ? 'default' : 'pointer', fontSize: '12px' }}
           >
@@ -33,7 +34,11 @@ export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm, loading = fa
             type="button"
             className="add-button"
             disabled={loading}
-            onClick={() => onConfirm(goal)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onConfirm(goal)
+            }}
             style={{
               background: '#ff6b6b',
               color: '#141513',

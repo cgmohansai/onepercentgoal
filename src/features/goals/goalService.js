@@ -135,19 +135,37 @@ export async function completeGoal(goalId, note, token = null) {
  * @returns {Promise<boolean>}
  */
 export async function deleteGoal(goalId, token = null) {
-  const headers = buildHeaders({}, token)
-  const res = await apiFetch(`/api/goals/${goalId}`, {
-    method: 'DELETE',
-    headers,
-  })
-
-  // 204 No Content, 200 OK, or 404 (already absent on server) all indicate the goal is deleted
-  if (res.status === 204 || res.status === 404 || res.ok) {
+  const authToken = token && typeof token === 'string' && token.trim() ? token.trim() : getStoredToken()
+  // If unauthenticated or client-only temp goal, consider locally deleted without failing
+  if (!authToken || String(goalId).startsWith('temp-')) {
     return true
   }
 
-  const err = await res.json().catch(() => ({}))
-  throw new Error(err.detail || `Unable to delete goal (${res.status})`)
+  try {
+    const headers = buildHeaders({}, authToken)
+    const res = await apiFetch(`/api/goals/${goalId}`, {
+      method: 'DELETE',
+      headers,
+    })
+
+    // 204 No Content, 200 OK, or 404 (already absent on server) all indicate the goal is deleted
+    if (res.status === 204 || res.status === 404 || res.ok) {
+      return true
+    }
+
+    // 401 Unauthorized or 403 Forbidden indicates unauthenticated on remote server; delete locally
+    if (res.status === 401 || res.status === 403) {
+      console.warn(`Server rejected deletion for goal ${goalId} (${res.status}); treated as local delete`)
+      return true
+    }
+
+    const err = await res.json().catch(() => ({}))
+    console.warn(`Server deletion failed for goal ${goalId}:`, err.detail || res.status)
+    return false
+  } catch (netErr) {
+    console.warn(`Network error deleting goal ${goalId} on server:`, netErr)
+    return false
+  }
 }
 
 export default {

@@ -15,6 +15,7 @@ import {
 } from '../roteUtils'
 import AddRoteModal from './AddRoteModal'
 import HeaderInfoTooltip from '../../../components/HeaderInfoTooltip'
+import { enqueueSyncAction, setSyncStatus, SyncStatus } from '../../../services/syncManager.js'
 
 export function RotePage({ user, onRotesChanged }) {
   const todayStr = getTodayYMD()
@@ -99,6 +100,7 @@ export function RotePage({ user, onRotesChanged }) {
     try {
       const result = await toggleRoteApi(roteId, { date: selectedDate, completed: targetStatus })
       const confirmedStatus = Boolean(result.completed)
+      setSyncStatus(SyncStatus.SYNCED)
       if (confirmedStatus !== targetStatus) {
         setRotesData(prev => {
           const reUpdated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: confirmedStatus } : r)
@@ -117,23 +119,9 @@ export function RotePage({ user, onRotesChanged }) {
         })
       }
     } catch (err) {
-      console.error('Failed to update rote in system database:', err)
-      // Revert optimistic update on failure
-      setRotesData(prev => {
-        const revUpdated = prev.rotes.map(r => String(r.id) === targetIdStr ? { ...r, completed: !targetStatus } : r)
-        const revDoneCount = revUpdated.filter(r => r.completed).length
-        const revNextState = {
-          ...prev,
-          rotes: revUpdated,
-          stats: { ...prev.stats, completed_rotes: revDoneCount }
-        }
-        cacheRef.current[selectedDate] = revNextState
-        persistRotes(selectedDate, revNextState)
-        if (selectedDate === todayStr && onRotesChanged) {
-          onRotesChanged(revNextState)
-        }
-        return revNextState
-      })
+      console.warn('Network error updating rote on server; queuing offline sync:', err)
+      // Do NOT revert! Keep in local storage and queue for server sync
+      enqueueSyncAction({ type: 'TOGGLE_ROTE', roteId, date: selectedDate, completed: targetStatus })
     }
   }
 
@@ -158,9 +146,15 @@ export function RotePage({ user, onRotesChanged }) {
     if (String(roteId).startsWith('temp-')) return
 
     try {
-      await deleteRoteApi(roteId)
+      const ok = await deleteRoteApi(roteId)
+      if (ok) {
+        setSyncStatus(SyncStatus.SYNCED)
+      } else {
+        enqueueSyncAction({ type: 'DELETE_ROTE', roteId })
+      }
     } catch (err) {
-      console.error('Failed to delete rote:', err)
+      console.warn('Failed to delete rote on server; queuing offline sync:', err)
+      enqueueSyncAction({ type: 'DELETE_ROTE', roteId })
     }
   }
 
@@ -188,6 +182,7 @@ export function RotePage({ user, onRotesChanged }) {
 
     try {
       const newItem = await createRoteApi({ title, description: '', date: todayStr })
+      setSyncStatus(SyncStatus.SYNCED)
       setRotesData(prev => {
         const wasCompleted = pendingTempTogglesRef.current.has(tempId)
         pendingTempTogglesRef.current.delete(tempId)
@@ -210,7 +205,8 @@ export function RotePage({ user, onRotesChanged }) {
         toggleRote(newItem.id)
       }
     } catch (err) {
-      console.error('Failed to create rote:', err)
+      console.warn('Failed to create rote on server; queuing offline sync:', err)
+      enqueueSyncAction({ type: 'CREATE_ROTE', tempId, title, date: todayStr })
     }
   }
 
