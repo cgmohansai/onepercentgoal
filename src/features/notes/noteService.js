@@ -141,20 +141,28 @@ export async function createNote({ body, title = '', links = [], goalId = null, 
   const resolvedLinks = Array.isArray(links) && links.length > 0
     ? links
     : ((goalId != null || roteId != null) ? [{ goal_id: goalId ?? null, rote_id: roteId ?? null }] : []);
-  const res = await apiFetch('/api/notes', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      body, title, links: resolvedLinks,
-      goal_id: goalId, rote_id: roteId,
-      pinned: Boolean(pinned), client_id: clientId,
-    }),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || `Unable to save note (${res.status})`)
+  let res;
+  try {
+    res = await apiFetch('/api/notes', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        body, title, links: resolvedLinks,
+        goal_id: goalId, rote_id: roteId,
+        pinned: Boolean(pinned), client_id: clientId,
+      }),
+    });
+  } catch (networkErr) {
+    networkErr.code = networkErr.code || 'NETWORK';
+    throw networkErr;
   }
-  return res.json()
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const error = new Error((err && err.detail) || `Unable to save note (${res.status})`);
+    error.status = res.status;
+    throw error;
+  }
+  return res.json();
 }
 
 export async function updateNote(noteId, { body, title, pinned, links, goalId, roteId } = {}, baseVersion, token = null) {
@@ -167,7 +175,13 @@ export async function updateNote(noteId, { body, title, pinned, links, goalId, r
   if (goalId !== undefined) payload.goal_id = goalId
   if (roteId !== undefined) payload.rote_id = roteId
   if (baseVersion !== null && baseVersion !== undefined) payload.base_version = baseVersion
-  const res = await apiFetch(`/api/notes/${noteId}`, { method: 'PATCH', headers, body: JSON.stringify(payload) })
+  let res;
+  try {
+    res = await apiFetch(`/api/notes/${noteId}`, { method: 'PATCH', headers, body: JSON.stringify(payload) });
+  } catch (networkErr) {
+    networkErr.code = networkErr.code || 'NETWORK';
+    throw networkErr;
+  }
   if (!res.ok) {
     if (res.status === 409) {
       const data = await res.json().catch(() => ({}))
@@ -178,7 +192,9 @@ export async function updateNote(noteId, { body, title, pinned, links, goalId, r
       throw err
     }
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || `Unable to update note (${res.status})`)
+    const error = new Error((err && err.detail) || `Unable to update note (${res.status})`)
+    error.status = res.status
+    throw error
   }
   return res.json()
 }

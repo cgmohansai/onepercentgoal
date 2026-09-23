@@ -74,6 +74,28 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
     if (showToast) showToast(msg, noTick)
   }
 
+  // Truthful failure message: "waiting for internet" only when actually
+  // offline; otherwise say exactly what failed so it can be diagnosed.
+  const syncFailMsg = (err) => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return 'Note saved locally (waiting for internet)'
+    }
+    if (err && (err.code === 'TIMEOUT' || err.code === 'NETWORK' || err.name === 'TypeError')) {
+      return 'Note saved locally — server not reachable, will retry'
+    }
+    if (err && err.status === 404 && err.message && /not found/i.test(err.message)) {
+      return 'Note saved locally — linked goal/rote missing, will retry'
+    }
+    if (err && err.status === 404) {
+      return 'Note saved locally — server needs a restart for notes, will retry'
+    }
+    if (err && err.status) {
+      return `Note saved locally — server refused (HTTP ${err.status}), will retry`
+    }
+    return 'Note saved locally — will sync automatically'
+  }
+  const offlineSavedMsg = (err) => syncFailMsg(err)
+
   const refresh = useCallback(async () => {
     const token = getStoredToken()
     if (!token) return
@@ -147,9 +169,9 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
       )
       upsertLocal(prev => prev.map(n => (n.id === local.id ? saved : n)))
       notify('Note saved', false)
-    } catch {
+    } catch (err) {
       enqueueSyncAction({ type: 'CREATE_NOTE', title, body, pinned, links: payloadLinks, tempId: local.id })
-      notify('Note saved locally (waiting for internet)', true)
+      notify(offlineSavedMsg(err), true)
     }
   }
 
@@ -216,7 +238,7 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
         return
       }
       enqueueSyncAction({ type: 'UPDATE_NOTE', noteId: note.id, title, body, pinned, links: payloadLinks, baseVersion: note.version })
-      notify('Note saved locally (waiting for internet)', true)
+      notify(offlineSavedMsg(err), true)
     }
   }
 

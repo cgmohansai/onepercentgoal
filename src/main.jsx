@@ -1691,7 +1691,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell${active !== 'Overview' ? ' section-mode' : ''}`}>
       <div
         className="sync-status-container"
         style={{

@@ -5665,10 +5665,32 @@ button.profile-settings-btn.circular-settings-btn svg {
     padding: 18px 12px;
   }
   .rote-row {
-    flex-wrap: nowrap;
-    gap: 12px;
+    flex-wrap: wrap;
+    row-gap: 10px;
+    gap: 12px 14px;
     padding: 12px 14px;
     align-items: center;
+  }
+
+  .rote-row > .rote-checkbox {
+    flex-shrink: 0;
+  }
+
+  .rote-row > .rote-info {
+    flex: 1 1 calc(100% - 40px);
+    min-width: 0;
+  }
+
+  .rote-row > .rote-meta {
+    flex: 1 1 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
   }
   
   .rote-checkbox {
@@ -5682,9 +5704,10 @@ button.profile-settings-btn.circular-settings-btn svg {
 
   .rote-title {
     font-size: 15px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow: visible;
+    word-break: break-word;
+    line-height: 1.35;
   }
 
   .rote-desc {
@@ -6618,13 +6641,26 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   html {
     overflow-x: hidden;
   }
-  /* FR-08: phone page headers sit 20px below the logo island, no excess top gap.
-     Desktop is untouched. Higher specificity beats the generic header rules below. */
+  /* FR-08: every section header sits 20px below the logo island on phones.
+     The island is fixed at top:20px with a ~35px-tall nav (bottom edge ≈55px
+     from the viewport top); content starts at shell top + 10px margin, so a
+     55px header offset (minus safe-area, which shifts shell and content
+     together) lands the container top exactly ~20px under the island. */
   .workspace-page > .goals-page-header,
   .workspace-page > .timeline-page-header,
   .workspace-page > .profile-page-header {
-    margin-top: 20px !important;
+    margin-top: max(8px, calc(55px - var(--safe-top, 0px))) !important;
     padding-top: 0 !important;
+  }
+  /* Section mode (phones only): the top island is hidden outside Overview —
+     navigation lives in the bottom dock — so headers need only a 20px offset. */
+  .app-shell.section-mode .shell-header {
+    display: none !important;
+  }
+  .app-shell.section-mode .workspace-page > .goals-page-header,
+  .app-shell.section-mode .workspace-page > .timeline-page-header,
+  .app-shell.section-mode .workspace-page > .profile-page-header {
+    margin-top: 20px !important;
   }
   .app-shell {
     position: fixed !important;

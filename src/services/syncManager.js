@@ -25,6 +25,11 @@ export const SyncStatus = {
 
 let listeners = new Set()
 let activeFlushing = false
+// Consecutive-failure backoff: a persistently failing queue (e.g. server
+// error) must not hammer the backend — or blink the indicator — every second.
+let flushFailCount = 0
+let lastFlushFailAt = 0
+const FLUSH_BACKOFF_MS = 30000
 
 function isOnline() {
   return typeof navigator !== 'undefined' ? navigator.onLine !== false : true
@@ -242,8 +247,14 @@ export async function flushSyncQueue(explicitToken = null) {
 
   const queue = getSyncQueue()
   if (queue.length === 0) {
+    flushFailCount = 0
     setSyncStatus(SyncStatus.SYNCED)
     return true
+  }
+
+  // Back off after repeated failures; the 1s poll will retry once it lapses.
+  if (flushFailCount >= 3 && Date.now() - lastFlushFailAt < FLUSH_BACKOFF_MS) {
+    return false
   }
 
   activeFlushing = true
@@ -333,8 +344,13 @@ export async function flushSyncQueue(explicitToken = null) {
     setSyncQueue(remaining)
     if (remaining.length === 0) {
       currentStatus = SyncStatus.SYNCED
+      flushFailCount = 0
     } else {
       currentStatus = !isOnline() ? SyncStatus.OFFLINE : SyncStatus.PENDING
+      if (hasFailure) {
+        flushFailCount += 1
+        lastFlushFailAt = Date.now()
+      }
     }
     notifyListeners()
   }
