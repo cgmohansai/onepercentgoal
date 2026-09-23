@@ -11,7 +11,8 @@
 
 import { getStoredToken } from './apiClient.js'
 import { createGoal, updateGoal, completeGoal, deleteGoal } from '../features/goals/goalService.js'
-import { createRote, toggleRote, deleteRote } from '../features/rotes/roteService.js'
+import { createRote, toggleRote, passRote, deleteRote } from '../features/rotes/roteService.js'
+import { createNote, updateNote, deleteNote } from '../features/notes/noteService.js'
 
 export const SYNC_QUEUE_KEY = 'opg.sync_queue'
 
@@ -196,7 +197,7 @@ export function subscribeSyncStatus(fn) {
  * Deduplicates updates to the same entity when appropriate.
  *
  * @param {object} action - Action descriptor
- * @param {string} action.type - 'UPDATE_GOAL' | 'CREATE_GOAL' | 'COMPLETE_GOAL' | 'DELETE_GOAL' | 'TOGGLE_ROTE' | 'CREATE_ROTE' | 'DELETE_ROTE'
+  * @param {string} action.type - 'UPDATE_GOAL' | 'CREATE_GOAL' | 'COMPLETE_GOAL' | 'DELETE_GOAL' | 'TOGGLE_ROTE' | 'PASS_ROTE' | 'CREATE_ROTE' | 'DELETE_ROTE' | 'CREATE_NOTE' | 'UPDATE_NOTE' | 'DELETE_NOTE'
  */
 export function enqueueSyncAction(action) {
   const queue = getSyncQueue()
@@ -207,6 +208,9 @@ export function enqueueSyncAction(action) {
   let nextQueue
   if (action.type === 'UPDATE_GOAL' && action.goalId) {
     nextQueue = queue.filter(q => !(q.type === 'UPDATE_GOAL' && String(q.goalId) === String(action.goalId)))
+    nextQueue.push(item)
+  } else if (action.type === 'UPDATE_NOTE' && action.noteId) {
+    nextQueue = queue.filter(q => !(q.type === 'UPDATE_NOTE' && String(q.noteId) === String(action.noteId)))
     nextQueue.push(item)
   } else if (action.type === 'TOGGLE_ROTE' && action.roteId && action.date) {
     nextQueue = queue.filter(q => !(q.type === 'TOGGLE_ROTE' && String(q.roteId) === String(action.roteId) && q.date === action.date))
@@ -278,6 +282,11 @@ export async function flushSyncQueue(explicitToken = null) {
             success = true
             break
 
+          case 'PASS_ROTE':
+            await passRote(item.roteId, { date: item.date }, token)
+            success = true
+            break
+
           case 'CREATE_ROTE':
             await createRote({ title: item.title, description: item.description || '', date: item.date }, token)
             success = true
@@ -285,6 +294,21 @@ export async function flushSyncQueue(explicitToken = null) {
 
           case 'DELETE_ROTE':
             await deleteRote(item.roteId, token)
+            success = true
+            break
+
+          case 'CREATE_NOTE':
+            await createNote({ body: item.body, title: item.title || '', links: item.links || [], goalId: item.goalId ?? null, roteId: item.roteId ?? null, pinned: Boolean(item.pinned), clientId: item.tempId || item.clientId || null }, token)
+            success = true
+            break
+
+          case 'UPDATE_NOTE':
+            await updateNote(item.noteId, { body: item.body, title: item.title, pinned: item.pinned, links: item.links, goalId: item.goalId, roteId: item.roteId }, item.baseVersion ?? null, token)
+            success = true
+            break
+
+          case 'DELETE_NOTE':
+            await deleteNote(item.noteId, token)
             success = true
             break
 

@@ -19,7 +19,7 @@ export function OverviewPage({
   goals,
   completeGoals,
   streak,
-  completionRate,
+  avgActiveProgress = 0,
   quoteIndices,
   roteOverviewStats,
   setActive,
@@ -259,12 +259,12 @@ export function OverviewPage({
               <div className="stat-giant-box" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', justifyContent: 'center', padding: '24px' }}>
                 <div className="sprint-progress-circle-wrap" style={{ margin: '0 0 12px', alignItems: 'center' }}>
                   <div className="sprint-progress-big-number" style={{ fontSize: '64px', lineHeight: 1 }}>
-                    {completionRate}<em>%</em>
+                    {avgActiveProgress}<em>%</em>
                   </div>
-                  <p className="sprint-progress-label" style={{ marginTop: '4px', fontSize: '11px' }}>Completion Rate</p>
+                  <p className="sprint-progress-label" style={{ marginTop: '4px', fontSize: '11px' }}>Avg Active Progress</p>
                 </div>
-                <div className="stat-giant-badge" style={{ color: completionRate >= 80 ? '#c9f36a' : completionRate >= 60 ? '#eef0e9' : '#ffb9b9', fontSize: '12px' }}>
-                  {completionRate >= 80 ? 'ELITE LEVEL PERFORMANCE' : completionRate >= 60 ? 'STEADY PERFORMANCE' : 'WARNING: FOCUS INTENSIVELY'}
+                <div className="stat-giant-badge" style={{ color: avgActiveProgress >= 80 ? '#c9f36a' : avgActiveProgress >= 60 ? '#eef0e9' : '#ffb9b9', fontSize: '12px' }}>
+                  {avgActiveProgress >= 80 ? 'ELITE LEVEL PERFORMANCE' : avgActiveProgress >= 60 ? 'STEADY PERFORMANCE' : 'WARNING: FOCUS INTENSIVELY'}
                 </div>
               </div>
             </div>

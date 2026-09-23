@@ -2,7 +2,6 @@ import React from 'react'
 import { useEscapeKey } from '../../../hooks/useEscapeKey'
 import { isNativeApp } from '../../../reminders'
 import { downloadImage, sanitizeFilename } from '../goalUtils'
-import { triggerSideCannons } from '../../../utils/confetti'
 
 export function CompletedShareModal({ completedShare, onClose }) {
   useEscapeKey(onClose, !completedShare)
@@ -24,14 +23,13 @@ export function CompletedShareModal({ completedShare, onClose }) {
         <p style={{ color: '#a5a79e', fontSize: '14px', lineHeight: 1.5, margin: '0 0 24px', textAlign: 'center' }}>Your progress is saved. Share this win as an image.</p>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-          <button type="button" onClick={onClose} style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: 'pointer', fontSize: '12px' }}>Done</button>
+          <button type="button" onClick={onClose}>Done</button>
           <button
             type="button"
             className="add-button"
             disabled={!completedShare.image}
             onClick={() => {
               if (!completedShare.image) return
-              triggerSideCannons()
               if (isNativeApp()) {
                 onClose()
               } else {

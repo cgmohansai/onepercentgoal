@@ -38,14 +38,6 @@ export function AppReturnModal({ appReturnFlow, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              color: '#8e9189',
-              padding: '8px',
-              cursor: 'pointer',
-              fontSize: '13px'
-            }}
           >
             Continue in Browser
           </button>

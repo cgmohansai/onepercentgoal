@@ -17,6 +17,10 @@ class RoteToggle(BaseModel):
     completed: bool | None = None
 
 
+class RotePass(BaseModel):
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
 def toggle_rote_log(conn, user_id: int, rote_id: int, date_str: str, completed: bool | None = None) -> bool:
     """Atomically toggle or set daily rote habit completion using ON CONFLICT upsert."""
     now_iso = current_timestamp()
@@ -46,3 +50,20 @@ def toggle_rote_log(conn, user_id: int, rote_id: int, date_str: str, completed: 
         row = execute(conn, query, (user_id, rote_id, date_str, now_iso)).fetchone()
 
     return bool(row["completed"] if isinstance(row, dict) or hasattr(row, "__getitem__") else row[0])
+
+
+def pass_rote_log(conn, user_id: int, rote_id: int, date_str: str) -> dict:
+    """Record a rote as passed/postponed for a date: no completion credit, original due date kept in history.
+
+    Pass is neutral for streaks: it neither completes the day nor erases prior
+    history. The rote remains eligible the next day (rotes are day-scoped).
+    """
+    query = """
+        INSERT INTO rote_logs (user_id, rote_id, log_date, completed, completed_at, passed)
+        VALUES (%s, %s, %s, 0, NULL, 1)
+        ON CONFLICT (user_id, rote_id, log_date)
+        DO UPDATE SET completed = 0, completed_at = NULL, passed = 1
+        RETURNING log_date
+    """
+    row = execute(conn, query, (user_id, rote_id, date_str)).fetchone()
+    return {"rote_id": rote_id, "date": row["log_date"] if isinstance(row, dict) or hasattr(row, "__getitem__") else row[0], "passed": True}

@@ -26,6 +26,7 @@ import SprintHistoryModal from '../features/timeline/components/SprintHistoryMod
 import EditProfileModal from './EditProfileModal'
 import AppFooter from './AppFooter'
 import HeaderInfoTooltip from './HeaderInfoTooltip'
+import NotesSection from '../features/notes/components/NotesSection'
 
 function formatDisplayReminderTime(val) {
   if (!val) return ''
@@ -64,6 +65,7 @@ export function WorkspacePage({
   onRotesChanged,
   editModalOpen,
   setEditModalOpen,
+  setActive,
   roteStats,
   isGoalsLoading = false,
 }) {
@@ -314,16 +316,33 @@ export function WorkspacePage({
         <section className="all-goals card">
           <div className="goal-list">
             {(goals && goals.length > 0) ? (
-              goals.map(goal => (
-                <GoalRow
-                  goal={goal}
-                  onProgress={onProgress}
-                  onComplete={onComplete}
-                  onDelete={onDelete}
-                  onShowDetails={onShowGoalDetails}
-                  key={goal.id}
-                />
-              ))
+              (() => {
+                const activeGoals = goals.filter(g => !(g.done || g.completed))
+                const completedGoals = goals.filter(g => (g.done || g.completed))
+                const renderRow = goal => (
+                  <GoalRow
+                    goal={goal}
+                    onProgress={onProgress}
+                    onComplete={onComplete}
+                    onDelete={onDelete}
+                    onShowDetails={onShowGoalDetails}
+                    key={goal.id}
+                  />
+                )
+                return (
+                  <>
+                    {activeGoals.map(renderRow)}
+                    {completedGoals.length > 0 && (
+                      <>
+                        <div className="goal-section-separator" aria-hidden="true">
+                          <span>Completed</span>
+                        </div>
+                        {completedGoals.map(renderRow)}
+                      </>
+                    )}
+                  </>
+                )
+              })()
             ) : (
               <div className="rote-empty-state goals-empty-state">
                 <p>No sprint goals configured yet for this sprint.</p>
@@ -347,13 +366,23 @@ export function WorkspacePage({
     return <RotePage user={user} onRotesChanged={onRotesChanged} onShowToast={showToast} isLoading={isGoalsLoading} />
   }
 
+  if (active === 'Notes') {
+    return (
+      <NotesSection
+        goals={goals}
+        rotes={roteStats?.rotes || []}
+        showToast={showToast}
+        onShowGoalDetails={onShowGoalDetails}
+        onNavigateRote={() => { if (setActive) setActive('Rote') }}
+      />
+    )
+  }
+
   if (active === 'Timeline') {
     return (
       <div className="workspace-page timeline-page-custom">
         <header className="timeline-page-header">
-          <div className="goals-badge-row">
-            <span className="timeline-badge">THE YEAR IN 100 PARTS</span>
-          </div>
+          <div className="goals-badge-row" aria-hidden="true" />
           <div className="goals-title-action-row">
             <div className="goals-title-col">
               <h1 className="timeline-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
@@ -473,7 +502,11 @@ export function WorkspacePage({
     // Direct instant calculation matching Overview containers
     const goalsCompleted = (goals || []).filter(g => g.done).length
     const totalGoals = (goals || []).length
-    const goalRate = totalGoals > 0 ? Math.round((goalsCompleted / totalGoals) * 100) : 0
+    // FR-02: aggregate is the average of ACTIVE goals' own percentages — never completed/total.
+    const activeGoalsList = (goals || []).filter(g => !(g.done || g.completed))
+    const goalRate = activeGoalsList.length > 0
+      ? Math.round(activeGoalsList.reduce((sum, g) => sum + (Number(g.value ?? g.progress_percent ?? 0) || 0), 0) / activeGoalsList.length)
+      : 0
 
     const rotesCompleted = roteStats?.completed || 0
     const totalRotes = roteStats?.total || 0
@@ -483,9 +516,7 @@ export function WorkspacePage({
       <div className="workspace-page profile-page-custom">
         <header className="profile-page-header">
           <div className="profile-header-left" style={{ width: '100%' }}>
-            <div className="profile-badge-row">
-              <span className="profile-badge">ACCOUNT OVERVIEW</span>
-            </div>
+            <div className="profile-badge-row" aria-hidden="true" />
             <div className="profile-title-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '16px' }}>
               <h1 className="profile-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
                 <span className="title-main-text" style={{ whiteSpace: 'nowrap' }}>
@@ -684,9 +715,9 @@ export function WorkspacePage({
               </span>
             </div>
 
-            {/* Tile 2: GOAL COMPLETION (Restrained Accent) */}
+            {/* Tile 2: AVG ACTIVE PROGRESS (Restrained Accent) */}
             <div className="combined-stat-item is-accent">
-              <span className="combined-stat-label">GOAL COMPLETION</span>
+              <span className="combined-stat-label">AVG ACTIVE PROGRESS</span>
               <b className="combined-stat-value accent-value">{goalRate}%</b>
               <div className="stat-progress-indicator">
                 <div
@@ -694,7 +725,7 @@ export function WorkspacePage({
                   style={{ width: `${Math.min(100, Math.max(0, goalRate))}%` }}
                 />
               </div>
-              <span className="combined-stat-desc">Overall progress</span>
+              <span className="combined-stat-desc">Average of active goals</span>
             </div>
 
             {/* Tile 3: ROTE COMPLETION */}

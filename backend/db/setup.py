@@ -39,7 +39,7 @@ def setup_database():
                     sprint_number INTEGER NOT NULL, created_at TIMESTAMPTZ NOT NULL,
                     progress_percent INTEGER NOT NULL DEFAULT 0,
                     completion_note TEXT NOT NULL DEFAULT '',
-                    rolled_from_goal_id BIGINT, source_goal_id BIGINT
+                    rolled_from_goal_id BIGINT, source_goal_id BIGINT, version INTEGER NOT NULL DEFAULT 1
                 )""")
             execute(conn, """
                 CREATE TABLE IF NOT EXISTS sprint_email_reminders (
@@ -67,7 +67,31 @@ def setup_database():
                     log_date TEXT NOT NULL,
                     completed INTEGER NOT NULL DEFAULT 0,
                     completed_at TIMESTAMPTZ,
+                    passed INTEGER NOT NULL DEFAULT 0,
                     UNIQUE (user_id, rote_id, log_date)
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS notes (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    goal_id BIGINT,
+                    rote_id BIGINT,
+                    title TEXT NOT NULL DEFAULT '',
+                    body TEXT NOT NULL DEFAULT '',
+                    pinned INTEGER NOT NULL DEFAULT 0,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    deleted INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMPTZ NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL,
+                    client_id TEXT
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS note_links (
+                    id BIGSERIAL PRIMARY KEY,
+                    note_id BIGINT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+                    goal_id BIGINT,
+                    rote_id BIGINT,
+                    created_at TIMESTAMPTZ NOT NULL
                 )""")
         else:
             execute(conn, """
@@ -99,7 +123,7 @@ def setup_database():
                     sprint_number INTEGER NOT NULL, created_at TEXT NOT NULL,
                     progress_percent INTEGER NOT NULL DEFAULT 0,
                     completion_note TEXT NOT NULL DEFAULT '',
-                    rolled_from_goal_id INTEGER, source_goal_id INTEGER,
+                    rolled_from_goal_id INTEGER, source_goal_id INTEGER, version INTEGER NOT NULL DEFAULT 1,
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                 )""")
             execute(conn, """
@@ -130,9 +154,35 @@ def setup_database():
                     log_date TEXT NOT NULL,
                     completed INTEGER NOT NULL DEFAULT 0,
                     completed_at TEXT,
+                    passed INTEGER NOT NULL DEFAULT 0,
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
                     FOREIGN KEY(rote_id) REFERENCES rotes(id) ON DELETE CASCADE,
                     UNIQUE (user_id, rote_id, log_date)
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS notes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    goal_id INTEGER,
+                    rote_id INTEGER,
+                    title TEXT NOT NULL DEFAULT '',
+                    body TEXT NOT NULL DEFAULT '',
+                    pinned INTEGER NOT NULL DEFAULT 0,
+                    version INTEGER NOT NULL DEFAULT 1,
+                    deleted INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    client_id TEXT,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                )""")
+            execute(conn, """
+                CREATE TABLE IF NOT EXISTS note_links (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    note_id INTEGER NOT NULL,
+                    goal_id INTEGER,
+                    rote_id INTEGER,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE
                 )""")
 
         alter_columns = [
@@ -148,6 +198,11 @@ def setup_database():
             ("goals", "rolled_from_goal_id", "ALTER TABLE goals ADD COLUMN rolled_from_goal_id BIGINT" if USE_POSTGRES else "ALTER TABLE goals ADD COLUMN rolled_from_goal_id INTEGER"),
             ("goals", "source_goal_id", "ALTER TABLE goals ADD COLUMN source_goal_id BIGINT" if USE_POSTGRES else "ALTER TABLE goals ADD COLUMN source_goal_id INTEGER"),
             ("rotes", "rote_date", "ALTER TABLE rotes ADD COLUMN rote_date TEXT NOT NULL DEFAULT ''"),
+            ("rote_logs", "passed", "ALTER TABLE rote_logs ADD COLUMN passed INTEGER NOT NULL DEFAULT 0"),
+            ("goals", "version", "ALTER TABLE goals ADD COLUMN version INTEGER NOT NULL DEFAULT 1"),
+            ("notes", "title", "ALTER TABLE notes ADD COLUMN title TEXT NOT NULL DEFAULT ''"),
+            ("notes", "pinned", "ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0"),
+            ("notes", "client_id", "ALTER TABLE notes ADD COLUMN client_id TEXT"),
         ]
         for table, column, ddl in alter_columns:
             ensure_column(conn, table, column, ddl)
@@ -168,6 +223,7 @@ def setup_database():
         execute(conn, "CREATE UNIQUE INDEX IF NOT EXISTS idx_goals_user_sprint_source ON goals(user_id, sprint_year, sprint_number, source_goal_id)")
         execute(conn, "CREATE INDEX IF NOT EXISTS idx_rotes_user_id ON rotes(user_id)")
         execute(conn, "CREATE INDEX IF NOT EXISTS idx_rote_logs_user_date ON rote_logs(user_id, log_date)")
+        execute(conn, "CREATE INDEX IF NOT EXISTS idx_notes_user_updated ON notes(user_id, updated_at)")
         execute(conn, "CREATE INDEX IF NOT EXISTS idx_sessions_user_expires ON sessions(user_id, expires_at)")
         execute(conn, "CREATE INDEX IF NOT EXISTS idx_auth_codes_expires_at ON auth_codes(expires_at)")
 

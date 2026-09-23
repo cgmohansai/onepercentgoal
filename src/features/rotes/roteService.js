@@ -129,6 +129,34 @@ export async function toggleRote(roteId, payloadOrDate, completed = null, token 
 }
 
 /**
+ * Passes (postpones) a rote for a date: records passed, awards no completion
+ * credit, keeps the original due date in history. The rote stays eligible tomorrow.
+ *
+ * @param {number|string} roteId - Rote ID
+ * @param {object|string} payloadOrDate - Payload object { date } or date string
+ * @param {string|null} [token=null] - Optional session token
+ * @returns {Promise<{ rote_id: number, date: string, passed: boolean }>}
+ */
+export async function passRote(roteId, payloadOrDate, token = null) {
+  const date = typeof payloadOrDate === 'object' && payloadOrDate !== null
+    ? (payloadOrDate.date || '')
+    : (payloadOrDate || '')
+  const headers = buildHeaders({ 'Content-Type': 'application/json' }, token)
+  const res = await apiFetch(`/api/rotes/${roteId}/pass`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ date }),
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Failed to pass rote (${res.status})`)
+  }
+
+  return res.json()
+}
+
+/**
  * Deletes a rote habit and its associated logs.
  *
  * @param {number|string} roteId - Rote ID

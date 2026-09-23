@@ -19,12 +19,12 @@ export function AddGoalModal({ isOpen, onClose, onSubmit, loading, deadline }) {
           setTitle('')
         }}
       >
-        <p className="eyebrow" style={{ color: '#c9f36a' }}>NEW COMPREHENSIVE TARGET</p>
-        <h2>What do you want to achieve in this sprint?</h2>
+        <p className="eyebrow eyebrow-sm">New goal</p>
+        <h2 className="modal-title-lg">What is the sprint goal?</h2>
         
         {deadline && (
           <p className="goal-deadline" style={{ color: '#ff6b6b', fontFamily: '"DM Mono", monospace', fontSize: '11px', margin: '-12px 0 20px', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '14px', lineHeight: 1 }}>⏳</span> DEADLINE: {deadline.toUpperCase()}
+            DEADLINE: {deadline.toUpperCase()}
           </p>
         )}
         
@@ -43,36 +43,11 @@ export function AddGoalModal({ isOpen, onClose, onSubmit, loading, deadline }) {
           />
         </label>
         
-        <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
-          <button 
-            type="button" 
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: '1px solid #343630',
-              color: '#8c9085',
-              borderRadius: '8px',
-              padding: '10px 16px',
-              fontSize: '12px',
-              cursor: 'pointer'
-            }}
-          >
+        <div className="modal-actions">
+          <button type="button" onClick={onClose}>
             Cancel
           </button>
-          <button 
-            type="submit" 
-            disabled={loading}
-            style={{
-              background: '#c9f36a',
-              border: 'none',
-              color: '#121411',
-              borderRadius: '8px',
-              padding: '10px 20px',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
+          <button type="submit" disabled={loading}>
             {loading ? 'Saving…' : 'Add Target'}
           </button>
         </div>

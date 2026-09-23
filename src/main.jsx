@@ -94,6 +94,7 @@ import CompletedShareModal from './features/goals/components/CompletedShareModal
 import GoalDetailsModal from './features/goals/components/GoalDetailsModal'
 import DeleteGoalConfirmModal from './features/goals/components/DeleteGoalConfirmModal'
 import SyncStatusBadge from './components/SyncStatusBadge'
+import OnboardingModal, { hasSeenOnboarding, markOnboardingSeen } from './components/OnboardingModal'
 import {
   enqueueSyncAction,
   setSyncStatus,
@@ -109,8 +110,7 @@ import {
 } from './services/syncManager'
 import ErrorBoundary from './components/ErrorBoundary'
 import { MOTIVATIONAL_QUOTES } from './constants/quotes'
-import { resetMorphIndex } from './components/MorphText'
-import { triggerSideCannons } from './utils/confetti'
+import { resetMorphIndex, pauseMorphTimer, resumeMorphTimer } from './components/MorphText'
 
 if ('serviceWorker' in navigator) {
   const isCapacitorNative = () => Boolean(
@@ -468,6 +468,7 @@ function App() {
   const [authStatus, setAuthStatus] = useState('Signing you in…')
   const [authError, setAuthError] = useState('')
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
   const [toastNoTick, setToastNoTick] = useState(false)
   const toastTimeoutRef = useRef(null)
@@ -565,9 +566,14 @@ function App() {
   }, [completedShare])
 
   useEffect(() => {
+    if (authLoading) {
+      pauseMorphTimer()
+      return
+    }
+    resumeMorphTimer()
     const id = setInterval(() => setNow(getISTDate()), 1000)
     return () => clearInterval(id)
-  }, [])
+  }, [authLoading])
 
   useEffect(() => {
     const { token: tokenFromUrl, accessToken: accessTokenFromUrl } = parseAuthUrl(window.location.href)
@@ -647,13 +653,13 @@ function App() {
         setShowAuthModal(false)
         Browser.close().catch(() => {})
         try {
-          const user = await getCurrentUser(token, { timeout: 15000 })
+          const user = await getCurrentUser(token, { timeout: 10000 })
           setCurrentUser(user)
           setAuthStatus('Preparing your dashboard…')
           const todayStr = getTodayYMD()
           const [dashResult, rotesResult] = await Promise.allSettled([
-            fetchDashboard(token, { timeout: 12000 }),
-            fetchRotesApi(todayStr, token, { timeout: 12000 }),
+            fetchDashboard(token, { timeout: 8000 }),
+            fetchRotesApi(todayStr, token, { timeout: 8000 }),
           ])
 
           if (dashResult.status === 'fulfilled' && dashResult.value) {
@@ -952,8 +958,8 @@ function App() {
         // Bounded: each request aborts on its own deadline so a stalled
         // backend can never leave the sync badge / goals skeleton stuck.
         const [dashResult, rotesResult] = await Promise.allSettled([
-          fetchDashboard(sessionToken, { timeout: 15000 }),
-          fetchRotesApi(todayStr, sessionToken, { timeout: 15000 }),
+          fetchDashboard(sessionToken, { timeout: 10000 }),
+          fetchRotesApi(todayStr, sessionToken, { timeout: 10000 }),
           flushSyncQueue(sessionToken),
         ])
 
@@ -1042,7 +1048,7 @@ function App() {
       await new Promise(resolve => requestAnimationFrame(resolve))
       // Bounded verification: never leave "Signing you in…" hanging if the
       // backend stalls (e.g. localhost server not responding).
-      const result = await verifyGoogleCredential(payload, { timeout: 25000 })
+      const result = await verifyGoogleCredential(payload, { timeout: 15000 })
 
       // Always save session and log into the website Overview page first
       setStoredToken(result.token)
@@ -1053,6 +1059,12 @@ function App() {
       setShowAuthModal(false)
       setAuthError('')
       resetScrollToTop()
+      // First launch for brand-new accounts: one-time onboarding (FR-01)
+      try {
+        if (result.is_new && !hasSeenOnboarding(result.user?.id)) {
+          setShowOnboarding(true)
+        }
+      } catch {}
 
       // Fetch fresh goals & routines from server while "Your dashboard is almost ready" is showing!
       // Bounded preload: each request aborts after 12s so the overlay can
@@ -1062,8 +1074,8 @@ function App() {
       const todayStr = getTodayYMD()
       try {
         const [dashResult, rotesResult] = await Promise.allSettled([
-          fetchDashboard(result.token, { timeout: 12000 }),
-          fetchRotesApi(todayStr, result.token, { timeout: 12000 }),
+          fetchDashboard(result.token, { timeout: 8000 }),
+          fetchRotesApi(todayStr, result.token, { timeout: 8000 }),
         ])
 
         if (dashResult.status === 'fulfilled' && dashResult.value) {
@@ -1249,7 +1261,7 @@ function App() {
     const token = sessionToken || getStoredToken()
     try {
       return await executeSyncWithRipple(async () => {
-        const updated = await updateGoalApi(goal.id, payload, token)
+        const updated = await updateGoalApi(goal.id, { ...payload, base_version: goal.version }, token)
         const saved = presentGoal(updated)
         setGoals(items => items.map(item => item.id === goal.id ? saved : item))
         await refreshProfile()
@@ -1259,7 +1271,11 @@ function App() {
         onSuccess: () => {
           showToast('Goal updated', false)
         },
-        onError: () => {
+        onError: (err) => {
+          if (err && err.code === 'CONFLICT') {
+            handleGoalConflict(goal.id, err.server)
+            return
+          }
           showToast('Goal updated locally (waiting for internet)', true)
         }
       })
@@ -1308,6 +1324,16 @@ function App() {
     })
   }
 
+  // Reconciles a 409 conflict response: adopts the server copy (newer version)
+  // instead of blindly overwriting it, and tells the user what happened.
+  const handleGoalConflict = useCallback((goalId, serverCopy) => {
+    if (serverCopy) {
+      const saved = presentGoal(serverCopy)
+      updateGoalsAndSyncTimeline(items => items.map(item => String(item.id) === String(goalId) ? saved : item))
+    }
+    showToast('Goal changed on another device — refreshed to latest', true)
+  }, [])
+
   const updateProgress = async (goal, progress_percent) => {
     markGoalInFlight(goal.id)
     // 1. Instantly update in-memory state, timeline, and persist to localStorage
@@ -1324,7 +1350,7 @@ function App() {
 
     try {
       await executeSyncWithRipple(async () => {
-        const updated = await updateGoalApi(goal.id, { progress_percent }, token)
+        const updated = await updateGoalApi(goal.id, { progress_percent, base_version: goal.version }, token)
         const saved = presentGoal(updated)
         updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? saved : item))
         refreshProfile(token).catch(() => {})
@@ -1335,8 +1361,12 @@ function App() {
           unmarkGoalInFlight(goal.id)
           showToast('Sprint progress updated', false)
         },
-        onError: () => {
+        onError: (err) => {
           unmarkGoalInFlight(goal.id)
+          if (err && err.code === 'CONFLICT') {
+            handleGoalConflict(goal.id, err.server)
+            return
+          }
           enqueueSyncAction({ type: 'UPDATE_GOAL', goalId: goal.id, payload: { progress_percent } })
           showToast('Progress saved locally (waiting for internet)', true)
         }
@@ -1365,7 +1395,6 @@ function App() {
     updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? tempCompleted : item))
     setCompletionFlow(null)
     setCompletedShare({ goal: tempCompleted, note, image: null })
-    triggerSideCannons()
 
     if (String(goal.id).startsWith('temp-')) {
       unmarkGoalInFlight(goal.id)
@@ -1383,7 +1412,7 @@ function App() {
 
     try {
       await executeSyncWithRipple(async () => {
-        const updated = await completeGoalApi(goal.id, note, token)
+        const updated = await completeGoalApi(goal.id, note, token, goal.version ?? null)
         const saved = presentGoal(updated)
         updateGoalsAndSyncTimeline(items => items.map(item => item.id === saved.id ? saved : item))
         refreshProfile(token).catch(() => {})
@@ -1397,8 +1426,12 @@ function App() {
           unmarkGoalInFlight(goal.id)
           showToast('Goal completed', false)
         },
-        onError: () => {
+        onError: (err) => {
           unmarkGoalInFlight(goal.id)
+          if (err && err.code === 'CONFLICT') {
+            handleGoalConflict(goal.id, err.server)
+            return
+          }
           enqueueSyncAction({ type: 'COMPLETE_GOAL', goalId: goal.id, note })
           showToast('Goal completed locally (waiting for internet)', true)
         }
@@ -1576,7 +1609,12 @@ function App() {
   const userLabel = currentUser?.display_name || currentUser?.name || currentUser?.email || 'Sai'
   const needsProfile = Boolean(currentUser?.needs_profile)
   const streak = profile?.stats?.current_streak ?? 0
-  const completionRate = profile?.stats?.completion_rate ?? 0
+  // Aggregate profile metric: average progress across ACTIVE goals only.
+  // Never the completed/total ratio, and never substituted for a goal's own %.
+  const activeGoalsForAvg = goals.filter(g => !g.done && !g.completed)
+  const avgActiveProgress = activeGoalsForAvg.length > 0
+    ? Math.round(activeGoalsForAvg.reduce((sum, g) => sum + (Number(g.value ?? g.progress_percent ?? 0) || 0), 0) / activeGoalsForAvg.length)
+    : 0
 
   if (shareUsername) {
     return (
@@ -1673,7 +1711,7 @@ function App() {
           active={active}
           setActive={setActive}
           keyboardHidden={keyboardOpen}
-          items={['Overview', 'Goals', 'Rote', 'Timeline', 'Profile']}
+            items={['Overview', 'Goals', 'Rote', 'Notes', 'Timeline', 'Profile']}
         />
       </header>
 
@@ -1707,6 +1745,7 @@ function App() {
             onRotesChanged={handleRotesChanged}
             editModalOpen={editModalOpen}
             setEditModalOpen={setEditModalOpen}
+            setActive={setActive}
             roteStats={roteOverviewStats}
             isGoalsLoading={isGoalsLoading}
           />
@@ -1719,7 +1758,7 @@ function App() {
             goals={goals}
             completeGoals={completeGoals}
             streak={streak}
-            completionRate={completionRate}
+            avgActiveProgress={avgActiveProgress}
             quoteIndices={quoteIndices}
             roteOverviewStats={roteOverviewStats}
             setActive={setActive}
@@ -1769,6 +1808,14 @@ function App() {
       </section>
 
       {toastMsg && <ToastPopup message={toastMsg} showTick={!toastNoTick} />}
+      {showOnboarding && (
+        <OnboardingModal
+          onClose={() => {
+            try { markOnboardingSeen(currentUser?.id) } catch {}
+            setShowOnboarding(false)
+          }}
+        />
+      )}
       <AppReturnModal
         appReturnFlow={appReturnFlow}
         onClose={() => setAppReturnFlow(null)}

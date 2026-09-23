@@ -30,7 +30,8 @@ export function SyncStatusBadge({ onShowToast }) {
   const isOffline = status === SyncStatus.OFFLINE || !isOnline
   const isSyncing = status === SyncStatus.SYNCING
 
-  // Only visible when something is updated; fades out 2 seconds after loading process completes
+  // Visible ONLY while a sync update is in flight (plus a short fade after
+  // it settles). Idle, offline and queued states stay out of the way.
   useEffect(() => {
     const prev = prevStatusRef.current
     prevStatusRef.current = status
@@ -43,16 +44,16 @@ export function SyncStatusBadge({ onShowToast }) {
       setIsVisible(true)
       hideTimerRef.current = setTimeout(() => {
         setIsVisible(false)
-      }, 2000)
-    } else if (isOffline || isPending) {
+      }, 1500)
+    } else {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
-      setIsVisible(true)
+      setIsVisible(false)
     }
 
     return () => {
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
     }
-  }, [status, isSyncing, isOffline, isPending])
+  }, [status, isSyncing])
 
   const handleClick = (e) => {
     e.stopPropagation()

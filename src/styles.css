@@ -207,7 +207,753 @@ a:focus-visible,
   outline: 2px solid #c9f36a;
   outline-offset: 2px;
 }
-.card { border: 1px solid #343630; background: #1d1f1c; box-sizing: border-box; max-width: 100%; overflow: hidden; min-width: 0; }
+.card { border: 1px solid #343630; background: #1d1f1c; box-sizing: border-box; max-width: 100%; overflow: hidden; min-width: 0; border-radius: var(--opg-radius-lg); }
+
+/* Design tokens (FR-15): single source for radius, spacing, borders, elevation */
+:root {
+  --opg-radius-sm: 8px;
+  --opg-radius-md: 14px;
+  --opg-radius-lg: 20px;
+  --opg-radius-pill: 9999px;
+  --opg-space-xs: 6px;
+  --opg-space-sm: 12px;
+  --opg-space-md: 20px;
+  --opg-space-lg: 32px;
+  --opg-border: 1px solid #343630;
+  --opg-border-soft: 1px solid #2b2d27;
+  --opg-elev-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --opg-elev-2: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* Completed-goals separator (FR-12) */
+.goal-section-separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 24px 0;
+  color: #8e9189;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.goal-section-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #2f322b;
+}
+
+/* First-launch onboarding (FR-01) */
+.onboarding-modal {
+  width: min(440px, calc(100vw - 40px));
+  max-height: min(84vh, 640px);
+  overflow-y: auto;
+  padding: 28px 28px 24px;
+  border-radius: var(--opg-radius-lg);
+}
+.onboarding-modal h2 {
+  margin: 8px 0 4px;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+  color: #f6f5f1;
+}
+.onboarding-modal h2 em {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-weight: 400;
+  color: #c9f36a;
+}
+.onboarding-steps {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  counter-reset: opg-step;
+}
+.onboarding-steps li {
+  counter-increment: opg-step;
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 4px 12px;
+  padding: 12px 14px;
+  background: #1c1e1a;
+  border: var(--opg-border-soft);
+  border-radius: var(--opg-radius-md);
+}
+.onboarding-steps li::before {
+  content: counter(opg-step);
+  grid-row: span 2;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(201, 243, 106, 0.45);
+  color: #c9f36a;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+}
+.onboarding-steps strong {
+  font-size: 14px;
+  color: #f6f5f1;
+}
+.onboarding-steps span {
+  font-size: 13px;
+  color: #a8aca1;
+  line-height: 1.45;
+}
+.onboarding-quote {
+  margin: 16px 0 0;
+  padding-left: 12px;
+  border-left: 2px solid #c9f36a;
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: #eeeeeb;
+}
+.onboarding-cta {
+  margin-top: 20px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--opg-radius-md);
+  background: #c9f36a;
+  color: #141513;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Dedicated Notes section (FR-06) */
+.notes-page-custom .goals-page-header {
+  margin-bottom: 20px;
+}
+.notes-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.notes-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid #3a3d35;
+  color: #d9ddd2;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+.notes-icon-btn:hover {
+  border-color: #c9f36a;
+  color: #c9f36a;
+}
+.notes-icon-btn:active {
+  transform: scale(0.94);
+}
+.notes-icon-btn.sm {
+  width: 30px;
+  height: 30px;
+}
+.notes-header-actions .add-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.notes-filters-row {
+  margin-top: 12px;
+}
+/* Unified modal surface (entire app): greyish background + border, one style.
+   Covers .completion-modal, .sprint-modal and plain .modal-content dialogs
+   (notes, onboarding) so every modal looks constant. */
+.modal-content,
+.completion-modal,
+.sprint-modal {
+  background: #20221e;
+  border: 1px solid #4c5044;
+  box-shadow: 0 22px 80px rgba(0, 0, 0, 0.45);
+  border-radius: 16px;
+  box-sizing: border-box;
+}
+.modal-content {
+  width: min(520px, 100%);
+  padding: 22px;
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+  margin: auto;
+}
+/* Shared modal type scale + action row (entire app, one standard) */
+.eyebrow-sm {
+  font-size: 11px !important;
+  letter-spacing: 0.12em !important;
+}
+.modal-title-lg {
+  font-size: 30px !important;
+  line-height: 1.1 !important;
+  letter-spacing: -0.045em !important;
+}
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  justify-content: flex-end;
+}
+.reflection-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.confirm-goal-title {
+  font-size: 24px;
+}
+.modal-danger-btn {
+  background: #ff6b6b;
+  border: none;
+  color: #141513;
+  font-weight: 600;
+}
+.modal-danger-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.notes-title-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--opg-border-soft);
+  color: #f6f5f1;
+  font-size: 17px;
+  font-weight: 600;
+  padding: 4px 2px 10px;
+  margin-bottom: 10px;
+}
+.notes-title-input:focus {
+  outline: none;
+  border-bottom-color: rgba(201, 243, 106, 0.5);
+}
+/* Selected-links container with edit affordance */
+.note-links-box {
+  margin-top: 10px;
+  background: #141513;
+  border: var(--opg-border-soft);
+  border-radius: var(--opg-radius-md);
+  padding: 10px 12px;
+}
+.note-links-box-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.note-links-box-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #8e9189;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.note-links-box-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+.note-links-none {
+  font-size: 12px;
+  color: #70736b;
+}
+.note-link-picker {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #2b2d27;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.note-link-group > span {
+  display: block;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #8e9189;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.note-link-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #d9ddd2;
+  padding: 5px 2px;
+  cursor: pointer;
+}
+.note-link-option input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  margin: 0;
+  border: 1.5px solid #4a4d45;
+  border-radius: 5px;
+  background: #141513;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.note-link-option input[type="checkbox"]:checked {
+  background: #c9f36a;
+  border-color: #c9f36a;
+}
+.note-link-option input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #141513;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+.notes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+.note-card {
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+.note-card:hover {
+  border-color: #4b5443;
+  transform: translateY(-2px);
+}
+.note-card.pinned {
+  border-color: rgba(201, 243, 106, 0.4);
+}
+.note-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.note-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f6f5f1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-card-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.note-pin {
+  color: #c9f36a;
+  font-size: 13px;
+}
+.note-pending-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e8b34b;
+}
+.note-card-snippet {
+  margin: 0;
+  color: #a8aca1;
+  font-size: 13px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 58px;
+}
+.note-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+.note-card-date {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: #70736b;
+}
+.note-card-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+}
+/* Unified reference chips: one natural design for goals and rotes */
+.note-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.note-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--opg-radius-pill);
+  background: rgba(246, 245, 241, 0.06);
+  border: 1px solid #3a3d35;
+  color: #d9ddd2;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.note-link-chip:hover {
+  border-color: rgba(201, 243, 106, 0.55);
+  background: rgba(201, 243, 106, 0.08);
+}
+.note-link-chip.static {
+  cursor: default;
+}
+.note-link-chip.static:hover {
+  border-color: #3a3d35;
+  background: rgba(246, 245, 241, 0.06);
+}
+.note-link-remove {
+  display: inline-grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  color: #8e9189;
+  cursor: pointer;
+  padding: 0;
+}
+.note-link-remove:hover {
+  color: #fca5a5;
+}
+.notes-empty-state {
+  text-align: center;
+  padding: 40px 20px;
+}
+.note-editor-modal {
+  width: min(520px, calc(100vw - 40px));
+  max-height: min(86vh, 680px);
+  overflow-y: auto;
+  padding: 22px;
+  border-radius: var(--opg-radius-lg);
+}
+.note-editor-modal .notes-eyebrow {
+  font-size: 13px;
+}
+.note-editor-modal .notes-title-input {
+  font-size: 19px;
+}
+.note-editor-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.note-pin-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: 1px solid #3a3d35;
+  border-radius: 8px;
+  color: #70736b;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.note-pin-btn:hover {
+  color: #c9f36a;
+  border-color: rgba(201, 243, 106, 0.5);
+}
+.note-pin-btn:active {
+  transform: scale(0.9);
+}
+.note-pin-btn.active {
+  color: #c9f36a;
+  border-color: rgba(201, 243, 106, 0.5);
+  background: rgba(201, 243, 106, 0.08);
+}
+.note-pin-btn.inline {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+.note-editor-body {
+  width: 100%;
+  box-sizing: border-box;
+  background: #141513;
+  border: var(--opg-border-soft);
+  border-radius: var(--opg-radius-md);
+  color: #f6f5f1;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 12px;
+  resize: vertical;
+  min-height: 160px;
+}
+.note-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.note-delete-prompt {
+  font-size: 13px;
+  color: #fca5a5;
+}
+/* Search modal */
+.notes-search-modal {
+  width: min(480px, calc(100vw - 40px));
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border-radius: var(--opg-radius-lg);
+}
+.notes-search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #141513;
+  border: var(--opg-border-soft);
+  border-radius: var(--opg-radius-md);
+  padding: 10px 12px;
+  color: #8e9189;
+}
+.notes-search-field input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  color: #f6f5f1;
+  font-size: 15px;
+}
+.notes-search-field input:focus {
+  outline: none;
+}
+.notes-search-results {
+  margin-top: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.notes-search-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--opg-radius-md);
+  padding: 10px 12px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.notes-search-hit:hover {
+  background: #1c1e1a;
+  border-color: #2b2d27;
+}
+.notes-search-hit strong {
+  font-size: 14px;
+  color: #f6f5f1;
+}
+.notes-search-hit span {
+  font-size: 12px;
+  color: #8e9189;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Global minimal button signature — identical to the timeline modal standard
+   (.add-button base + green submit): one design across the entire app. */
+.opg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #474a41;
+  background: transparent;
+  color: #dce1d2;
+  cursor: pointer;
+  transition: filter 0.15s ease, border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+.opg-btn:active {
+  transform: scale(0.97);
+}
+.opg-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+.opg-btn-primary {
+  background: #c9f36a;
+  border-color: #c9f36a;
+  color: #182013;
+  font-weight: 600;
+}
+.opg-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+.opg-btn-ghost:hover:not(:disabled) {
+  border-color: #c9f36a;
+  color: #eef0e9;
+}
+.opg-btn-warn {
+  color: #e8b34b;
+  border-color: rgba(232, 179, 75, 0.45);
+}
+.opg-btn-warn:hover:not(:disabled) {
+  background: rgba(232, 179, 75, 0.1);
+}
+.opg-btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.opg-btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.18);
+}
+.opg-btn-sm {
+  font-size: 11px;
+  padding: 6px 12px;
+}
+/* Unified rote row actions (single signature) */
+.rote-inline-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Global ghost button — identical to the goal-container actions.
+   Rote rows use these exact classes so both containers share one design. */
+button.ghost {
+  border: 1px solid #44473f;
+  border-radius: 10px;
+  padding: 4px 11px;
+  min-height: unset;
+  height: auto;
+  background: transparent;
+  color: #d8dad3;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  transition: all 0.18s ease;
+}
+button.ghost:hover:not(:disabled) {
+  border-color: #c9f36a;
+  color: #eef0e9;
+}
+button.ghost:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+button.ghost.btn-delete {
+  color: #ff8787;
+  border-color: rgba(255, 107, 107, 0.3);
+}
+button.ghost.btn-delete:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.2);
+  border-color: #ff6b6b;
+  color: #ffffff;
+}
+.goal-inline-actions .ghost:first-child,
+.rote-inline-confirm .ghost:first-child {
+  border-color: #c9f36a;
+  color: #182013;
+  background: #c9f36a;
+}
+.goal-inline-actions .ghost:first-child:hover:not(:disabled),
+.rote-inline-confirm .ghost:first-child:hover:not(:disabled) {
+  border-color: #c9f36a;
+  background: #c9f36a;
+  color: #182013;
+  filter: brightness(1.07);
+}
+.rote-delete-prompt {
+  font-size: 11px;
+  color: #fca5a5;
+  font-family: 'DM Mono', monospace;
+}
+/* Gap preserved after pill removal (desktop); phone keeps its 20px rule */
+@media (min-width: 769px) {
+  .goals-badge-row:empty,
+  .profile-badge-row:empty {
+    height: 32px;
+  }
+}
+@media (max-width: 768px) {
+  .notes-grid {
+    grid-template-columns: 1fr;
+  }
+  .notes-header-actions {
+    width: 100%;
+  }
+}
+
+/* Legacy panel note styles (replaced by the dedicated Notes section) */
+.notes-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: #c9f36a;
+  text-transform: uppercase;
+}
+
+/* Rote Pass state + completion popup (FR-04, FR-18) */
+.rote-status-tag.passed {
+  background: rgba(232, 179, 75, 0.14) !important;
+  color: #e8b34b !important;
+  border: 1px solid rgba(232, 179, 75, 0.35) !important;
+}
+.calendar-day-cell {
+  position: relative;
+}
+.day-pass-dot {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #e8b34b;
+}
 .shell-header { position: fixed !important; top: 40px !important; left: 0 !important; right: 0 !important; width: 100% !important; z-index: 1000 !important; display: flex !important; justify-content: center !important; pointer-events: none !important; }
 .shell-header.header-hidden { transform: none !important; opacity: 1 !important; }
 @keyframes roteSpin {
@@ -615,6 +1361,38 @@ a:focus-visible,
 }
 .sprint-tile-dates-only {
   font-size: clamp(13px, 2.5cqw + 0.4rem, 16px);
+}
+
+/* Timeline year selector (FR-03): explicit readable contrast on all themes/devices */
+.timeline-years {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+.timeline-year {
+  appearance: none;
+  background: #1c1e1a;
+  border: 1px solid #3a3d35;
+  border-radius: var(--opg-radius-sm);
+  color: #d9ddd2;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  padding: 10px 16px;
+  min-height: 40px;
+  cursor: pointer;
+}
+.timeline-year:hover {
+  border-color: #c9f36a;
+  color: #f6f5f1;
+}
+.timeline-year.active {
+  background: #c9f36a;
+  border-color: #c9f36a;
+  color: #141513;
+  font-weight: 700;
 }
 
 .sprint-summary {
@@ -1027,7 +1805,7 @@ a:focus-visible,
 .sprint-goal-item-card { display: block; width: 100%; box-sizing: border-box; background: #171916; border: 1px solid #32352f; padding: 14px 16px; border-radius: 8px; text-align: left; cursor: pointer; font: inherit; color: inherit; transition: border-color 0.18s ease; }
 .sprint-goal-item-card:hover { border-color: #4a5044; }
 .sprint-item-eyebrow { display: block; color: #8e9189; font-family: 'DM Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 4px; }
-.sprint-item-title { display: block; color: #eef0e9; font-size: 15px; font-weight: 500; letter-spacing: -.02em; margin-bottom: 10px; line-height: 1.35; }
+.sprint-item-title { display: block; color: #eef0e9; font-size: 17px; font-weight: 500; letter-spacing: -.02em; margin-bottom: 10px; line-height: 1.35; }
 .sprint-item-footer { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
 .sprint-item-progress { display: block; color: #eef0e9; font-size: 19px; font-family: 'Instrument Serif', serif; font-style: italic; font-weight: normal; line-height: 1; }
 .sprint-item-progress.complete { color: #c9f36a; }
@@ -1929,10 +2707,11 @@ body,
 .rote-page-custom .goals-sprint-title .cloud-info-container,
 .profile-page-custom .profile-title .cloud-info-container,
 .goals-page-custom .goals-sprint-title .cloud-info-container,
+.notes-page-custom .goals-sprint-title .cloud-info-container,
 .timeline-page-custom .timeline-title .cloud-info-container {
   align-self: flex-start !important;
   vertical-align: top !important;
-  margin-top: 4px !important;
+  margin-top: 2px !important;
   margin-left: 6px !important;
 }
 
@@ -2007,7 +2786,6 @@ body,
   background: #22261e;
   border-color: #c9f36a;
   color: #c9f36a;
-  box-shadow: 0 0 12px rgba(201, 243, 106, 0.5);
   transform: none !important;
 }
 
@@ -2018,9 +2796,7 @@ body,
   border: 1px solid #3e4435;
   border-radius: 20px;
   padding: 16px 20px;
-  box-shadow: 
-    0 16px 36px rgba(0, 0, 0, 0.7),
-    0 0 24px rgba(201, 243, 106, 0.12);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7);
   z-index: 99999;
   animation: cloudBubblePopIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   pointer-events: auto;
@@ -2645,13 +3421,18 @@ body,
   color: #c9f36a;
   text-shadow: 0 0 15px rgba(201, 243, 106, 0.25);
 }
+.math-compounding-rule sup {
+  font-size: 0.42em;
+}
 .compounding-actions-right {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-end;
+  align-self: flex-end;
   gap: 14px;
   flex: 1 1 300px;
   min-width: 0;
+  text-align: right;
 }
 .compounding-cta-text {
   font-family: 'DM Sans', sans-serif;
@@ -2661,7 +3442,7 @@ body,
   letter-spacing: -0.02em;
   margin: 0;
   line-height: 1.4;
-  text-align: center;
+  text-align: right;
 }
 .compounding-create-btn {
   background: #c9f36a;
@@ -3812,7 +4593,15 @@ h1 em, h2 em, h3 em, .profile-title em, .goals-section-title em, .profile-sectio
   border-color: #c9f36a !important;
   color: #c9f36a !important;
   background: #252823 !important;
-  transform: rotate(45deg);
+}
+/* Bulletproof centering for the circular icon button (grid beats flex baseline quirks) */
+button.profile-settings-btn.circular-settings-btn {
+  display: grid !important;
+  place-items: center !important;
+  line-height: 0 !important;
+}
+button.profile-settings-btn.circular-settings-btn svg {
+  display: block !important;
 }
 
 .profile-action-btns {
@@ -4859,36 +5648,6 @@ h1 em, h2 em, h3 em, .profile-title em, .goals-section-title em, .profile-sectio
   line-height: 1.4;
   color: #8c9085;
 }
-.rote-delete-btn {
-  background: rgba(255, 107, 107, 0.08);
-  border: 1px solid rgba(255, 107, 107, 0.3);
-  color: #ff8787;
-  padding: 4px 10px;
-  border-radius: 9px;
-  font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  min-height: unset !important;
-  height: auto !important;
-}
-.rote-delete-btn:hover {
-  background: rgba(255, 107, 107, 0.2);
-  border-color: #ff6b6b;
-  color: #ffffff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.25);
-}
-.rote-delete-btn:active {
-  transform: translateY(0);
-}
 
 @media (max-width: 640px) {
   .rote-checklist-card,
@@ -4943,54 +5702,7 @@ h1 em, h2 em, h3 em, .profile-title em, .goals-section-title em, .profile-sectio
     border-top: none;
   }
 
-.rote-inline-confirm {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.rote-confirm-btn {
-  background: #c8f26a;
-  color: #121411;
-  border: none;
-  border-radius: 8px;
-  padding: 4px 9px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1.2;
-  transition: opacity 0.15s ease;
-}
-.rote-confirm-btn:hover {
-  opacity: 0.9;
-}
-.rote-confirm-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.rote-cancel-btn {
-  background: transparent;
-  color: #8c9085;
-  border: 1px solid #34382f;
-  border-radius: 8px;
-  padding: 4px 7px;
-  font-size: 11px;
-  cursor: pointer;
-  line-height: 1.2;
-}
-.rote-cancel-btn:hover {
-  color: #f6f5f1;
-  border-color: #55594f;
-}
-
   .rote-status-tag {
-    padding: 4px 10px !important;
-    font-size: 11px !important;
-    border-radius: 9px !important;
-    min-height: unset !important;
-    height: auto !important;
-  }
-
-  .rote-delete-btn {
     padding: 4px 10px !important;
     font-size: 11px !important;
     border-radius: 9px !important;
@@ -5906,6 +6618,14 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   html {
     overflow-x: hidden;
   }
+  /* FR-08: phone page headers sit 20px below the logo island, no excess top gap.
+     Desktop is untouched. Higher specificity beats the generic header rules below. */
+  .workspace-page > .goals-page-header,
+  .workspace-page > .timeline-page-header,
+  .workspace-page > .profile-page-header {
+    margin-top: 20px !important;
+    padding-top: 0 !important;
+  }
   .app-shell {
     position: fixed !important;
     top: calc(10px + var(--safe-top, 0px)) !important;
@@ -6176,6 +6896,7 @@ button.mini-goal-item:disabled { cursor: default; opacity: .85; }
     z-index: 100000 !important;
   }
   .completion-modal,
+  .modal-content,
   .sprint-modal {
     max-height: calc(100dvh - 60px - var(--safe-top, 0px) - var(--safe-bottom, 0px)) !important;
     width: 100% !important;

@@ -121,7 +121,7 @@ export function mergeRotes(serverRotes = [], localRotes = [], pendingTempToggles
   let merged = safeServer.map(sr => {
     const lr = localMap.get(String(sr.id))
     if (lr && isPending(String(sr.id))) {
-      return { ...sr, completed: lr.completed }
+      return { ...sr, completed: lr.completed, passed: lr.passed }
     }
     return sr
   })
@@ -154,6 +154,7 @@ export function haveRotesDiffered(prevRotes = [], newRotes = []) {
     const p = prevMap.get(idStr)
     if (!p) return true
     if (Boolean(p.completed) !== Boolean(n.completed)) return true
+    if (Boolean(p.passed) !== Boolean(n.passed)) return true
     if (p.title !== n.title) return true
   }
   return false

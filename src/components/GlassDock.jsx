@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { House, Target, Repeat, Clock, User } from '@phosphor-icons/react'
+import { House, Target, Repeat, Clock, User, NotePencil } from '@phosphor-icons/react'
 import { cn } from '../utils/cn'
 
 export function GlassDock({ items, active, setActive, keyboardHidden }) {
@@ -42,6 +42,8 @@ export function GlassDock({ items, active, setActive, keyboardHidden }) {
         return <Target size={22} weight={isActive ? 'bold' : 'regular'} />
       case 'Rote':
         return <Repeat size={22} weight={weight} />
+      case 'Notes':
+        return <NotePencil size={22} weight={weight} />
       case 'Timeline':
         return <Clock size={22} weight={weight} />
       case 'Profile':

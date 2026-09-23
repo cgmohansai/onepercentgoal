@@ -61,8 +61,16 @@ def run_migrations(conn) -> None:
         if has_oauth_states:
             execute(conn, "DROP TABLE IF EXISTS oauth_states;")
         if has_password_cols:
-            execute(conn, "ALTER TABLE users DROP COLUMN IF EXISTS password_hash;")
-            execute(conn, "ALTER TABLE users DROP COLUMN IF EXISTS password_salt;")
+            if USE_POSTGRES:
+                execute(conn, "ALTER TABLE users DROP COLUMN IF EXISTS password_hash;")
+                execute(conn, "ALTER TABLE users DROP COLUMN IF EXISTS password_salt;")
+            else:
+                # SQLite has no DROP COLUMN IF EXISTS: PRAGMA-check each column first.
+                sqlite_cols = [row[1] for row in execute(conn, "PRAGMA table_info(users)").fetchall()]
+                if "password_hash" in sqlite_cols:
+                    execute(conn, "ALTER TABLE users DROP COLUMN password_hash;")
+                if "password_salt" in sqlite_cols:
+                    execute(conn, "ALTER TABLE users DROP COLUMN password_salt;")
 
         # Record migration as applied
         from backend.config import current_timestamp

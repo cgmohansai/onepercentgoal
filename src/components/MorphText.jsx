@@ -40,6 +40,19 @@ export function resetMorphIndex() {
   morphListeners.forEach((fn) => fn(0))
 }
 
+// Pause the morphing percentage/timer (e.g. while the auth loading overlay
+// is up) and resume it afterwards — timers start only when the dashboard is visible.
+export function pauseMorphTimer() {
+  if (globalIntervalId) {
+    clearInterval(globalIntervalId)
+    globalIntervalId = null
+  }
+}
+
+export function resumeMorphTimer() {
+  ensureGlobalMorphTimer(currentIntervalMs)
+}
+
 export const MorphText = React.memo(function MorphText({
   interval = 5000,
   fontSize = "1em",

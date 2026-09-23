@@ -32,8 +32,7 @@ export function EditProfileModal({ isOpen, onClose, user, onSubmit, loading, err
           onSubmit(form.username, form.display_name, form.bio)
         }}
       >
-        <p className="eyebrow" style={{ color: '#c9f36a' }}>EDIT PROFILE</p>
-        <h2>Update your public identity</h2>
+        <h2 className="modal-title-lg">Update public profile</h2>
         
         <label>
           Username
@@ -82,35 +81,13 @@ export function EditProfileModal({ isOpen, onClose, user, onSubmit, loading, err
 
         {error && <p className="auth-error">{error}</p>}
         
-        <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
-          <button 
-            type="button" 
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: '1px solid #343630',
-              color: '#8c9085',
-              borderRadius: '8px',
-              padding: '10px 16px',
-              fontSize: '12px',
-              cursor: 'pointer'
-            }}
-          >
+        <div className="modal-actions">
+          <button type="button" onClick={onClose}>
             Cancel
           </button>
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={loading}
-            style={{
-              background: '#c9f36a',
-              border: 'none',
-              color: '#121411',
-              borderRadius: '8px',
-              padding: '10px 20px',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
           >
             {loading ? 'Saving…' : 'Save Changes'}
           </button>

@@ -24,15 +24,28 @@ class GoalUpdate(BaseModel):
     progress_percent: int | None = Field(default=None, ge=0, le=100)
     completed: bool | None = None
     completion_note: str | None = Field(default=None, max_length=1000)
+    base_version: int | None = None
 
 
 def goal_dict(row) -> dict:
     """Format goal database row into API response dictionary."""
     data = row_dict(row)
     data["completed"] = bool(data["completed"])
+    data["version"] = int(data.get("version") or 1)
     if data.get("progress_percent") is None:
         target = data.get("target") or 100
         data["progress_percent"] = round((data.get("progress") or 0) / target * 100) if target else 0
+    return data
+
+
+def jsonable_goal(row) -> dict:
+    """Goal dict safe to embed in error payloads (datetimes -> ISO strings)."""
+    from datetime import datetime, date
+
+    data = goal_dict(row)
+    for key, value in list(data.items()):
+        if isinstance(value, (datetime, date)):
+            data[key] = value.isoformat()
     return data
 
 

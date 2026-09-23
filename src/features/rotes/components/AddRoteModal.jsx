@@ -36,9 +36,9 @@ export function AddRoteModal({ isOpen, onClose, onSubmit }) {
           />
         </label>
 
-        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-          <button type="button" className="ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="add-button">Create Rote</button>
+        <div className="modal-actions">
+          <button type="button" onClick={onClose}>Cancel</button>
+          <button type="submit">Create Rote</button>
         </div>
       </form>
     </div>

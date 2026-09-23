@@ -20,26 +20,20 @@ export function GoalDetailsModal({ goal, onClose, onDelete }) {
           </p>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+        <div className="modal-actions" style={{ justifyContent: 'center' }}>
           {onDelete && (
             <button
-              className="add-button"
               type="button"
+              className="modal-danger-btn"
               onClick={() => {
                 onClose()
                 onDelete(goal)
-              }}
-              style={{
-                minWidth: '120px',
-                borderColor: 'rgba(255, 107, 107, 0.4)',
-                color: '#ff8888',
-                background: 'rgba(255, 107, 107, 0.08)'
               }}
             >
               Delete
             </button>
           )}
-          <button className="add-button" type="button" onClick={onClose} style={{ minWidth: '120px' }}>Close</button>
+          <button type="button" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>

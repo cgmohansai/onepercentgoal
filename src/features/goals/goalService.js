@@ -90,6 +90,15 @@ export async function updateGoal(goalId, payload, token = null) {
   })
 
   if (!res.ok) {
+    // 409 carries the server copy so the client can reconcile instead of overwriting.
+    if (res.status === 409) {
+      const data = await res.json().catch(() => ({}))
+      const detail = data?.detail || {}
+      const err = new Error((detail && detail.message) || 'Goal changed elsewhere')
+      err.code = 'CONFLICT'
+      err.server = detail && detail.server ? detail.server : null
+      throw err
+    }
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || `Unable to update goal (${res.status})`)
   }
@@ -117,15 +126,15 @@ export async function updateGoalProgress(goalId, progressPercent, token = null) 
  * @param {string|null} [token=null]
  * @returns {Promise<object>}
  */
-export async function completeGoal(goalId, note, token = null) {
-  return updateGoal(
-    goalId,
-    {
-      completed: true,
-      completion_note: note?.trim() || '',
-    },
-    token
-  )
+export async function completeGoal(goalId, note, token = null, baseVersion = null) {
+  const payload = {
+    completed: true,
+    completion_note: note?.trim() || '',
+  }
+  if (baseVersion !== null && baseVersion !== undefined) {
+    payload.base_version = baseVersion
+  }
+  return updateGoal(goalId, payload, token)
 }
 
 /**

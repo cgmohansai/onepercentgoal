@@ -7,7 +7,7 @@ from fastapi import APIRouter, Header, Cookie, HTTPException, status
 from backend.config import IST, current_timestamp
 from backend.db.connection import db, execute, row_dict
 from backend.auth.session import current_user_id, user_created_at
-from backend.services.rotes import RoteCreate, RoteToggle, toggle_rote_log
+from backend.services.rotes import RoteCreate, RoteToggle, RotePass, toggle_rote_log, pass_rote_log
 
 router = APIRouter(tags=["rotes"])
 
@@ -32,17 +32,23 @@ def get_rotes(date: str | None = None, authorization: str | None = Header(defaul
             "SELECT * FROM rote_logs WHERE user_id = %s AND log_date = %s",
             (user_id, target_date)
         ).fetchall()
+        logs_rows = [row_dict(r) for r in logs_rows]
         logs_map = {row["rote_id"]: bool(row["completed"]) for row in logs_rows}
+        passed_map = {row["rote_id"]: bool(row.get("passed", 0)) for row in logs_rows}
         logs_time_map = {row["rote_id"]: row.get("completed_at") for row in logs_rows}
 
         rotes_list = []
         completed_count = 0
+        passed_count = 0
         for r in rotes_rows:
             r_dict = row_dict(r)
             r_id = r_dict["id"]
             is_completed = logs_map.get(r_id, False)
+            is_passed = passed_map.get(r_id, False) and not is_completed
             if is_completed:
                 completed_count += 1
+            elif is_passed:
+                passed_count += 1
             rotes_list.append({
                 "id": r_id,
                 "title": r_dict["title"],
@@ -50,6 +56,7 @@ def get_rotes(date: str | None = None, authorization: str | None = Header(defaul
                 "created_at": r_dict["created_at"],
                 "rote_date": r_dict.get("rote_date", target_date),
                 "completed": is_completed,
+                "passed": is_passed,
                 "completed_at": logs_time_map.get(r_id),
             })
 
@@ -59,15 +66,23 @@ def get_rotes(date: str | None = None, authorization: str | None = Header(defaul
             (user_id,)
         ).fetchall()
         completed_dates = [row["log_date"] for row in completed_dates_rows]
+        passed_dates_rows = execute(
+            conn,
+            "SELECT DISTINCT log_date FROM rote_logs WHERE user_id = %s AND passed = 1 AND completed = 0",
+            (user_id,)
+        ).fetchall()
+        passed_dates = [row["log_date"] for row in passed_dates_rows]
 
         return {
             "date": target_date,
             "user_joined_date": joined_date,
             "rotes": rotes_list,
             "completed_dates": completed_dates,
+            "passed_dates": passed_dates,
             "stats": {
                 "total_rotes": len(rotes_list),
                 "completed_rotes": completed_count,
+                "passed_rotes": passed_count,
             }
         }
 
@@ -106,6 +121,17 @@ def toggle_rote(rote_id: int, payload: RoteToggle, authorization: str | None = H
 
         final_status = toggle_rote_log(conn, user_id, rote_id, payload.date, payload.completed)
         return {"rote_id": rote_id, "date": payload.date, "completed": final_status}
+
+
+@router.post("/api/rotes/{rote_id}/pass")
+def pass_rote(rote_id: int, payload: RotePass, authorization: str | None = Header(default=None), opg_session: str | None = Cookie(default=None)):
+    """Postpone a rote for a date: records passed (not completed), awards no credit, stays in history."""
+    with db() as conn:
+        user_id = current_user_id(conn, authorization, opg_session)
+        rote = execute(conn, "SELECT id FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id)).fetchone()
+        if not rote:
+            raise HTTPException(status_code=404, detail="Rote not found")
+        return pass_rote_log(conn, user_id, rote_id, payload.date)
 
 
 @router.delete("/api/rotes/{rote_id}", status_code=status.HTTP_204_NO_CONTENT)

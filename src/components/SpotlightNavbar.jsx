@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react'
 import { animate } from 'framer-motion'
-import { House, Target, Repeat, Clock, User } from '@phosphor-icons/react'
+import { House, Target, Repeat, Clock, User, NotePencil } from '@phosphor-icons/react'
 import GlassDock from './GlassDock'
 
 export function SpotlightNavbar({
@@ -204,6 +204,7 @@ export function SpotlightNavbar({
               if (lbl === 'Overview') return <House size={16} weight={weight} />
               if (lbl === 'Goals') return <Target size={16} weight="bold" />
               if (lbl === 'Rote') return <Repeat size={16} weight={weight} />
+              if (lbl === 'Notes') return <NotePencil size={16} weight={weight} />
               if (lbl === 'Timeline') return <Clock size={16} weight={weight} />
               if (lbl === 'Profile') return <User size={16} weight={weight} />
               return null

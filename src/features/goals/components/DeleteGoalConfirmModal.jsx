@@ -21,45 +21,32 @@ export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm, loading = fa
   return (
     <div className="modal-backdrop" role="presentation" onClick={isLoading ? undefined : onCancel}>
       <div className="completion-modal confirm-modal" onClick={event => event.stopPropagation()} style={{ maxWidth: '440px', padding: '28px' }}>
-        <p className="eyebrow" style={{ color: '#ff6b6b' }}>DESTRUCTIVE ACTION</p>
-        <h2 style={{ fontSize: '24px', marginBottom: '16px', fontWeight: '500', letterSpacing: '-.035em' }}>Delete Sprint Goal?</h2>
+        <h2 className="modal-title-lg" style={{ marginBottom: '16px' }}>Delete Sprint Goal?</h2>
         
         <div className="confirm-summary-simple" style={{ display: 'block', width: '100%', boxSizing: 'border-box', background: '#171916', border: '1px solid #32352f', padding: '20px 24px', borderRadius: '6px', marginBottom: '24px', textAlign: 'center', wordBreak: 'break-word' }}>
           <span style={{ display: 'block', color: '#8e9189', fontFamily: '"DM Mono", monospace', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: '6px' }}>Goal to be deleted</span>
-          <strong style={{ display: 'block', color: '#eef0e9', fontSize: '20px', fontWeight: '500', letterSpacing: '-.025em', lineHeight: '1.4' }}>{goal.title}</strong>
+          <strong className="confirm-goal-title" style={{ display: 'block', color: '#eef0e9', fontWeight: '500', letterSpacing: '-.025em', lineHeight: '1.4' }}>{goal.title}</strong>
         </div>
 
         <p style={{ color: '#a5a79e', fontSize: '14px', lineHeight: 1.5, margin: '0 0 24px', textAlign: 'center' }}>
-          This will permanently erase the goal and its compounding lineage from this active sprint and any rolled over cycles. This action cannot be undone.
+          Deleting this goal permanently erases its entire history and progress from all sprints. This cannot be undone.
         </p>
         
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
+        <div className="modal-actions" style={{ justifyContent: 'center' }}>
           <button
             type="button"
             onClick={onCancel}
             onPointerDown={(e) => e.stopPropagation()}
             disabled={isLoading}
-            style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: isLoading ? 'default' : 'pointer', fontSize: '12px' }}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="add-button"
+            className="modal-danger-btn"
             disabled={isLoading}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={handleConfirm}
-            style={{
-              background: '#ff6b6b',
-              color: '#141513',
-              border: 'none',
-              borderRadius: '24px',
-              padding: '10px 24px',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: isLoading ? 'not-allowed' : 'pointer',
-              opacity: isLoading ? 0.7 : 1
-            }}
           >
             {isLoading ? 'Deleting…' : 'Delete Goal'}
           </button>

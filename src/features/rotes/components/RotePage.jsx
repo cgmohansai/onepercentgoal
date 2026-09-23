@@ -5,8 +5,10 @@ import {
   fetchRotes as fetchRotesApi,
   createRote as createRoteApi,
   toggleRote as toggleRoteApi,
+  passRote as passRoteApi,
   deleteRote as deleteRoteApi,
 } from '../roteService'
+import { triggerRotePop } from '../../../utils/confetti'
 import {
   getStoredRotes,
   persistRotes,
@@ -34,6 +36,9 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth())
   
   const cacheRef = useRef({})
+  const fetchSeqRef = useRef(0)
+  const selectedDateRef = useRef(selectedDate)
+  selectedDateRef.current = selectedDate
   const pendingTogglesRef = useRef(new Set())
   const pendingTempTogglesRef = useRef(new Set())
   const [loadedDates, setLoadedDates] = useState({})
@@ -44,7 +49,28 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
   const [deletingRoteId, setDeletingRoteId] = useState(null)
   const [syncingRoteId, setSyncingRoteId] = useState(null)
 
+  // Confetti origin just above the "Routine completed" toast popup (FR-18)
+  const originAboveToast = () => {
+    try {
+      const el = document.querySelector('.toast-popup')
+      if (el) {
+        const r = el.getBoundingClientRect()
+        return {
+          x: Math.min(0.98, Math.max(0.02, (r.left + r.width / 2) / window.innerWidth)),
+          y: Math.max(0.02, r.top / window.innerHeight - 0.03),
+        }
+      }
+    } catch {}
+    return { x: 0.5, y: 0.85 }
+  }
+
   const fetchRotes = async (dateStr, isSilent = false) => {
+    // Stale-response guard: rapid calendar taps fire overlapping fetches —
+    // only the latest requested date may paint, so historic days render
+    // instantly and never fluctuate into another day's data.
+    const mySeq = ++fetchSeqRef.current
+    const isCurrent = () => mySeq === fetchSeqRef.current && dateStr === selectedDateRef.current
+
     if (!isSilent) {
       if (cacheRef.current[dateStr]) {
         setRotesData(cacheRef.current[dateStr])
@@ -61,6 +87,7 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
 
     try {
       const serverData = await fetchRotesApi(dateStr)
+      if (!isCurrent()) return
       const stored = getStoredRotes(dateStr)
       const localRotes = stored?.rotes || []
       const mergedData = reconcileRotesData(serverData, localRotes, pendingTempTogglesRef.current)
@@ -71,6 +98,7 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
         setSyncStatus(SyncStatus.SYNCING)
         // 2. Wait 700ms so ripple is clearly seen radiating
         setTimeout(() => {
+          if (!isCurrent()) return
           // 3. When loaded, show the update on screen
           cacheRef.current[dateStr] = mergedData
           persistRotes(dateStr, mergedData)
@@ -92,7 +120,7 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
         }
       }
     } catch (err) {
-      if (!isSilent) {
+      if (!isSilent && isCurrent()) {
         console.error('Failed to fetch rotes:', err)
         setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
       }
@@ -151,12 +179,12 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
       pendingTempTogglesRef.current.add(targetIdStr)
       unmarkRoteInFlight(targetIdStr)
       if (onShowToast) onShowToast(targetStatus ? 'Routine completed locally' : 'Routine marked pending', false)
-      return
+      return targetStatus
     }
 
     // Send update request to backend with guaranteed blue ripple duration and smooth toast
     try {
-      await executeSyncWithRipple(async () => {
+      const confirmed = await executeSyncWithRipple(async () => {
         const result = await toggleRoteApi(roteId, { date: selectedDate, completed: targetStatus })
         const confirmedStatus = Boolean(result.completed)
         if (confirmedStatus !== targetStatus) {
@@ -193,14 +221,68 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
           }
         }
       })
+      return confirmed
     } catch (err) {
       unmarkRoteInFlight(targetIdStr)
       console.warn('Network error updating rote on server; queuing offline sync:', err)
+      return false
     }
   }
 
-  const deleteRote = async (roteId) => {
+  // Pass/postpone a rote (FR-04): records today as passed (not completed),
+  // no completion credit, no confetti. The rote stays eligible tomorrow.
+  const passRote = async (roteId) => {
     const targetIdStr = String(roteId)
+    markRoteInFlight(targetIdStr)
+
+    const applyPassed = (prev) => {
+      const updated = (prev.rotes || []).map(r => String(r.id) === targetIdStr ? { ...r, completed: false, passed: true } : r)
+      const doneCount = updated.filter(r => r.completed).length
+      const passCount = updated.filter(r => !r.completed && r.passed).length
+      return {
+        ...prev,
+        rotes: updated,
+        stats: { ...(prev?.stats || {}), completed_rotes: doneCount, passed_rotes: passCount },
+      }
+    }
+
+    setRotesData(prev => {
+      const next = applyPassed(prev)
+      cacheRef.current[selectedDate] = next
+      persistRotes(selectedDate, next)
+      if (selectedDate === todayStr && onRotesChanged) onRotesChanged(next)
+      return next
+    })
+
+    if (targetIdStr.startsWith('temp-')) {
+      unmarkRoteInFlight(targetIdStr)
+      if (onShowToast) onShowToast('Routine postponed locally', false)
+      return
+    }
+
+    try {
+      await executeSyncWithRipple(async () => {
+        await passRoteApi(roteId, { date: selectedDate })
+        return true
+      }, {
+        minRippleMs: 850,
+        onSuccess: () => {
+          unmarkRoteInFlight(targetIdStr)
+          if (onShowToast) onShowToast('Routine postponed to tomorrow', false)
+        },
+        onError: () => {
+          unmarkRoteInFlight(targetIdStr)
+          enqueueSyncAction({ type: 'PASS_ROTE', roteId, date: selectedDate })
+          if (onShowToast) onShowToast('Routine postponed locally (waiting for internet)', true)
+        }
+      })
+    } catch (err) {
+      unmarkRoteInFlight(targetIdStr)
+      console.warn('Network error passing rote on server; queuing offline sync:', err)
+    }
+  }
+
+  const deleteRote = async (roteId) => {    const targetIdStr = String(roteId)
     const currentRotes = rotesData?.rotes || []
     const updated = currentRotes.filter(r => String(r.id) !== targetIdStr)
     const doneCount = updated.filter(r => r.completed).length
@@ -335,6 +417,7 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
   const isSelectedDate = (dateString) => dateString === selectedDate
   const isToday = (dateString) => dateString === todayStr
   const isCompletedDate = (dateString) => (rotesData.completed_dates || []).includes(dateString)
+  const isPassedDate = (dateString) => (rotesData.passed_dates || []).includes(dateString) && !isCompletedDate(dateString)
 
   const isDateDisabled = (year, month, day) => {
     const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
@@ -423,15 +506,17 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
               const selected = isSelectedDate(dateString)
               const today = isToday(dateString)
               const completed = isCompletedDate(dateString)
+              const passed = isPassedDate(dateString)
 
               return (
                 <button
                   key={dayNum}
                   disabled={disabled}
-                  className={`calendar-day-cell ${selected ? 'selected' : ''} ${today ? 'today' : ''} ${disabled ? 'disabled' : ''}`}
+                  className={`calendar-day-cell ${selected ? 'selected' : ''} ${today ? 'today' : ''} ${disabled ? 'disabled' : ''} ${passed ? 'passed-day' : ''}`}
                   onClick={() => setSelectedDate(dateString)}
                 >
                   <span className="day-number">{dayNum}</span>
+                  {passed && <span className="day-pass-dot" aria-hidden="true" />}
                 </button>
               )
             })}
@@ -458,7 +543,7 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
           <div className="rote-day-header">
             <div>
               <span className="rote-day-label">
-                {selectedDate === todayStr ? 'TODAY\'S ROUTINES' : 'HISTORICAL DAY CHECKLIST'}
+                {selectedDate === todayStr ? 'TODAY\'S ROUTINES' : 'HISTORY CHECKLIST'}
               </span>
               <h2>{formatDateDisplay(selectedDate)}</h2>
             </div>
@@ -574,22 +659,11 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
                       }}
                     >
                       {isDeleting ? (
-                        <div className="rote-inline-confirm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '11px', color: '#fca5a5', fontFamily: '"DM Mono", monospace' }}>Delete?</span>
+                        <div className="rote-inline-confirm">
+                          <span className="rote-delete-prompt">Delete?</span>
                           <button
                             type="button"
-                            className="rote-confirm-btn"
-                            style={{
-                              background: '#ef4444',
-                              color: '#ffffff',
-                              border: 'none',
-                              borderRadius: '8px',
-                              padding: '4px 9px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              lineHeight: 1.2,
-                            }}
+                            className="ghost btn-delete"
                             onClick={async (e) => {
                               e.stopPropagation()
                               setDeletingRoteId(null)
@@ -600,17 +674,7 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
                           </button>
                           <button
                             type="button"
-                            className="rote-cancel-btn"
-                            style={{
-                              background: 'transparent',
-                              color: '#8c9085',
-                              border: '1px solid #34382f',
-                              borderRadius: '8px',
-                              padding: '4px 7px',
-                              fontSize: '11px',
-                              cursor: 'pointer',
-                              lineHeight: 1.2,
-                            }}
+                            className="ghost"
                             onClick={(e) => {
                               e.stopPropagation()
                               setDeletingRoteId(null)
@@ -620,27 +684,21 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
                           </button>
                         </div>
                       ) : isConfirming ? (
-                        <div className="rote-inline-confirm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <div className="rote-inline-confirm">
                           <button
                             type="button"
-                            className="rote-confirm-btn"
+                            className="ghost"
                             disabled={isSyncing}
-                            style={{
-                              background: '#c8f26a',
-                              color: '#121411',
-                              border: 'none',
-                              borderRadius: '8px',
-                              padding: '4px 10px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              cursor: isSyncing ? 'not-allowed' : 'pointer',
-                              lineHeight: 1.2,
-                            }}
                             onClick={async (e) => {
                               e.stopPropagation()
                               setSyncingRoteId(rote.id)
                               try {
-                                await toggleRote(rote.id)
+                                const confirmed = await toggleRote(rote.id)
+                                // Confetti pops over the toast popup — no extra popup (FR-18).
+                                // Small delay so the toast is on screen first.
+                                if (confirmed) {
+                                  setTimeout(() => triggerRotePop(originAboveToast()), 200)
+                                }
                               } finally {
                                 setSyncingRoteId(null)
                                 setConfirmingRoteId(null)
@@ -649,20 +707,24 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
                           >
                             {isSyncing ? 'Updating…' : (rote.completed ? 'Undo' : 'Confirm ✓')}
                           </button>
+                          {!rote.completed && selectedDate === todayStr && (
+                            <button
+                              type="button"
+                              className="ghost"
+                              disabled={isSyncing}
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                setConfirmingRoteId(null)
+                                await passRote(rote.id)
+                              }}
+                            >
+                              Pass
+                            </button>
+                          )}
                           <button
                             type="button"
-                            className="rote-cancel-btn"
+                            className="ghost"
                             disabled={isSyncing}
-                            style={{
-                              background: 'transparent',
-                              color: '#8c9085',
-                              border: '1px solid #34382f',
-                              borderRadius: '8px',
-                              padding: '4px 7px',
-                              fontSize: '11px',
-                              cursor: 'pointer',
-                              lineHeight: 1.2,
-                            }}
                             onClick={(e) => {
                               e.stopPropagation()
                               setConfirmingRoteId(null)
@@ -674,7 +736,7 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
                       ) : (
                         <>
                           <span
-                            className={`rote-status-tag ${rote.completed ? 'done' : 'pending'}`}
+                            className={`rote-status-tag ${rote.completed ? 'done' : (rote.passed ? 'passed' : 'pending')}`}
                             onClick={(e) => {
                               e.stopPropagation()
                               if (!isSyncing) {
@@ -684,11 +746,11 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
                             }}
                             style={{ cursor: 'pointer' }}
                           >
-                            {rote.completed ? 'DONE' : 'PENDING'}
+                            {rote.completed ? 'DONE' : (rote.passed ? 'PASSED' : 'PENDING')}
                           </span>
                           <button
                             type="button"
-                            className="rote-delete-btn"
+                            className="ghost"
                             onClick={(e) => {
                               e.stopPropagation()
                               setConfirmingRoteId(null)
@@ -715,10 +777,10 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
         </div>
       </div>
 
-      <AddRoteModal 
-        isOpen={addModalOpen} 
-        onClose={() => setAddModalOpen(false)} 
-        onSubmit={createRote} 
+      <AddRoteModal
+        isOpen={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onSubmit={createRote}
       />
     </div>
   )

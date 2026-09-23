@@ -1,5 +1,6 @@
 import React from 'react'
 import { useEscapeKey } from '../../../hooks/useEscapeKey'
+import HeaderInfoTooltip from '../../../components/HeaderInfoTooltip'
 
 export function CompletionFlowModal({ flow, setFlow, onContinue, onComplete, onCancel }) {
   useEscapeKey(onCancel, !flow)
@@ -15,18 +16,20 @@ export function CompletionFlowModal({ flow, setFlow, onContinue, onComplete, onC
             onContinue()
           }}
         >
-          <p className="eyebrow">MARK AS COMPLETED</p>
-          <h2>{flow.goal.title}</h2>
-          <label className="reflection-label">
-            How did you complete it? <span className="req-tag">Required</span>
-            <span className="desc-tag">This note will appear in the shareable image.</span>
-          </label>
+        <p className="eyebrow eyebrow-sm">Mark as completed</p>
+        <h2 className="modal-title-lg">{flow.goal.title}</h2>
+        <label className="reflection-label">
+          <span className="reflection-label-row">
+            How did you complete it? (Required)
+            <HeaderInfoTooltip description="This note will appear in the shareable image." />
+          </span>
+        </label>
           <textarea
             autoFocus
             required
             value={flow.note}
             onChange={event => setFlow(curr => curr ? { ...curr, note: event.target.value } : curr)}
-            placeholder="Write a reflection before finishing this goal…"
+            placeholder="Your final sprint reflection…"
           />
           <div>
             <button type="button" onClick={onCancel}>Cancel</button>
@@ -58,7 +61,7 @@ export function CompletionFlowModal({ flow, setFlow, onContinue, onComplete, onC
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-            <button type="button" onClick={onCancel} style={{ border: '0', background: 'none', color: '#8e9189', padding: '0', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
+            <button type="button" onClick={onCancel}>Cancel</button>
             <button type="button" onClick={() => setFlow(curr => curr ? { ...curr, step: 'note' } : null)}>Back</button>
             <button type="submit">Complete & Share it</button>
           </div>

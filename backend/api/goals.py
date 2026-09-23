@@ -11,6 +11,7 @@ from backend.services.goals import (
     GoalCreate,
     GoalUpdate,
     goal_dict,
+    jsonable_goal,
     resolve_source_goal_id,
     ensure_sprint_rollover,
 )
@@ -91,8 +92,12 @@ def update_goal(goal_id: int, payload: GoalUpdate, authorization: str | None = H
         if not existing:
             raise HTTPException(status_code=404, detail="Goal not found")
         data = row_dict(existing)
+        if payload.base_version is not None and int(payload.base_version) != int(data.get("version") or 1):
+            raise HTTPException(status_code=409, detail={"message": "Goal changed elsewhere", "server": jsonable_goal(existing)})
         previous_progress = int(data.get("progress_percent", 0))
         for field, value in payload.model_dump(exclude_none=True).items():
+            if field == "base_version":
+                continue
             data[field] = int(value) if field == "completed" else value
         if "progress_percent" in data:
             if data["progress_percent"] < previous_progress:
@@ -112,7 +117,7 @@ def update_goal(goal_id: int, payload: GoalUpdate, authorization: str | None = H
             conn,
             """
             UPDATE goals
-            SET title = %s, description = %s, priority = %s, target = %s, progress = %s, progress_percent = %s, completed = %s, completion_note = %s
+            SET title = %s, description = %s, priority = %s, target = %s, progress = %s, progress_percent = %s, completed = %s, completion_note = %s, version = version + 1
             WHERE id = %s
             """,
             (data["title"], data["description"], data["priority"], data["target"], data["progress"], data["progress_percent"], int(data["completed"]), data.get("completion_note", ""), goal_id),
