@@ -4,6 +4,7 @@ import {
   flushSyncQueue,
   SyncStatus
 } from '../services/syncManager.js'
+import { Ripple } from './Ripple.jsx'
 
 export function SyncStatusBadge({ onShowToast }) {
   const [syncState, setSyncState] = useState({
@@ -68,22 +69,25 @@ export function SyncStatusBadge({ onShowToast }) {
     }
   }
 
-  // App signature legacy palette #c8f26a for all loading and synced states
+  // Minimal dot: rendered by the SAME Ripple component (waves off when idle)
+  // at the SAME size, so there is zero jump between idle dot and syncing ripple.
+  const BADGE_SIZE = 22
+  const DOT_SIZE = 6
   let dotColor = '#c8f26a'
-  let dotShadow = '0 0 6px rgba(200, 242, 106, 0.75)'
+  let dotGlow = 'drop-shadow(0 0 3px rgba(200, 242, 106, 0.55))'
   let tooltip = 'All data synced with cloud'
 
   if (isOffline) {
     dotColor = '#ef4444'
-    dotShadow = '0 0 5px rgba(239, 68, 68, 0.7)'
+    dotGlow = 'drop-shadow(0 0 3px rgba(239, 68, 68, 0.6))'
     tooltip = 'Offline: Saved locally'
   } else if (isPending) {
     dotColor = '#c8f26a'
-    dotShadow = '0 0 6px rgba(200, 242, 106, 0.75)'
+    dotGlow = 'drop-shadow(0 0 3px rgba(200, 242, 106, 0.55))'
     tooltip = 'Waiting for internet to sync'
   } else if (isSyncing) {
     dotColor = '#c8f26a'
-    dotShadow = '0 0 8px rgba(200, 242, 106, 0.9)'
+    dotGlow = 'drop-shadow(0 0 4px rgba(200, 242, 106, 0.65))'
     tooltip = 'Syncing with cloud…'
   }
 
@@ -99,8 +103,8 @@ export function SyncStatusBadge({ onShowToast }) {
         position: 'relative',
         display: 'grid',
         placeItems: 'center',
-        width: '18px',
-        height: '18px',
+        width: `${BADGE_SIZE}px`,
+        height: `${BADGE_SIZE}px`,
         cursor: isVisible ? 'pointer' : 'default',
         boxSizing: 'border-box',
         margin: 0,
@@ -111,57 +115,21 @@ export function SyncStatusBadge({ onShowToast }) {
         transition: 'opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
-      {/* Original multi-wave ripple radiating in signature green (#c8f26a) when syncing */}
-      {isSyncing && (
-        <>
-          <span
-            className="sync-ripple-ring"
-            style={{
-              gridArea: '1 / 1',
-              width: '18px',
-              height: '18px',
-              borderRadius: '50%',
-              border: '1.5px solid #c8f26a',
-              boxShadow: '0 0 6px rgba(200, 242, 106, 0.45)',
-              boxSizing: 'border-box',
-              animation: 'syncRipple 1.4s cubic-bezier(0, 0.2, 0.8, 1) infinite',
-              pointerEvents: 'none',
-              margin: 'auto',
-            }}
-          />
-          <span
-            className="sync-ripple-ring"
-            style={{
-              gridArea: '1 / 1',
-              width: '18px',
-              height: '18px',
-              borderRadius: '50%',
-              border: '1.5px solid #c8f26a',
-              boxShadow: '0 0 4px rgba(200, 242, 106, 0.35)',
-              boxSizing: 'border-box',
-              animation: 'syncRipple 1.4s cubic-bezier(0, 0.2, 0.8, 1) 0.7s infinite',
-              pointerEvents: 'none',
-              margin: 'auto',
-            }}
-          />
-        </>
-      )}
-
-      {/* Center dot only: completely borderless and boundary-free */}
-      <span
-        className="sync-center-dot"
+      {/* Top-right sync indicator: ONLY the Ripple (dot + waves while syncing,
+          same dot with waves off when idle). Dot and wave origin are the exact
+          same SVG point (22,22) in every state. */}
+      <Ripple
+        size={BADGE_SIZE}
+        dotSize={DOT_SIZE}
+        showWaves={isSyncing}
+        aria-label={isSyncing ? 'Syncing with cloud' : tooltip}
+        role="status"
         style={{
           gridArea: '1 / 1',
-          width: '7.5px',
-          height: '7.5px',
-          borderRadius: '50%',
-          background: dotColor,
-          boxShadow: dotShadow,
-          display: 'block',
+          color: dotColor,
           margin: 'auto',
-          zIndex: 2,
-          transition: 'background 0.25s ease, box-shadow 0.25s ease',
         }}
+        dotStyle={{ filter: dotGlow }}
       />
     </div>
   )

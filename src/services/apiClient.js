@@ -104,19 +104,24 @@ const inFlightGetRequests = new Map()
  * Ensures credentials: 'include', base URL resolution,
  * optional automatic Authorization header injection, and JSON serialization.
  *
+ * Supports an opt-in `timeout` (ms): the request is aborted if the server
+ * does not respond in time, rejecting with an Error whose `code` is
+ * 'TIMEOUT'. Without `timeout` the request behaves as before (no deadline).
+ *
  * @param {string} path - Request endpoint or full URL
- * @param {RequestInit & { auth?: boolean }} [options={}]
+ * @param {RequestInit & { auth?: boolean, timeout?: number }} [options={}]
  * @returns {Promise<Response>}
  */
 export async function apiFetch(path, options = {}) {
   const method = (options.method || 'GET').toUpperCase()
   const isGet = method === 'GET'
+  const { timeout, auth: _authOpt, ...fetchOptions } = options
 
   const url = typeof path === 'string' && (path.startsWith('http://') || path.startsWith('https://'))
     ? path
     : apiUrl(path)
 
-  const headers = { ...(options.headers || {}) }
+  const headers = { ...(fetchOptions.headers || {}) }
 
   // Auto-inject Authorization token if not explicitly provided or suppressed
   if (options.auth !== false && !('Authorization' in headers) && !('authorization' in headers)) {
@@ -133,7 +138,7 @@ export async function apiFetch(path, options = {}) {
   }
 
   // Automatically JSON-encode object payloads if body is not already a string/FormData/Blob
-  let body = options.body
+  let body = fetchOptions.body
   if (body && typeof body === 'object' && !(body instanceof FormData) && !(body instanceof Blob)) {
     if (!headers['Content-Type'] && !headers['content-type']) {
       headers['Content-Type'] = 'application/json'
@@ -141,12 +146,58 @@ export async function apiFetch(path, options = {}) {
     body = JSON.stringify(body)
   }
 
-  const fetchPromise = fetch(url, {
-    ...options,
-    headers,
-    body,
-    credentials: 'include',
-  })
+  // Opt-in deadline: abort a hung request (slow localhost backend, cold
+  // start, stalled proxy) instead of hanging the UI forever.
+  const timeoutMs = typeof timeout === 'number' && timeout > 0 ? timeout : 0
+  let abortController = null
+  let timeoutId = null
+  let didTimeout = false
+  let externalSignal = fetchOptions.signal || null
+  let onExternalAbort = null
+  if (timeoutMs > 0) {
+    abortController = new AbortController()
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        abortController.abort()
+      } else {
+        onExternalAbort = () => abortController.abort()
+        externalSignal.addEventListener('abort', onExternalAbort, { once: true })
+      }
+    }
+    timeoutId = setTimeout(() => {
+      didTimeout = true
+      try { abortController.abort() } catch {}
+    }, timeoutMs)
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      return await fetch(url, {
+        ...fetchOptions,
+        headers,
+        body,
+        credentials: 'include',
+        signal: abortController ? abortController.signal : (externalSignal || undefined),
+      })
+    } catch (err) {
+      if (didTimeout || (abortController && abortController.signal.aborted && timeoutMs > 0 && !onExternalAbortCalled())) {
+        const timeoutErr = new Error(`Request timed out after ${timeoutMs}ms (${path})`)
+        timeoutErr.code = 'TIMEOUT'
+        timeoutErr.timeoutMs = timeoutMs
+        throw timeoutErr
+      }
+      throw err
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId)
+      if (externalSignal && onExternalAbort) {
+        try { externalSignal.removeEventListener('abort', onExternalAbort) } catch {}
+      }
+    }
+  })()
+
+  function onExternalAbortCalled() {
+    return Boolean(externalSignal && externalSignal.aborted && !didTimeout)
+  }
 
   if (dedupKey) {
     inFlightGetRequests.set(dedupKey, fetchPromise)

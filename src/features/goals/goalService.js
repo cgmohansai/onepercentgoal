@@ -32,11 +32,12 @@ export async function fetchGoals(token = null) {
  * Fetches dashboard state including current goals and sprint year context.
  *
  * @param {string|null} [token=null] - Optional session token
+ * @param {object} [fetchOptions={}] - Extra apiFetch options (e.g. `timeout`, `signal`)
  * @returns {Promise<{ goals: Array, year?: object }>} Dashboard payload
  */
-export async function fetchDashboard(token = null) {
+export async function fetchDashboard(token = null, fetchOptions = {}) {
   const headers = buildHeaders({}, token)
-  const res = await apiFetch('/api/dashboard', { headers })
+  const res = await apiFetch('/api/dashboard', { ...fetchOptions, headers })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || `Unable to load dashboard (${res.status})`)

@@ -6602,70 +6602,24 @@ body.capacitor-native .sprint-modal {
   100% { transform: translateX(250%); }
 }
 
-/* Universal Ripple Loader & Sync Animations (Legacy Green #c8f26a) */
-.ripple-loader {
+/* Unified Ripple (single loader + sync indicator, signature green #c8f26a).
+   Waves are SMIL inside the SVG (see Ripple.jsx); the minimal center dot is
+   an HTML element sharing the exact same grid cell as the SVG, so the dot
+   always sits precisely where the ripple originates. */
+.opg-ripple {
   position: relative;
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-grid;
+  place-items: center;
   flex-shrink: 0;
   vertical-align: middle;
 }
 
-.ripple-loader .ripple-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #c8f26a;
-  position: relative;
-  z-index: 2;
-  box-shadow: 0 0 5px rgba(200, 242, 106, 0.6);
-}
-
-.ripple-loader .ripple-wave {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 16px;
-  height: 16px;
-  margin-top: -8px;
-  margin-left: -8px;
-  border-radius: 50%;
-  border: 1.5px solid #c8f26a;
-  box-sizing: border-box;
-  animation: rippleWave 1.4s cubic-bezier(0, 0.2, 0.8, 1) infinite;
-  pointer-events: none;
-}
-
-.ripple-loader .ripple-wave.delay {
-  animation-delay: 0.7s;
-}
-
-@keyframes rippleWave {
-  0% {
-    transform: scale(0.35);
-    opacity: 0.9;
-  }
-  100% {
-    transform: scale(1.6);
-    opacity: 0;
-  }
-}
-
-@keyframes syncRipple {
-  0% {
-    transform: scale(0.35);
-    opacity: 0.95;
-  }
-  50% {
-    opacity: 0.6;
-  }
-  100% {
-    transform: scale(2.4);
-    opacity: 0;
-  }
+.opg-ripple > svg {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  display: block;
 }
 
 /* App Default Accent #c8f26a for completed checkboxes and tags */

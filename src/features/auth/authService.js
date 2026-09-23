@@ -30,13 +30,13 @@ import {
  * @param {string|null} [token=null] - Optional explicit session token
  * @returns {Promise<any>} The authenticated user object
  */
-export async function getCurrentUser(token = null) {
+export async function getCurrentUser(token = null, fetchOptions = {}) {
   const authToken = token !== null && token !== undefined ? token : getStoredToken()
   if (!authToken) {
     return null
   }
   const headers = { Authorization: `Bearer ${authToken}` }
-  const res = await apiFetch('/api/auth/me', { headers })
+  const res = await apiFetch('/api/auth/me', { ...fetchOptions, headers })
   if (!res.ok) {
     throw new Error(`Failed to authenticate session (${res.status})`)
   }
@@ -50,8 +50,9 @@ export async function getCurrentUser(token = null) {
  * @param {Record<string, any>} payload - Payload containing access_token or credential
  * @returns {Promise<{ token: string, user: any }>}
  */
-export async function verifyGoogleCredential(payload) {
+export async function verifyGoogleCredential(payload, fetchOptions = {}) {
   const res = await apiFetch('/api/auth/google', {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

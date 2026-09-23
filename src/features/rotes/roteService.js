@@ -15,12 +15,13 @@ import { apiFetch, buildHeaders } from '../../services/apiClient.js'
  *
  * @param {string} [dateStr=''] - Target date string 'YYYY-MM-DD'
  * @param {string|null} [token=null] - Optional session token
+ * @param {object} [fetchOptions={}] - Extra apiFetch options (e.g. `timeout`, `signal`)
  * @returns {Promise<{ date: string, user_joined_date: string, rotes: Array, completed_dates: Array, stats: object }>}
  */
-export async function fetchRotes(dateStr = '', token = null) {
+export async function fetchRotes(dateStr = '', token = null, fetchOptions = {}) {
   const query = dateStr ? `?date=${encodeURIComponent(dateStr)}` : ''
   const headers = buildHeaders({}, token)
-  const res = await apiFetch(`/api/rotes${query}`, { headers })
+  const res = await apiFetch(`/api/rotes${query}`, { ...fetchOptions, headers })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || `Failed to fetch rotes (${res.status})`)

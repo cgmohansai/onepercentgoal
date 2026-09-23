@@ -584,7 +584,10 @@ function App() {
     if (token) {
       setSessionToken(token)
     }
-    getCurrentUser(token)
+    // Bounded boot check: a hung backend (slow localhost server, cold start,
+    // stalled proxy) must never hang the boot loader forever. On timeout we
+    // keep the cached session and let the sync effects retry in background.
+    getCurrentUser(token, { timeout: 12000 })
       .then(user => {
         if (user) {
           setCurrentUser(user)
@@ -592,7 +595,11 @@ function App() {
         }
         setAuthReady(true)
       })
-      .catch(() => {
+      .catch((err) => {
+        if (err && err.code === 'TIMEOUT') {
+          setAuthReady(true)
+          return
+        }
         if (token) {
           removeStoredToken()
           setSessionToken('')
@@ -640,13 +647,13 @@ function App() {
         setShowAuthModal(false)
         Browser.close().catch(() => {})
         try {
-          const user = await getCurrentUser(token)
+          const user = await getCurrentUser(token, { timeout: 15000 })
           setCurrentUser(user)
           setAuthStatus('Preparing your dashboard…')
           const todayStr = getTodayYMD()
           const [dashResult, rotesResult] = await Promise.allSettled([
-            fetchDashboard(token),
-            fetchRotesApi(todayStr, token),
+            fetchDashboard(token, { timeout: 12000 }),
+            fetchRotesApi(todayStr, token, { timeout: 12000 }),
           ])
 
           if (dashResult.status === 'fulfilled' && dashResult.value) {
@@ -880,7 +887,11 @@ function App() {
     } catch {}
   }
 
-  // Cross-device live synchronization: fast poll every 1 second and on focus/resume
+  // Cross-device live synchronization: fast poll every 1 second and on focus/resume.
+  // Covers: website refresh (effect re-runs on mount with stored session),
+  // native app reopen (Capacitor 'resume'), tab focus, and visibility return —
+  // so Overview, Goals, Rote, Timeline and Profile all converge right after
+  // any update on any device.
   useEffect(() => {
     if (!currentUser || !sessionToken) return
 
@@ -894,14 +905,34 @@ function App() {
       flushSyncQueue(sessionToken)
     }
 
+    // Re-sync immediately on mount / refresh when already logged in, so a
+    // page reload with a stored session still flashes the syncing ripple and
+    // pulls the latest server state into every view at once.
+    triggerSilentSync()
+
     const interval = setInterval(triggerSilentSync, 1000)
     window.addEventListener('focus', triggerSilentSync)
     document.addEventListener('visibilitychange', triggerSilentSync)
+
+    // Native Android: WebView focus/visibility events are unreliable on
+    // app reopen — listen to the Capacitor resume event explicitly.
+    let resumeHandle = null
+    try {
+      if (isNativeShell() && CapacitorApp && typeof CapacitorApp.addListener === 'function') {
+        const maybePromise = CapacitorApp.addListener('resume', triggerSilentSync)
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          maybePromise.then(h => { resumeHandle = h }).catch(() => {})
+        } else {
+          resumeHandle = maybePromise
+        }
+      }
+    } catch {}
 
     return () => {
       clearInterval(interval)
       window.removeEventListener('focus', triggerSilentSync)
       document.removeEventListener('visibilitychange', triggerSilentSync)
+      try { if (resumeHandle && typeof resumeHandle.remove === 'function') resumeHandle.remove() } catch {}
     }
   }, [currentUser, sessionToken])
 
@@ -918,9 +949,11 @@ function App() {
       const todayStr = getTodayYMD()
 
       try {
+        // Bounded: each request aborts on its own deadline so a stalled
+        // backend can never leave the sync badge / goals skeleton stuck.
         const [dashResult, rotesResult] = await Promise.allSettled([
-          fetchDashboard(sessionToken),
-          fetchRotesApi(todayStr, sessionToken),
+          fetchDashboard(sessionToken, { timeout: 15000 }),
+          fetchRotesApi(todayStr, sessionToken, { timeout: 15000 }),
           flushSyncQueue(sessionToken),
         ])
 
@@ -1007,7 +1040,9 @@ function App() {
     setShowAuthModal(false)
     try {
       await new Promise(resolve => requestAnimationFrame(resolve))
-      const result = await verifyGoogleCredential(payload)
+      // Bounded verification: never leave "Signing you in…" hanging if the
+      // backend stalls (e.g. localhost server not responding).
+      const result = await verifyGoogleCredential(payload, { timeout: 25000 })
 
       // Always save session and log into the website Overview page first
       setStoredToken(result.token)
@@ -1020,12 +1055,15 @@ function App() {
       resetScrollToTop()
 
       // Fetch fresh goals & routines from server while "Your dashboard is almost ready" is showing!
+      // Bounded preload: each request aborts after 12s so the overlay can
+      // never get stuck here — login always completes and the background
+      // sync effect picks up whatever is still missing.
       setAuthStatus('Preparing your dashboard…')
       const todayStr = getTodayYMD()
       try {
         const [dashResult, rotesResult] = await Promise.allSettled([
-          fetchDashboard(result.token),
-          fetchRotesApi(todayStr, result.token),
+          fetchDashboard(result.token, { timeout: 12000 }),
+          fetchRotesApi(todayStr, result.token, { timeout: 12000 }),
         ])
 
         if (dashResult.status === 'fulfilled' && dashResult.value) {
@@ -1077,7 +1115,10 @@ function App() {
         } catch {}
       }
     } catch (err) {
-      setAuthError(err.message || 'Google authentication failed')
+      const isTimeout = err && err.code === 'TIMEOUT'
+      setAuthError(isTimeout
+        ? 'Sign-in timed out — the server took too long to respond. Please check your connection (and that the backend is running on localhost) and try again.'
+        : (err.message || 'Google authentication failed'))
       setShowAuthModal(true)
     } finally {
       setAuthLoading(false)

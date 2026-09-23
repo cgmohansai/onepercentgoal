@@ -341,6 +341,21 @@ if (typeof window !== 'undefined') {
       }
     })
   }
+
+  // Native Android reopen: flush pending queue on Capacitor resume as well
+  // (WebView focus/visibility events don't reliably fire on app reopen).
+  try {
+    if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+      const appPlugin = window.Capacitor.Plugins.App
+      if (appPlugin && typeof appPlugin.addListener === 'function') {
+        appPlugin.addListener('resume', () => {
+          if (isOnline() && getSyncQueue().length > 0) {
+            flushSyncQueue()
+          }
+        })
+      }
+    }
+  } catch {}
 }
 
 export default {
