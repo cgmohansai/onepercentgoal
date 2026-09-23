@@ -5,15 +5,15 @@ from pydantic import BaseModel, Field
 
 
 class NoteLink(BaseModel):
-    goal_id: int | None = None
-    rote_id: int | None = None
+    goal_id: int | str | None = None
+    rote_id: int | str | None = None
 
 
 class NoteCreate(BaseModel):
     body: str = Field(min_length=1, max_length=5000)
     title: str = Field(default="", max_length=140)
-    goal_id: int | None = None
-    rote_id: int | None = None
+    goal_id: int | str | None = None
+    rote_id: int | str | None = None
     links: list[NoteLink] = Field(default_factory=list)
     pinned: bool = False
     client_id: str | None = Field(default=None, max_length=64)
@@ -23,10 +23,20 @@ class NoteUpdate(BaseModel):
     body: str | None = Field(default=None, min_length=1, max_length=5000)
     title: str | None = Field(default=None, max_length=140)
     pinned: bool | None = None
-    goal_id: int | None = None
-    rote_id: int | None = None
+    goal_id: int | str | None = None
+    rote_id: int | str | None = None
     links: list[NoteLink] | None = None
     base_version: int | None = None
+
+
+def coerce_id(value) -> int | None:
+    """Integer ids persist server-side; temp/unsynced string ids resolve later client-side."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def note_dict(row) -> dict:

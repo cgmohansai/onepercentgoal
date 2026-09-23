@@ -39,6 +39,20 @@ export function isTempNote(note) {
   return id.startsWith('temp-note-') || id.startsWith('nc-');
 }
 
+function isPersistedId(id) {
+  if (id === null || id === undefined) return false;
+  const s = String(id);
+  return s !== '' && !s.startsWith('temp-') && !s.startsWith('nc-') && !Number.isNaN(Number(s));
+}
+
+function carryTempLinks(localNote, serverNote) {
+  const localLinks = Array.isArray(localNote?.links) ? localNote.links : [];
+  const tempLinks = localLinks.filter(l => !isPersistedId(l.goal_id) && !isPersistedId(l.rote_id) && (l.goal_id != null || l.rote_id != null));
+  if (tempLinks.length === 0) return serverNote;
+  const serverLinks = Array.isArray(serverNote.links) ? serverNote.links.slice() : [];
+  return { ...serverNote, links: [...serverLinks, ...tempLinks] };
+}
+
 export function selectNotes(notes, { goalId = null, roteId = null } = {}) {
   return (Array.isArray(notes) ? notes : []).filter(n => {
     if (n.deleted) return false
@@ -73,10 +87,12 @@ export function mergeNotes(serverNotes = [], localNotes = []) {
     if (s.client_id) byClientId.set(String(s.client_id), s);
   }
   const map = new Map();
+  const skippedTemps = new Map();
   for (const n of (Array.isArray(localNotes) ? localNotes : [])) {
     // A temp note whose create already reached the server is replaced by the
     // server copy (matched via client_id) — never duplicated.
     if (isTempNote(n) && byClientId.has(String(n.id))) {
+      skippedTemps.set(String(n.id), n);
       continue;
     }
     map.set(String(n.id), n);
@@ -85,16 +101,20 @@ export function mergeNotes(serverNotes = [], localNotes = []) {
     const id = String(s.id);
     const local = map.get(id);
     if (!local) {
-      map.set(id, s);
+      const adopted = s.client_id && skippedTemps.has(String(s.client_id))
+        ? carryTempLinks(skippedTemps.get(String(s.client_id)), s)
+        : s;
+      map.set(id, adopted);
       continue;
     }
     if (isTempNote(local)) {
-      map.set(id, s);
+      map.set(id, carryTempLinks(local, s));
       continue;
     }
-    // Server wins on version conflict only when strictly newer.
+    // Server wins on version conflict only when strictly newer — but local
+    // temp-id links (not yet syncable) are carried over, never silently lost.
     if ((s.version || 1) > (local.version || 1)) {
-      map.set(id, s);
+      map.set(id, carryTempLinks(local, s));
     }
   }
   return [...map.values()].sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));

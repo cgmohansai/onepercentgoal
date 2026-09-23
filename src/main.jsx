@@ -438,6 +438,37 @@ function App() {
     }
   }, [active, currentUser ? (currentUser.id || currentUser._id || currentUser.email || 'user') : 'guest', resetScrollToTop])
 
+  // Constant top gap on every app open: the Android WebView can restore a
+  // previous scroll position, making the header gap look different per open.
+  // Force back to top on mount, focus, visibility return, and native resume.
+  useEffect(() => {
+    resetScrollToTop()
+    const onReturn = () => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        setHeaderHidden(false)
+        resetScrollToTop()
+      }
+    }
+    window.addEventListener('focus', onReturn)
+    document.addEventListener('visibilitychange', onReturn)
+    let resumeHandle = null
+    try {
+      if (isNativeShell() && CapacitorApp && typeof CapacitorApp.addListener === 'function') {
+        const maybePromise = CapacitorApp.addListener('resume', onReturn)
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          maybePromise.then(h => { resumeHandle = h }).catch(() => {})
+        } else {
+          resumeHandle = maybePromise
+        }
+      }
+    } catch {}
+    return () => {
+      window.removeEventListener('focus', onReturn)
+      document.removeEventListener('visibilitychange', onReturn)
+      try { if (resumeHandle && typeof resumeHandle.remove === 'function') resumeHandle.remove() } catch {}
+    }
+  }, [resetScrollToTop])
+
   useEffect(() => {
     if (authReady) {
       if (window.hideBootLoader) window.hideBootLoader()

@@ -6,19 +6,37 @@ from fastapi import APIRouter, Header, Cookie, HTTPException, status
 from backend.config import current_timestamp
 from backend.db.connection import db, execute
 from backend.auth.session import current_user_id
-from backend.services.notes import NoteCreate, NoteUpdate, NoteLink, note_dict, jsonable_note
+from backend.services.notes import NoteCreate, NoteUpdate, NoteLink, note_dict, jsonable_note, coerce_id
 
 router = APIRouter(tags=["notes"])
 
 
+def _target_owner(conn, table: str, target_id) -> int | None:
+    """Owner of a goal/rote, or None when it doesn't exist (yet).
+
+    Non-integer ids (unsynced temp entities) and missing rows are treated as
+    "not there yet" so the note still saves — links resolve when the target syncs.
+    """
+    try:
+        tid = int(target_id)
+    except (TypeError, ValueError):
+        return None
+    row = execute(conn, f"SELECT user_id FROM {table} WHERE id = %s", (tid,)).fetchone()
+    if not row:
+        return None
+    return int(row["user_id"])
+
+
 def _assert_ownership(conn, user_id: int, goal_id: int | None, rote_id: int | None) -> None:
+    # Only rejects links to entities owned by ANOTHER user. Missing entities
+    # are kept: the note saves regardless and the link resolves on sync.
     if goal_id is not None:
-        goal = execute(conn, "SELECT id FROM goals WHERE id = %s AND user_id = %s", (goal_id, user_id)).fetchone()
-        if not goal:
+        owner = _target_owner(conn, "goals", goal_id)
+        if owner is not None and owner != int(user_id):
             raise HTTPException(status_code=404, detail="Goal not found")
     if rote_id is not None:
-        rote = execute(conn, "SELECT id FROM rotes WHERE id = %s AND user_id = %s", (rote_id, user_id)).fetchone()
-        if not rote:
+        owner = _target_owner(conn, "rotes", rote_id)
+        if owner is not None and owner != int(user_id):
             raise HTTPException(status_code=404, detail="Rote not found")
 
 
@@ -27,8 +45,8 @@ def _normalize_links(raw_links) -> list[dict]:
     seen = set()
     out = []
     for entry in raw_links or []:
-        goal_id = entry.goal_id if hasattr(entry, "goal_id") else entry.get("goal_id")
-        rote_id = entry.rote_id if hasattr(entry, "rote_id") else entry.get("rote_id")
+        goal_id = coerce_id(entry.goal_id if hasattr(entry, "goal_id") else entry.get("goal_id"))
+        rote_id = coerce_id(entry.rote_id if hasattr(entry, "rote_id") else entry.get("rote_id"))
         if goal_id is None and rote_id is None:
             continue
         key = (goal_id, rote_id)
@@ -51,8 +69,8 @@ def _set_note_links(conn, user_id: int, note_id: int, links: list[dict]) -> None
         )
 
 
-def _attach_links(conn, notes: list[dict]) -> list[dict]:
-    """Batch-load reference links (with titles) for a set of note dicts."""
+def _attach_links(conn, user_id: int, notes: list[dict]) -> list[dict]:
+    """Batch-load reference links (with owner-scoped titles) for a set of note dicts."""
     ids = [n["id"] for n in notes if n.get("id") is not None]
     by_note: dict = {nid: [] for nid in ids}
     if not ids:
@@ -63,12 +81,12 @@ def _attach_links(conn, notes: list[dict]) -> list[dict]:
         f"""
         SELECT nl.note_id, nl.goal_id, nl.rote_id, g.title AS goal_title, r.title AS rote_title
         FROM note_links nl
-        LEFT JOIN goals g ON g.id = nl.goal_id
-        LEFT JOIN rotes r ON r.id = nl.rote_id
+        LEFT JOIN goals g ON g.id = nl.goal_id AND g.user_id = %s
+        LEFT JOIN rotes r ON r.id = nl.rote_id AND r.user_id = %s
         WHERE nl.note_id IN ({placeholders})
         ORDER BY nl.id
         """,
-        tuple(ids),
+        (user_id, user_id, *tuple(ids)),
     ).fetchall()
     for row in rows:
         d = dict(row)
@@ -106,7 +124,7 @@ def list_notes(
             params.extend([rote_id, rote_id])
         query += " ORDER BY updated_at DESC, id DESC"
         rows = execute(conn, query, tuple(params)).fetchall()
-        notes = _attach_links(conn, [note_dict(row) for row in rows])
+        notes = _attach_links(conn, user_id, [note_dict(row) for row in rows])
     return notes
 
 
@@ -120,7 +138,7 @@ def create_note(payload: NoteCreate, authorization: str | None = Header(default=
                 conn, "SELECT * FROM notes WHERE user_id = %s AND client_id = %s", (user_id, payload.client_id)
             ).fetchone()
             if existing:
-                notes = _attach_links(conn, [note_dict(existing)])
+                notes = _attach_links(conn, user_id, [note_dict(existing)])
                 return notes[0]
         links = _normalize_links(payload.links)
         if payload.goal_id is not None or payload.rote_id is not None:
@@ -139,7 +157,7 @@ def create_note(payload: NoteCreate, authorization: str | None = Header(default=
         ).fetchone()
         note = note_dict(row)
         _set_note_links(conn, user_id, note["id"], links)
-        notes = _attach_links(conn, [note])
+        notes = _attach_links(conn, user_id, [note])
     return notes[0]
 
 
@@ -157,7 +175,7 @@ def update_note(note_id: int, payload: NoteUpdate, authorization: str | None = H
             raise HTTPException(status_code=404, detail="Note not found")
         current = note_dict(existing)
         if payload.base_version is not None and int(payload.base_version) != current["version"]:
-            existing_links = _attach_links(conn, [current])
+            existing_links = _attach_links(conn, user_id, [current])
             raise HTTPException(status_code=409, detail={"message": "Note changed elsewhere", "server": jsonable_note(existing, links=existing_links[0]["links"])})
         body = payload.body.strip() if payload.body is not None else current["body"]
         title = payload.title.strip() if payload.title is not None else current.get("title", "")
@@ -184,7 +202,7 @@ def update_note(note_id: int, payload: NoteUpdate, authorization: str | None = H
         note = note_dict(row)
         if links is not None:
             _set_note_links(conn, user_id, note["id"], links)
-        notes = _attach_links(conn, [note])
+        notes = _attach_links(conn, user_id, [note])
     return notes[0]
 
 
@@ -201,5 +219,5 @@ def delete_note(note_id: int, authorization: str | None = Header(default=None), 
             "UPDATE notes SET deleted = 1, version = version + 1, updated_at = %s WHERE id = %s RETURNING *",
             (current_timestamp(), note_id),
         ).fetchone()
-        notes = _attach_links(conn, [note_dict(row)])
+        notes = _attach_links(conn, user_id, [note_dict(row)])
     return notes[0]

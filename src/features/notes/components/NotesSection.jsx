@@ -57,8 +57,14 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
   const [busy, setBusy] = useState(false)
   const searchInputRef = useRef(null)
 
-  const goalList = useMemo(() => (Array.isArray(goals) ? goals : []).filter(g => !(g.done || g.completed)), [goals])
-  const roteList = useMemo(() => (Array.isArray(rotes) ? rotes : []), [rotes])
+  const goalList = useMemo(
+    () => (Array.isArray(goals) ? goals : []).filter(g => !(g.done || g.completed) && !String(g.id).startsWith('temp-')),
+    [goals]
+  )
+  const roteList = useMemo(
+    () => (Array.isArray(rotes) ? rotes : []).filter(r => !String(r.id).startsWith('temp-')),
+    [rotes]
+  )
   const goalMap = useMemo(() => {
     const map = new Map()
     for (const g of (Array.isArray(goals) ? goals : [])) map.set(String(g.id), g)
@@ -83,7 +89,7 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
     if (err && (err.code === 'TIMEOUT' || err.code === 'NETWORK' || err.name === 'TypeError')) {
       return 'Note saved locally — server not reachable, will retry'
     }
-    if (err && err.status === 404 && err.message && /not found/i.test(err.message)) {
+    if (err && err.status === 404 && err.message && /^(goal|rote|note) not found$/i.test(err.message.trim())) {
       return 'Note saved locally — linked goal/rote missing, will retry'
     }
     if (err && err.status === 404) {

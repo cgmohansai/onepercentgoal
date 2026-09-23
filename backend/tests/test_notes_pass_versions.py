@@ -157,11 +157,43 @@ def test_notes_title_pin_and_links(client):
     assert sum(1 for n in res.json() if n.get("client_id") == "nc-test-dedupe-1") == 1
 
 
+def test_notes_save_regardless_of_missing_links(client):
+    """Links to unknown or not-yet-synced targets never block saving."""
+    _, token = _make_user()
+    headers = {"Authorization": f"Bearer {token}"}
+    res = client.post(
+        "/api/notes",
+        json={"body": "future links", "links": [{"goal_id": 987654321}, {"rote_id": 123456789}]},
+        headers=headers,
+    )
+    assert res.status_code == 201
+    note = res.json()
+    assert len(note["links"]) == 2
+
+    # Temp (non-integer) ids are accepted, never 422, and simply not persisted as links
+    res = client.post(
+        "/api/notes",
+        json={"body": "temp link", "links": [{"goal_id": "temp-goal-1"}]},
+        headers=headers,
+    )
+    assert res.status_code == 201
+    assert res.json()["links"] == []
+
+
 def test_notes_scoped_to_owner_and_goal(client):
     _, token = _make_user()
     headers = {"Authorization": f"Bearer {token}"}
-    # Goal-scoped note on someone else's goal must 404
+    # Nonexistent goal ids never block saving (link resolves later if ever)
     res = client.post("/api/notes", json={"body": "x", "goal_id": 999999}, headers=headers)
+    assert res.status_code == 201
+
+    # ...but linking to ANOTHER user's goal is still rejected
+    _, other_token = _make_user()
+    other_headers = {"Authorization": f"Bearer {other_token}"}
+    res = client.post("/api/goals", json={"title": "Someone else"}, headers=other_headers)
+    assert res.status_code == 201
+    foreign_goal_id = res.json()["id"]
+    res = client.post("/api/notes", json={"body": "snoop", "goal_id": foreign_goal_id}, headers=headers)
     assert res.status_code == 404
 
 

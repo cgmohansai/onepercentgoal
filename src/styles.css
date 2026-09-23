@@ -6641,26 +6641,32 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   html {
     overflow-x: hidden;
   }
-  /* FR-08: every section header sits 20px below the logo island on phones.
-     The island is fixed at top:20px with a ~35px-tall nav (bottom edge ≈55px
-     from the viewport top); content starts at shell top + 10px margin, so a
-     55px header offset (minus safe-area, which shifts shell and content
-     together) lands the container top exactly ~20px under the island. */
+  /* FR-08 (phones): sections stick to the top with the same gap the logo
+     island uses in Overview (20px) — Goals, Rote, Notes, Timeline and
+     Profile all share it. Overview is untouched. */
+  .app-shell.section-mode {
+    top: calc(20px + var(--safe-top, 0px)) !important;
+  }
+  .content {
+    margin-top: 0 !important;
+  }
   .workspace-page > .goals-page-header,
   .workspace-page > .timeline-page-header,
   .workspace-page > .profile-page-header {
-    margin-top: max(8px, calc(55px - var(--safe-top, 0px))) !important;
+    margin-top: 0 !important;
     padding-top: 0 !important;
   }
+  .goals-page-custom .goals-sprint-title,
+  .rote-page-custom .goals-sprint-title,
+  .notes-page-custom .goals-sprint-title,
+  .timeline-page-custom .timeline-title,
+  .profile-page-custom .profile-title {
+    margin-top: 0 !important;
+  }
   /* Section mode (phones only): the top island is hidden outside Overview —
-     navigation lives in the bottom dock — so headers need only a 20px offset. */
+     navigation lives in the bottom dock. */
   .app-shell.section-mode .shell-header {
     display: none !important;
-  }
-  .app-shell.section-mode .workspace-page > .goals-page-header,
-  .app-shell.section-mode .workspace-page > .timeline-page-header,
-  .app-shell.section-mode .workspace-page > .profile-page-header {
-    margin-top: 20px !important;
   }
   .app-shell {
     position: fixed !important;
