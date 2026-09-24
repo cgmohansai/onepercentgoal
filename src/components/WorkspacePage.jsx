@@ -266,7 +266,10 @@ export function WorkspacePage({
   }, [active])
 
   // Calculate active sprint date range
-  const sprintStart = data.sprintStart || getSprintBoundary(data.year, data.sprint - 1)
+  const sprintNum = (data.percentage && data.percentage > 0)
+    ? Math.min(100, Math.max(1, Math.floor(data.percentage)))
+    : (data.sprint_number || data.sprint || 1)
+  const sprintStart = data.sprintStart || getSprintBoundary(data.year, sprintNum - 1)
   const sprintEnd = data.checkpointEnd || new Date(data.sprint_end)
   const dateStr = `${formatDateWithTime(sprintStart)} — ${formatDateWithTime(sprintEnd)}`
 
@@ -281,7 +284,7 @@ export function WorkspacePage({
             <div className="goals-title-col">
               <h1 className="goals-sprint-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
                 <span className="title-main-text" style={{ whiteSpace: 'nowrap' }}>
-                  Sprint <em>#{String(data.sprint).padStart(2, '0')}</em>
+                  Sprint <em>#{String(sprintNum).padStart(2, '0')}</em>
                 </span>
                 <HeaderInfoTooltip
                   description="All current sprint goals present here. Compounding progress is built 1% at a time."

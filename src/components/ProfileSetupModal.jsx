@@ -35,8 +35,8 @@ export function ProfileSetupModal({ user, onSubmit, loading, error }) {
           />
         </label>
         {error && <p className="auth-error">{error}</p>}
-        <div>
-          <button type="submit" disabled={loading}>
+        <div className="modal-actions">
+          <button type="submit" className="modal-btn modal-btn-primary" disabled={loading}>
             {loading ? 'Saving…' : 'Continue'}
           </button>
         </div>

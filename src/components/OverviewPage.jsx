@@ -40,8 +40,11 @@ export function OverviewPage({
       contentEl.scrollLeft = 0
     }
   }, [])
-  const sprintStart = data.sprintStart || getSprintBoundary(data.year, data.sprint - 1)
-  const sprintEnd = data.checkpointEnd || getSprintBoundary(data.year, data.sprint)
+  const sprintNum = (data.percentage && data.percentage > 0)
+    ? Math.min(100, Math.max(1, Math.floor(data.percentage)))
+    : (data.sprint_number || data.sprint || 1)
+  const sprintStart = data.sprintStart || getSprintBoundary(data.year, sprintNum - 1)
+  const sprintEnd = data.checkpointEnd || getSprintBoundary(data.year, sprintNum)
   const sprintDuration = sprintEnd.getTime() - sprintStart.getTime()
   const sprintElapsed = now.getTime() - sprintStart.getTime()
   const sprintPercent = Math.min(100, Math.max(0, (sprintElapsed / sprintDuration) * 100)).toFixed(2)
@@ -89,7 +92,7 @@ export function OverviewPage({
               </div>
               <div className="perc-divider"></div>
               <div className="perc-pill">
-                <span className="perc-label">Sprint #{String(data.sprint).padStart(2, '0')}</span>
+                <span className="perc-label">Sprint #{String(sprintNum).padStart(2, '0')}</span>
                 <strong className="perc-val">{sprintPercent}%</strong>
               </div>
             </div>
@@ -194,7 +197,7 @@ export function OverviewPage({
             <div className="sprint-summary-header">
               <p className="eyebrow">ACTIVE SPRINT STATUS</p>
               <h2>
-                Sprint #{String(data.sprint).padStart(2, '0')}{' '}
+                Sprint #{String(sprintNum).padStart(2, '0')}{' '}
                 <span style={{ fontSize: '15px', fontWeight: 'normal', color: 'inherit', marginLeft: '14px', letterSpacing: '0.06em', opacity: 0.85 }}>
                   ({formatDateWithTime(sprintStart)} — {formatDateWithTime(data.checkpointEnd)})
                 </span>
@@ -205,7 +208,7 @@ export function OverviewPage({
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px', margin: '15px 0 20px' }}>
               <div className="sprint-progress-circle-wrap">
                 <div className="sprint-progress-big-number">
-                  {goals.length ? Math.round(completeGoals / goals.length * 100) : 0}<em>%</em>
+                  {goals.length ? ((completeGoals / goals.length * 100) % 1 === 0 ? (completeGoals / goals.length * 100) : Number((completeGoals / goals.length * 100).toFixed(2))) : 0}<em>%</em>
                 </div>
                 <p className="sprint-progress-label">completed</p>
               </div>

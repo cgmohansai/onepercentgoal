@@ -367,14 +367,18 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
   return (
     <div className="workspace-page notes-page-custom">
       <header className="goals-page-header">
-        <div className="goals-badge-row" aria-hidden="true" />
+        <div className="goals-badge-row">
+          <span className="goals-sprint-badge">PERSONAL REPOSITORY</span>
+        </div>
         <div className="goals-title-action-row">
-          <h1 className="goals-sprint-title" style={{ display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-            <span className="title-main-text" style={{ whiteSpace: 'nowrap' }}>
-              Personal <em>Notes</em>
-            </span>
-            <HeaderInfoTooltip description="Only you can see these. Link a note to any goals or rotes for reference — notes sync across your devices and work offline." />
-          </h1>
+          <div className="goals-title-col">
+            <h1 className="goals-sprint-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+              <span className="title-main-text" style={{ whiteSpace: 'nowrap' }}>
+                Personal <em>Notes</em>
+              </span>
+              <HeaderInfoTooltip description="Only you can see these. Link a note to any goals or rotes for reference — notes sync across your devices and work offline." />
+            </h1>
+          </div>
           <div className="notes-header-actions">
             <button type="button" className="notes-icon-btn" aria-label="Search notes" title="Search notes" onClick={openSearch}>
               <MagnifyingGlass size={17} />

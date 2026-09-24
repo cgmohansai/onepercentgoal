@@ -28,13 +28,7 @@ export function getYearData(date = new Date()) {
   const elapsed = Math.max(0, nowTs - startTs)
   const percentage = Math.min(100, Math.max(0, (elapsed / (total * DAY)) * 100))
 
-  let sprint = 100
-  for (let s = 1; s <= 100; s++) {
-    if (nowTs < getSprintBoundary(year, s).getTime()) {
-      sprint = s
-      break
-    }
-  }
+  const sprint = Math.min(100, Math.max(1, Math.floor(percentage)))
 
   const sprintStart = getSprintBoundary(year, sprint - 1)
   const checkpointEnd = getSprintBoundary(year, sprint)

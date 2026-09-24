@@ -18,27 +18,28 @@ export function CompletionFlowModal({ flow, setFlow, onContinue, onComplete, onC
         >
         <p className="eyebrow eyebrow-sm">Mark as completed</p>
         <h2 className="modal-title-lg">{flow.goal.title}</h2>
-        <label className="reflection-label">
-          <span className="reflection-label-row">
+        <div className="reflection-label-row" style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label htmlFor="completion-reflection-note" className="reflection-label" style={{ margin: 0 }}>
             How did you complete it? (Required)
-            <HeaderInfoTooltip description="This note will appear in the shareable image." />
-          </span>
-        </label>
-          <textarea
-            autoFocus
-            required
-            value={flow.note}
-            onChange={event => setFlow(curr => curr ? { ...curr, note: event.target.value } : curr)}
-            placeholder="Your final sprint reflection…"
-          />
-          <div>
-            <button type="button" onClick={onCancel}>Cancel</button>
-            <button type="submit">Continue</button>
-          </div>
-        </form>
-      </div>
-    )
-  }
+          </label>
+          <HeaderInfoTooltip description="This note will appear in the shareable image." />
+        </div>
+        <textarea
+          id="completion-reflection-note"
+          autoFocus
+          required
+          value={flow.note}
+          onChange={event => setFlow(curr => curr ? { ...curr, note: event.target.value } : curr)}
+          placeholder="Your final sprint reflection…"
+        />
+        <div className="modal-actions">
+          <button type="button" className="modal-btn modal-btn-secondary" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="modal-btn modal-btn-primary">Continue</button>
+        </div>
+      </form>
+    </div>
+  )
+}
 
   if (flow.step === 'confirm') {
     return (
@@ -60,10 +61,10 @@ export function CompletionFlowModal({ flow, setFlow, onContinue, onComplete, onC
             <p style={{ margin: 0, color: '#c9f36a', fontSize: '24px', fontFamily: '"Instrument Serif", serif', fontStyle: 'italic', lineHeight: '1.35', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>“{flow.note}”</p>
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-            <button type="button" onClick={onCancel}>Cancel</button>
-            <button type="button" onClick={() => setFlow(curr => curr ? { ...curr, step: 'note' } : null)}>Back</button>
-            <button type="submit">Complete & Share it</button>
+          <div className="modal-actions center-actions">
+            <button type="button" className="modal-btn modal-btn-secondary" onClick={onCancel}>Cancel</button>
+            <button type="button" className="modal-btn modal-btn-secondary" onClick={() => setFlow(curr => curr ? { ...curr, step: 'note' } : null)}>Back</button>
+            <button type="submit" className="modal-btn modal-btn-primary">Complete & Share it</button>
           </div>
         </form>
       </div>

@@ -12,8 +12,7 @@ export function prefersReducedMotion() {
 
 /**
  * Trigger celebratory side cannons confetti animation
- * Runs for 3 seconds from left and right screen edges.
- * Kept for legacy use; goal completion no longer fires confetti (FR-18).
+ * Runs for 3 seconds from left and right screen edges for goal completion celebrations.
  */
 export function triggerSideCannons() {
   const end = Date.now() + 3 * 1000 // 3 seconds

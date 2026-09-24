@@ -32,9 +32,10 @@ export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm, loading = fa
           Deleting this goal permanently erases its entire history and progress from all sprints. This cannot be undone.
         </p>
         
-        <div className="modal-actions" style={{ justifyContent: 'center' }}>
+        <div className="modal-actions center-actions">
           <button
             type="button"
+            className="modal-btn modal-btn-secondary"
             onClick={onCancel}
             onPointerDown={(e) => e.stopPropagation()}
             disabled={isLoading}
@@ -43,7 +44,7 @@ export function DeleteGoalConfirmModal({ goal, onCancel, onConfirm, loading = fa
           </button>
           <button
             type="button"
-            className="modal-danger-btn"
+            className="modal-btn modal-btn-danger"
             disabled={isLoading}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={handleConfirm}

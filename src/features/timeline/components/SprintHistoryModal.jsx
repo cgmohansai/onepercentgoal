@@ -81,8 +81,8 @@ export function SprintHistoryModal({ sprint, onClose, onShowGoalDetails }) {
 
         </div>
 
-        <div className="sprint-modal-footer">
-          <button className="add-button sprint-modal-close-btn" type="button" onClick={onClose}>Close</button>
+        <div className="modal-actions center-actions" style={{ marginTop: '20px' }}>
+          <button className="modal-btn modal-btn-secondary" type="button" onClick={onClose}>Close</button>
         </div>
       </section>
     </div>

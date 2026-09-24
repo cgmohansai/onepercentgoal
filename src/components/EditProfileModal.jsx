@@ -82,11 +82,12 @@ export function EditProfileModal({ isOpen, onClose, user, onSubmit, loading, err
         {error && <p className="auth-error">{error}</p>}
         
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>
+          <button type="button" className="modal-btn modal-btn-secondary" onClick={onClose}>
             Cancel
           </button>
           <button
             type="submit"
+            className="modal-btn modal-btn-primary"
             disabled={loading}
           >
             {loading ? 'Saving…' : 'Save Changes'}

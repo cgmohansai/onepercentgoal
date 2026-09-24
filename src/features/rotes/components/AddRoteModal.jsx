@@ -37,8 +37,8 @@ export function AddRoteModal({ isOpen, onClose, onSubmit }) {
         </label>
 
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>Cancel</button>
-          <button type="submit">Create Rote</button>
+          <button type="button" className="modal-btn modal-btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="submit" className="modal-btn modal-btn-primary">Create Rote</button>
         </div>
       </form>
     </div>

@@ -328,9 +328,6 @@ a:focus-visible,
 }
 
 /* Dedicated Notes section (FR-06) */
-.notes-page-custom .goals-page-header {
-  margin-bottom: 20px;
-}
 .notes-header-actions {
   display: flex;
   align-items: center;
@@ -393,16 +390,137 @@ a:focus-visible,
   letter-spacing: 0.12em !important;
 }
 .modal-title-lg {
-  font-size: 30px !important;
-  line-height: 1.1 !important;
-  letter-spacing: -0.045em !important;
+  font-size: 26px !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.04em !important;
+  font-weight: 500 !important;
+  color: #eef0e9 !important;
+  margin: 0 0 16px !important;
 }
+
+/* ==========================================================================
+   UNIFIED MODAL BUTTON DESIGN SYSTEM (Consistent across every modal in app)
+   ========================================================================== */
 .modal-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 24px;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-top: 24px !important;
   justify-content: flex-end;
 }
+.modal-actions.center-actions {
+  justify-content: center !important;
+}
+
+.modal-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 9px 18px !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  border-radius: 8px !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.18s ease !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+  text-decoration: none !important;
+}
+
+.modal-btn-secondary {
+  border: 1px solid #44473f !important;
+  background: transparent !important;
+  color: #d8dad3 !important;
+}
+.modal-btn-secondary:hover:not(:disabled) {
+  border-color: #61655b !important;
+  background: #252823 !important;
+  color: #ffffff !important;
+}
+
+.modal-btn-primary {
+  border: 1px solid #c9f36a !important;
+  background: #c9f36a !important;
+  color: #141712 !important;
+  font-weight: 600 !important;
+}
+.modal-btn-primary:hover:not(:disabled) {
+  background: #d4f87c !important;
+  border-color: #d4f87c !important;
+  box-shadow: 0 4px 14px rgba(201, 243, 106, 0.25) !important;
+}
+
+.modal-btn-danger,
+.modal-danger-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 9px 18px !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  border-radius: 8px !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 13px !important;
+  border: 1px solid #ff6b6b !important;
+  background: #ff6b6b !important;
+  color: #141513 !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.18s ease !important;
+}
+.modal-btn-danger:hover:not(:disabled),
+.modal-danger-btn:hover:not(:disabled) {
+  background: #ff5252 !important;
+  border-color: #ff5252 !important;
+  box-shadow: 0 4px 14px rgba(255, 107, 107, 0.25) !important;
+}
+
+.modal-btn:disabled,
+.modal-danger-btn:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+}
+
+/* Fallback for modal-actions buttons */
+.modal-actions button:not(.modal-btn):not(.cloud-info-btn) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 9px 18px !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  border-radius: 8px !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  transition: all 0.18s ease !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+  border: 1px solid #44473f;
+  background: transparent;
+  color: #d8dad3;
+}
+.modal-actions button:not(.modal-btn):not(.cloud-info-btn):hover:not(:disabled) {
+  border-color: #61655b;
+  background: #252823;
+  color: #ffffff;
+}
+.modal-actions button[type="submit"]:not(.modal-btn):not(.modal-danger-btn):not(.cloud-info-btn) {
+  border: 1px solid #c9f36a !important;
+  background: #c9f36a !important;
+  color: #141712 !important;
+  font-weight: 600 !important;
+}
+.modal-actions button[type="submit"]:not(.modal-btn):not(.modal-danger-btn):not(.cloud-info-btn):hover:not(:disabled) {
+  background: #d4f87c !important;
+  border-color: #d4f87c !important;
+}
+
 .reflection-label-row {
   display: inline-flex;
   align-items: center;
@@ -410,16 +528,6 @@ a:focus-visible,
 }
 .confirm-goal-title {
   font-size: 24px;
-}
-.modal-danger-btn {
-  background: #ff6b6b;
-  border: none;
-  color: #141513;
-  font-weight: 600;
-}
-.modal-danger-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 .notes-title-input {
   width: 100%;
@@ -1786,7 +1894,7 @@ button.ghost.btn-delete:hover:not(:disabled) {
 .completion-modal textarea:focus { border-color:#c9f36a; }
 .completion-modal input { width:100%; margin-top:8px; padding:11px 12px; border:1px solid #41443d; color:#ededeb; background:#171916; outline:none; font:13px 'DM Sans', sans-serif; border-radius:8px; transition:border-color 0.18s ease; }
 .completion-modal input:focus { border-color:#c9f36a; }
-.confirm-summary { padding:16px 18px; border:1px solid #3d4038; background:#191b18; margin-bottom:16px; }.confirm-summary b { display:block; font-size:18px; font-weight:500; letter-spacing:-.03em; }.confirm-summary small { display:block; margin-top:6px; color:#a6a89f; font-family:'DM Mono'; font-size:10px; line-height:1.5; }.confirm-quote { margin:0 0 18px; color:#e9eadf; font-family:'Instrument Serif'; font-size:22px; line-height:1.1; letter-spacing:-.02em; }.completion-modal > div { display:flex; justify-content:center; gap:12px; margin-top:19px; }.completion-modal button { border:1px solid #44473f; padding:9px 12px; background:transparent; color:#d8dad3; cursor:pointer; font-size:12px; }.completion-modal button[type=submit] { border-color:#c9f36a; color:#182013; background:#c9f36a; }
+.confirm-summary { padding:16px 18px; border:1px solid #3d4038; background:#191b18; margin-bottom:16px; }.confirm-summary b { display:block; font-size:18px; font-weight:500; letter-spacing:-.03em; }.confirm-summary small { display:block; margin-top:6px; color:#a6a89f; font-family:'DM Mono'; font-size:10px; line-height:1.5; }.confirm-quote { margin:0 0 18px; color:#e9eadf; font-family:'Instrument Serif'; font-size:22px; line-height:1.1; letter-spacing:-.02em; }
 .sprint-modal { width:min(880px, 94vw); max-width:880px; padding:24px 28px 20px; box-sizing:border-box; border-radius: 16px; max-height:calc(100vh - 60px); overflow:hidden; display:flex; flex-direction:column; margin:auto; }
 .sprint-modal-columns { display:flex; gap:24px; flex-wrap:nowrap; align-items:stretch; flex:1 1 auto; min-height:0; overflow:hidden; }
 .sprint-summary-col { flex: 1 1 280px; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -3527,14 +3635,18 @@ body,
 .goals-page-custom {
   animation: fadeIn 0.3s ease;
 }
-.goals-page-header {
-  display: flex;
-  flex-direction: column;
+.goals-page-header,
+.timeline-page-header,
+.profile-page-header,
+.rote-page-header,
+.notes-page-custom .goals-page-header {
+  display: flex !important;
+  flex-direction: column !important;
   gap: 0 !important;
-  margin-bottom: 24px;
-  border-bottom: 1px solid #2f322b;
-  padding-top: 0;
-  padding-bottom: 24px;
+  margin-bottom: 24px !important;
+  border-bottom: 1px solid #2f322b !important;
+  padding-top: 0 !important;
+  padding-bottom: 24px !important;
   overflow: visible !important;
 }
 .goals-badge-row,
@@ -6641,20 +6753,38 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   html {
     overflow-x: hidden;
   }
-  /* FR-08 (phones): sections stick to the top with the same gap the logo
-     island uses in Overview (20px) — Goals, Rote, Notes, Timeline and
-     Profile all share it. Overview is untouched. */
+  /* Sections stick to the top with tight, clean gap without dead space */
   .app-shell.section-mode {
-    top: calc(20px + var(--safe-top, 0px)) !important;
+    top: calc(6px + var(--safe-top, 0px)) !important;
   }
   .content {
     margin-top: 0 !important;
   }
-  .workspace-page > .goals-page-header,
-  .workspace-page > .timeline-page-header,
-  .workspace-page > .profile-page-header {
+  .app-shell.section-mode .workspace-page,
+  .app-shell.section-mode .goals-page-custom,
+  .app-shell.section-mode .rote-page-custom,
+  .app-shell.section-mode .rote-page,
+  .app-shell.section-mode .timeline-page-custom,
+  .app-shell.section-mode .timeline-page,
+  .app-shell.section-mode .profile-page-custom,
+  .app-shell.section-mode .profile-page,
+  .app-shell.section-mode .notes-page-custom {
     margin-top: 0 !important;
     padding-top: 0 !important;
+  }
+  .workspace-page > .goals-page-header,
+  .workspace-page > .timeline-page-header,
+  .workspace-page > .profile-page-header,
+  .app-shell.section-mode .goals-page-header,
+  .app-shell.section-mode .timeline-page-header,
+  .app-shell.section-mode .profile-page-header,
+  .app-shell.section-mode .rote-page-header {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+  .app-shell.section-mode .goals-badge-row {
+    margin-top: 0 !important;
+    margin-bottom: 2px !important;
   }
   .goals-page-custom .goals-sprint-title,
   .rote-page-custom .goals-sprint-title,

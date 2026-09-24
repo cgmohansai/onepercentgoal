@@ -22,11 +22,11 @@ export function CompletedShareModal({ completedShare, onClose }) {
 
         <p style={{ color: '#a5a79e', fontSize: '14px', lineHeight: 1.5, margin: '0 0 24px', textAlign: 'center' }}>Your progress is saved. Share this win as an image.</p>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-          <button type="button" onClick={onClose}>Done</button>
+        <div className="modal-actions center-actions">
+          <button type="button" className="modal-btn modal-btn-secondary" onClick={onClose}>Done</button>
           <button
             type="button"
-            className="add-button"
+            className="modal-btn modal-btn-primary"
             disabled={!completedShare.image}
             onClick={() => {
               if (!completedShare.image) return

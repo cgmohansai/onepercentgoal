@@ -20,11 +20,11 @@ export function GoalDetailsModal({ goal, onClose, onDelete }) {
           </p>
         </div>
         
-        <div className="modal-actions" style={{ justifyContent: 'center' }}>
+        <div className="modal-actions center-actions">
           {onDelete && (
             <button
               type="button"
-              className="modal-danger-btn"
+              className="modal-btn modal-btn-danger"
               onClick={() => {
                 onClose()
                 onDelete(goal)
@@ -33,7 +33,7 @@ export function GoalDetailsModal({ goal, onClose, onDelete }) {
               Delete
             </button>
           )}
-          <button type="button" onClick={onClose}>Close</button>
+          <button type="button" className="modal-btn modal-btn-secondary" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>

@@ -110,7 +110,8 @@ import {
 } from './services/syncManager'
 import ErrorBoundary from './components/ErrorBoundary'
 import { MOTIVATIONAL_QUOTES } from './constants/quotes'
-import { resetMorphIndex, pauseMorphTimer, resumeMorphTimer } from './components/MorphText'
+import { resetMorphIndex, pauseMorphTimer, resumeMorphTimer, startMorphTimer } from './components/MorphText'
+import { triggerSideCannons } from './utils/confetti'
 
 if ('serviceWorker' in navigator) {
   const isCapacitorNative = () => Boolean(
@@ -438,35 +439,9 @@ function App() {
     }
   }, [active, currentUser ? (currentUser.id || currentUser._id || currentUser.email || 'user') : 'guest', resetScrollToTop])
 
-  // Constant top gap on every app open: the Android WebView can restore a
-  // previous scroll position, making the header gap look different per open.
-  // Force back to top on mount, focus, visibility return, and native resume.
+  // Initial scroll to top on app launch
   useEffect(() => {
     resetScrollToTop()
-    const onReturn = () => {
-      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
-        setHeaderHidden(false)
-        resetScrollToTop()
-      }
-    }
-    window.addEventListener('focus', onReturn)
-    document.addEventListener('visibilitychange', onReturn)
-    let resumeHandle = null
-    try {
-      if (isNativeShell() && CapacitorApp && typeof CapacitorApp.addListener === 'function') {
-        const maybePromise = CapacitorApp.addListener('resume', onReturn)
-        if (maybePromise && typeof maybePromise.then === 'function') {
-          maybePromise.then(h => { resumeHandle = h }).catch(() => {})
-        } else {
-          resumeHandle = maybePromise
-        }
-      }
-    } catch {}
-    return () => {
-      window.removeEventListener('focus', onReturn)
-      document.removeEventListener('visibilitychange', onReturn)
-      try { if (resumeHandle && typeof resumeHandle.remove === 'function') resumeHandle.remove() } catch {}
-    }
   }, [resetScrollToTop])
 
   useEffect(() => {
@@ -480,6 +455,12 @@ function App() {
       }
     }
   }, [authReady, shareUsername])
+
+  useEffect(() => {
+    if (authReady && !authLoading && active === 'Overview') {
+      startMorphTimer(5000)
+    }
+  }, [authReady, authLoading, active])
 
   useEffect(() => {
     // Desktop web: remove any static boot-loader immediately so only React's AdaptiveLoader is active
@@ -1085,7 +1066,7 @@ function App() {
       setStoredToken(result.token)
       setSessionToken(result.token)
       setCurrentUser(result.user)
-      resetMorphIndex()
+      pauseMorphTimer()
       setActive('Overview')
       setShowAuthModal(false)
       setAuthError('')
@@ -1166,6 +1147,8 @@ function App() {
     } finally {
       setAuthLoading(false)
       googleSignInInFlight.current = false
+      resetMorphIndex()
+      startMorphTimer(5000)
     }
   }
 
@@ -1426,6 +1409,9 @@ function App() {
     updateGoalsAndSyncTimeline(items => items.map(item => item.id === goal.id ? tempCompleted : item))
     setCompletionFlow(null)
     setCompletedShare({ goal: tempCompleted, note, image: null })
+    try {
+      triggerSideCannons()
+    } catch {}
 
     if (String(goal.id).startsWith('temp-')) {
       unmarkGoalInFlight(goal.id)
@@ -1644,7 +1630,10 @@ function App() {
   // Never the completed/total ratio, and never substituted for a goal's own %.
   const activeGoalsForAvg = goals.filter(g => !g.done && !g.completed)
   const avgActiveProgress = activeGoalsForAvg.length > 0
-    ? Math.round(activeGoalsForAvg.reduce((sum, g) => sum + (Number(g.value ?? g.progress_percent ?? 0) || 0), 0) / activeGoalsForAvg.length)
+    ? (() => {
+        const rawAvg = activeGoalsForAvg.reduce((sum, g) => sum + (Number(g.value ?? g.progress_percent ?? 0) || 0), 0) / activeGoalsForAvg.length
+        return Number.isInteger(rawAvg) ? rawAvg : parseFloat(rawAvg.toFixed(2))
+      })()
     : 0
 
   if (shareUsername) {

@@ -44,10 +44,10 @@ export function AddGoalModal({ isOpen, onClose, onSubmit, loading, deadline }) {
         </label>
         
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>
+          <button type="button" className="modal-btn modal-btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" disabled={loading}>
+          <button type="submit" className="modal-btn modal-btn-primary" disabled={loading}>
             {loading ? 'Saving…' : 'Add Target'}
           </button>
         </div>

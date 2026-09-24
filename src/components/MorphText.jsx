@@ -9,9 +9,11 @@ let globalMorphIndex = 0
 const morphListeners = new Set()
 let globalIntervalId = null
 let currentIntervalMs = 5000
+let timerEnabled = false
 
 function ensureGlobalMorphTimer(interval = 5000) {
   if (typeof window === 'undefined') return
+  if (!timerEnabled) return
   if (globalIntervalId && currentIntervalMs !== interval) {
     clearInterval(globalIntervalId)
     globalIntervalId = null
@@ -27,8 +29,10 @@ function ensureGlobalMorphTimer(interval = 5000) {
   }
 }
 
-// Start timer immediately with 5000ms (5 seconds) cadence
-ensureGlobalMorphTimer(5000)
+export function startMorphTimer(interval = 5000) {
+  timerEnabled = true
+  ensureGlobalMorphTimer(interval)
+}
 
 export function resetMorphIndex() {
   globalMorphIndex = 0
@@ -36,13 +40,13 @@ export function resetMorphIndex() {
     clearInterval(globalIntervalId)
     globalIntervalId = null
   }
-  ensureGlobalMorphTimer(currentIntervalMs)
   morphListeners.forEach((fn) => fn(0))
 }
 
 // Pause the morphing percentage/timer (e.g. while the auth loading overlay
 // is up) and resume it afterwards — timers start only when the dashboard is visible.
 export function pauseMorphTimer() {
+  timerEnabled = false
   if (globalIntervalId) {
     clearInterval(globalIntervalId)
     globalIntervalId = null
@@ -50,6 +54,7 @@ export function pauseMorphTimer() {
 }
 
 export function resumeMorphTimer() {
+  timerEnabled = true
   ensureGlobalMorphTimer(currentIntervalMs)
 }
 
@@ -87,7 +92,9 @@ export const MorphText = React.memo(function MorphText({
   }, [])
 
   useEffect(() => {
-    ensureGlobalMorphTimer(interval)
+    if (timerEnabled) {
+      ensureGlobalMorphTimer(interval)
+    }
     // Sync with global index on mount (keeps progress even when switching tabs)
     setCurrentIndex(globalMorphIndex)
     const listener = (idx) => setCurrentIndex(idx)
