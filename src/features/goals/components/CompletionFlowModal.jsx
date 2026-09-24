@@ -16,7 +16,7 @@ export function CompletionFlowModal({ flow, setFlow, onContinue, onComplete, onC
             onContinue()
           }}
         >
-        <p className="eyebrow eyebrow-sm">Mark as completed</p>
+        <p className="eyebrow eyebrow-sm" style={{ color: '#c9f36a' }}>MARK AS COMPLETED</p>
         <h2 className="modal-title-lg">{flow.goal.title}</h2>
         <div className="reflection-label-row" style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <label htmlFor="completion-reflection-note" className="reflection-label" style={{ margin: 0 }}>

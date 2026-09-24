@@ -520,11 +520,11 @@ export function WorkspacePage({
     return (
       <div className="workspace-page profile-page-custom">
         <header className="profile-page-header">
-          <div className="profile-header-left" style={{ width: '100%' }}>
-            <div className="goals-badge-row">
-              <span className="goals-sprint-badge">ACCOUNT OVERVIEW</span>
-            </div>
-            <div className="profile-title-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '16px' }}>
+          <div className="goals-badge-row">
+            <span className="goals-sprint-badge">ACCOUNT OVERVIEW</span>
+          </div>
+          <div className="goals-title-action-row">
+            <div className="goals-title-col">
               <h1 className="profile-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
                 <span className="title-main-text" style={{ whiteSpace: 'nowrap' }}>
                   User <em>Profile</em>
@@ -533,38 +533,38 @@ export function WorkspacePage({
                   description="Manage your personal settings, view cumulative statistics, and inspect sprint achievements."
                 />
               </h1>
-              
-              <div 
-                ref={settingsMenuRef} 
-                className="profile-settings-menu-container" 
-                style={{ position: 'relative' }}
+            </div>
+            
+            <div 
+              ref={settingsMenuRef} 
+              className="profile-settings-menu-container" 
+              style={{ position: 'relative' }}
+            >
+              <button
+                type="button"
+                className="profile-settings-btn circular-settings-btn"
+                onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                title="Account Settings & Logout"
+                aria-label="Settings"
               >
-                <button
-                  type="button"
-                  className="profile-settings-btn circular-settings-btn"
-                  onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-                  title="Account Settings & Logout"
-                  aria-label="Settings"
-                >
-                  <Gear size={17} weight="bold" />
-                </button>
+                <Gear size={17} weight="bold" />
+              </button>
 
-                {showSettingsMenu && (
-                  <div className="profile-settings-dropdown">
-                    <button
-                      type="button"
-                      className="profile-dropdown-item logout"
-                      onClick={() => {
-                        setShowSettingsMenu(false)
-                        if (onLogout) onLogout()
-                      }}
-                    >
-                      <SignOut size={16} weight="bold" />
-                      <span>Sign Out</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+              {showSettingsMenu && (
+                <div className="profile-settings-dropdown">
+                  <button
+                    type="button"
+                    className="profile-dropdown-item logout"
+                    onClick={() => {
+                      setShowSettingsMenu(false)
+                      if (onLogout) onLogout()
+                    }}
+                  >
+                    <SignOut size={16} weight="bold" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>

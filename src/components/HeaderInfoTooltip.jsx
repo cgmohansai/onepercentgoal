@@ -43,7 +43,7 @@ export function HeaderInfoTooltip({ description }) {
       left: `${left}px`,
       width: `${maxAllowedWidth}px`,
       maxWidth: `calc(100vw - 28px)`,
-      zIndex: 99999
+      zIndex: 100005
     })
     setArrowLeft(`${arrowX}px`)
   }

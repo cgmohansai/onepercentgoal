@@ -19,7 +19,7 @@ export function AddGoalModal({ isOpen, onClose, onSubmit, loading, deadline }) {
           setTitle('')
         }}
       >
-        <p className="eyebrow eyebrow-sm">New goal</p>
+        <p className="eyebrow eyebrow-sm" style={{ color: '#c9f36a' }}>NEW GOAL</p>
         <h2 className="modal-title-lg">What is the sprint goal?</h2>
         
         {deadline && (

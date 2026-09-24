@@ -32,6 +32,7 @@ export function EditProfileModal({ isOpen, onClose, user, onSubmit, loading, err
           onSubmit(form.username, form.display_name, form.bio)
         }}
       >
+        <p className="eyebrow" style={{ color: '#999b94' }}>EDIT PROFILE</p>
         <h2 className="modal-title-lg">Update public profile</h2>
         
         <label>
