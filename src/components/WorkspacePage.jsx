@@ -379,6 +379,7 @@ export function WorkspacePage({
         onShowGoalDetails={onShowGoalDetails}
         onNavigateRote={() => { if (setActive) setActive('Rote') }}
         isLoading={isNotesLoading}
+        userId={user?.id || user?._id || user?.email || ''}
       />
     )
   }

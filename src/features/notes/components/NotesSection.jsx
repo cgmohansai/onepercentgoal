@@ -47,7 +47,7 @@ function linksOf(note) {
  * reference links to any number of goals and rotes. Account-only,
  * local-first, idempotent sync via client-generated ids.
  */
-export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDetails, onNavigateRote, isLoading = false }) {
+export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDetails, onNavigateRote, isLoading = false, userId = '' }) {
   const [notes, setNotes] = useState(() => getStoredNotes())
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -142,6 +142,19 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
       unsub()
     }
   }, [refresh])
+
+  // Account switch guard: drop any in-memory notes from the previous account
+  // and reload from that account's (already wiped + refetched) cache.
+  const userIdRef = useRef(userId)
+  useEffect(() => {
+    if (userIdRef.current !== userId) {
+      userIdRef.current = userId
+      const fresh = getStoredNotes()
+      setNotes(fresh)
+      setInitialLoading(fresh.length === 0)
+      refresh().finally(() => setInitialLoading(false))
+    }
+  }, [userId, refresh])
 
   const upsertLocal = (fn) => {
     setNotes(prev => {

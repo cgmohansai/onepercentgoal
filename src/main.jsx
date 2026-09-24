@@ -67,6 +67,8 @@ import {
   mergeNotes,
   fetchNotes as fetchNotesApi,
 } from './features/notes/noteService'
+import { NOTES_STORAGE_KEY } from './features/notes/noteService'
+import { ROTES_STORAGE_PREFIX } from './features/rotes/roteUtils'
 import {
   createEmptyTimeline,
   updateSprintInTimeline,
@@ -111,6 +113,8 @@ import {
   markGoalInFlight,
   unmarkGoalInFlight,
   getSyncState,
+  getSyncQueue,
+  setSyncQueue,
   flushSyncQueue,
   SyncStatus
 } from './services/syncManager'
@@ -1151,6 +1155,15 @@ function App() {
       }
 
       // Always save session and log into the website Overview page first
+      // Account switch guard: if this login is a DIFFERENT user than the one
+      // whose data is cached, wipe every per-account cache first — otherwise
+      // the previous account's notes/rotes/goals leak into this session.
+      try {
+        const newUid = String(result.user?.id ?? result.user?._id ?? result.user?.email ?? '')
+        const prevUid = localStorage.getItem('opg.session.uid') || ''
+        if (prevUid && newUid && prevUid !== newUid) clearAccountCaches()
+        if (newUid) localStorage.setItem('opg.session.uid', newUid)
+      } catch {}
       setStoredToken(result.token)
       setSessionToken(result.token)
       setCurrentUser(result.user)
@@ -1377,6 +1390,41 @@ function App() {
     }
   }
 
+  // Wipes every per-account cache (notes, rotes, goals, profile, timeline,
+  // offline sync queue, deleted-goal tombstones) AND resets the matching
+  // in-memory state — so switching accounts can never leak one account's
+  // private data into another's. Device-level prefs (reminder time, sprint
+  // year info) are intentionally kept.
+  const clearAccountCaches = useCallback(() => {
+    try {
+      localStorage.removeItem(NOTES_STORAGE_KEY)
+      const doomed = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && (key.startsWith(ROTES_STORAGE_PREFIX) || key.startsWith('opg.timeline.'))) {
+          doomed.push(key)
+        }
+      }
+      doomed.forEach(key => localStorage.removeItem(key))
+      localStorage.removeItem('opg.dashboard.goals')
+      localStorage.removeItem('opg.profile')
+      localStorage.removeItem('opg.session.uid')
+    } catch {}
+    try { setSyncQueue([]) } catch {}
+    try { clearDeletedGoalIds() } catch {}
+    try {
+      setSyncStatus(
+        typeof navigator !== 'undefined' && navigator.onLine === false
+          ? SyncStatus.OFFLINE
+          : SyncStatus.SYNCED
+      )
+    } catch {}
+    setGoals([])
+    setRoteOverviewStats({ total: 0, completed: 0, percentage: 0, rotes: [] })
+    setProfile(null)
+    setTimelineHistory(createEmptyTimeline())
+  }, [])
+
   const logout = async () => {
     const token = sessionToken
     authLogout(token).catch(() => {})
@@ -1393,20 +1441,14 @@ function App() {
     setShowAuthModal(false)
     setSessionToken('')
     setCurrentUser(null)
-    setGoals([])
-    setRoteOverviewStats({ total: 0, completed: 0, percentage: 0, rotes: [] })
     setIsGoalsLoading(false)
     setIsRotesLoading(false)
     setIsNotesLoading(false)
-    setProfile(null)
-    setTimelineHistory(createEmptyTimeline())
     setHistoryModal(null)
     setCompletionFlow(null)
+    clearAccountCaches()
     try {
       localStorage.removeItem('opg.current_user')
-      localStorage.removeItem('opg.profile')
-      localStorage.removeItem('opg.dashboard.goals')
-      clearDeletedGoalIds()
     } catch {}
     resetScrollToTop()
   }
