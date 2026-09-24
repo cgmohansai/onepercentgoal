@@ -379,11 +379,7 @@ function App() {
   const [publicYear, setPublicYear] = useState(new Date().getFullYear())
 
   useEffect(() => {
-  if (isPrivacyPolicy) {
-    return <PrivacyPolicyPage headerHidden={headerHidden} />
-  }
-
-  if (shareUsername) {
+    if (shareUsername) {
       const fetchPublic = async () => {
         setPublicLoading(true)
         setPublicError('')
@@ -1858,6 +1854,10 @@ function App() {
         return Number.isInteger(rawAvg) ? rawAvg : parseFloat(rawAvg.toFixed(2))
       })()
     : 0
+
+  if (isPrivacyPolicy) {
+    return <PrivacyPolicyPage headerHidden={headerHidden} />
+  }
 
   if (shareUsername) {
     return (
