@@ -1,6 +1,7 @@
 import { registerPlugin } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import { getYearData } from './utils/dateUtils'
+import { formatSprintRemaining, currentSprintEndMs } from './utils/sprintCountdown.js'
 
 export const isNativeApp = () => Boolean(
   window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
@@ -30,10 +31,15 @@ export function calculateSprintTimeLeft(hour, minute, sprintEndInput) {
   // Recompute the live boundary offline instead of reporting 0h 0m.
   if (!endDate || isNaN(endDate.getTime()) || endDate.getTime() <= Date.now()) {
     try {
-      const yearData = getYearData()
-      const liveEnd = yearData.checkpointEnd || (yearData.sprint_end ? new Date(yearData.sprint_end) : null)
-      if (liveEnd && !isNaN(liveEnd.getTime()) && liveEnd.getTime() > Date.now()) {
-        endDate = liveEnd
+      const liveMs = currentSprintEndMs(Date.now())
+      if (liveMs > Date.now()) {
+        endDate = new Date(liveMs)
+      } else {
+        const yearData = getYearData()
+        const liveEnd = yearData.checkpointEnd || (yearData.sprint_end ? new Date(yearData.sprint_end) : null)
+        if (liveEnd && !isNaN(liveEnd.getTime()) && liveEnd.getTime() > Date.now()) {
+          endDate = liveEnd
+        }
       }
     } catch {}
   }
@@ -49,23 +55,14 @@ export function calculateSprintTimeLeft(hour, minute, sprintEndInput) {
     triggerTime.setDate(triggerTime.getDate() + 1)
   }
 
-  const diffMs = endDate.getTime() - triggerTime.getTime()
-  if (diffMs > 0) {
-    const totalMins = Math.floor(diffMs / (60 * 1000))
-    const h = Math.floor(totalMins / 60)
-    const m = totalMins % 60
-    return `${h}h ${m}m`
-  }
+  // Minutes always round UP (35s left shows "1m", never "0m"); an ended
+  // sprint surfaces explicitly instead of a misleading "0h 0m".
+  const atTrigger = formatSprintRemaining(endDate.getTime(), triggerTime.getTime())
+  if (atTrigger.state === 'active') return atTrigger.text
+  const rightNow = formatSprintRemaining(endDate.getTime(), now.getTime())
+  if (rightNow.state === 'active') return rightNow.text
 
-  const directDiffMs = endDate.getTime() - now.getTime()
-  if (directDiffMs > 0) {
-    const totalMins = Math.floor(directDiffMs / (60 * 1000))
-    const h = Math.floor(totalMins / 60)
-    const m = totalMins % 60
-    return `${h}h ${m}m`
-  }
-
-  return '0h 0m'
+  return 'Sprint ended'
 }
 
 export function calculateTodayTimeLeft(hour, minute) {

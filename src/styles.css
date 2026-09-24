@@ -2921,6 +2921,10 @@ body,
 .rote-overview-card .sprint-summary-header h2 > span:first-child {
   line-height: 1 !important;
   display: inline-block !important;
+  /* Neutralize the generic mobile `.sprint-summary-header h2 span` rule
+     (12px block date style) which otherwise shrinks the card title itself. */
+  font-size: inherit !important;
+  margin: 0 !important;
 }
 .rote-overview-card .sprint-summary-header h2 .daywise-badge {
   align-self: flex-end !important;
