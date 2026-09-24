@@ -1018,13 +1018,6 @@ button.ghost.btn-delete:hover:not(:disabled) {
   color: #fca5a5;
   font-family: 'DM Mono', monospace;
 }
-/* Gap preserved after pill removal (desktop); phone keeps its 20px rule */
-@media (min-width: 769px) {
-  .goals-badge-row:empty,
-  .profile-badge-row:empty {
-    height: 32px;
-  }
-}
 @media (max-width: 768px) {
   .notes-grid {
     grid-template-columns: 1fr;
@@ -6753,9 +6746,9 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   html {
     overflow-x: hidden;
   }
-  /* Sections stick to the top with tight, clean gap without dead space */
+  /* Sections on mobile & Android: increased gap from the top edge to the main title */
   .app-shell.section-mode {
-    top: calc(6px + var(--safe-top, 0px)) !important;
+    top: calc(20px + var(--safe-top, 0px)) !important;
   }
   .content {
     margin-top: 0 !important;
@@ -6770,7 +6763,7 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   .app-shell.section-mode .profile-page,
   .app-shell.section-mode .notes-page-custom {
     margin-top: 0 !important;
-    padding-top: 0 !important;
+    padding-top: 10px !important;
   }
   .workspace-page > .goals-page-header,
   .workspace-page > .timeline-page-header,
@@ -6780,11 +6773,11 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   .app-shell.section-mode .profile-page-header,
   .app-shell.section-mode .rote-page-header {
     margin-top: 0 !important;
-    padding-top: 0 !important;
+    padding-top: 6px !important;
   }
   .app-shell.section-mode .goals-badge-row {
     margin-top: 0 !important;
-    margin-bottom: 2px !important;
+    margin-bottom: 8px !important;
   }
   .goals-page-custom .goals-sprint-title,
   .rote-page-custom .goals-sprint-title,
@@ -7034,6 +7027,14 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
    768px query above. */
 body.capacitor-native .app-shell:not(.logged-out) .content {
   padding-bottom: 136px !important;
+}
+
+body.capacitor-native .app-shell.section-mode {
+  top: calc(24px + var(--safe-top, 0px)) !important;
+}
+
+body.capacitor-native .app-shell.section-mode .workspace-page {
+  padding-top: 12px !important;
 }
 
 /* ── #8.2 mobile-first patch: touch, overflow, modal/keyboard, hierarchy ── */

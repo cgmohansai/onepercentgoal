@@ -385,7 +385,9 @@ export function WorkspacePage({
     return (
       <div className="workspace-page timeline-page-custom">
         <header className="timeline-page-header">
-          <div className="goals-badge-row" aria-hidden="true" />
+          <div className="goals-badge-row">
+            <span className="goals-sprint-badge">THE YEAR IN 100 PARTS</span>
+          </div>
           <div className="goals-title-action-row">
             <div className="goals-title-col">
               <h1 className="timeline-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
@@ -519,7 +521,9 @@ export function WorkspacePage({
       <div className="workspace-page profile-page-custom">
         <header className="profile-page-header">
           <div className="profile-header-left" style={{ width: '100%' }}>
-            <div className="profile-badge-row" aria-hidden="true" />
+            <div className="goals-badge-row">
+              <span className="goals-sprint-badge">ACCOUNT OVERVIEW</span>
+            </div>
             <div className="profile-title-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '16px' }}>
               <h1 className="profile-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
                 <span className="title-main-text" style={{ whiteSpace: 'nowrap' }}>
