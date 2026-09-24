@@ -1181,8 +1181,13 @@ function App() {
         options: { scopes: ['email', 'profile'] },
       })
       const idToken = result?.idToken || ''
-      if (!idToken) throw new Error('Google sign-in returned no credential.')
-      await finishGoogleSignIn({ credential: idToken })
+      const rawAccess = result?.accessToken
+      const accessToken = (typeof rawAccess === 'string' ? rawAccess : rawAccess?.token) || ''
+      if (!idToken && !accessToken) throw new Error('Google sign-in returned no credential.')
+      await finishGoogleSignIn({
+        credential: idToken || undefined,
+        access_token: accessToken || undefined,
+      })
     } catch (error) {
       setAuthLoading(false)
       googleSignInInFlight.current = false

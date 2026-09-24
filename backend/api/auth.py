@@ -50,8 +50,8 @@ async def auth_google_verify(payload: GoogleVerifyPayload, response: Response, b
 
     credential = (payload.credential or "").strip()
     access_token = (payload.access_token or "").strip()
+    idinfo = None
     if credential:
-        idinfo = None
         if google_id_token and _google_auth_request:
             try:
                 idinfo = google_id_token.verify_oauth2_token(
@@ -69,14 +69,19 @@ async def auth_google_verify(payload: GoogleVerifyPayload, response: Response, b
                     )
                     if resp.is_success:
                         data = resp.json()
-                        if data.get("aud") == GOOGLE_CLIENT_ID:
+                        token_aud = str(data.get("aud", "")).strip()
+                        token_azp = str(data.get("azp", "")).strip()
+                        client_prefix = GOOGLE_CLIENT_ID.split("-")[0] if "-" in GOOGLE_CLIENT_ID else GOOGLE_CLIENT_ID
+                        if (
+                            token_aud == GOOGLE_CLIENT_ID
+                            or token_azp == GOOGLE_CLIENT_ID
+                            or (client_prefix and (token_aud.startswith(client_prefix) or token_azp.startswith(client_prefix)))
+                        ):
                             idinfo = data
             except Exception:
                 idinfo = None
 
-        if not idinfo:
-            raise HTTPException(status_code=400, detail="Invalid or expired Google credential")
-    elif access_token:
+    if not idinfo and access_token:
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:
                 token_response = await client.get(
@@ -84,18 +89,26 @@ async def auth_google_verify(payload: GoogleVerifyPayload, response: Response, b
                     params={"access_token": access_token},
                 )
                 profile_response = await client.get(
-                    "https://openidconnect.googleapis.com/v1/userinfo",
+                    "openidconnect.googleapis.com/v1/userinfo" if False else "https://openidconnect.googleapis.com/v1/userinfo",
                     headers={"Authorization": f"Bearer {access_token}"},
                 )
             token_info = token_response.json() if token_response.is_success else {}
-            idinfo = profile_response.json() if profile_response.is_success else {}
-            if token_info.get("aud") != GOOGLE_CLIENT_ID:
-                idinfo = {}
+            prof_info = profile_response.json() if profile_response.is_success else {}
+            token_aud = str(token_info.get("aud", "")).strip()
+            token_azp = str(token_info.get("azp", "")).strip()
+            client_prefix = GOOGLE_CLIENT_ID.split("-")[0] if "-" in GOOGLE_CLIENT_ID else GOOGLE_CLIENT_ID
+            if (
+                token_aud == GOOGLE_CLIENT_ID
+                or token_azp == GOOGLE_CLIENT_ID
+                or (client_prefix and (token_aud.startswith(client_prefix) or token_azp.startswith(client_prefix)))
+            ):
+                idinfo = prof_info
         except (httpx.HTTPError, ValueError):
-            idinfo = {}
-        if not idinfo:
-            raise HTTPException(status_code=400, detail="Invalid or expired Google access token")
-    else:
+            idinfo = None
+
+    if not idinfo:
+        if credential or access_token:
+            raise HTTPException(status_code=400, detail="Invalid or expired Google credential")
         raise HTTPException(status_code=400, detail="Missing Google credential")
 
     email = str(idinfo.get("email", "")).strip().lower()
