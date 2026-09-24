@@ -7615,6 +7615,85 @@ body.capacitor-native .sprint-modal {
   border-top: 1px solid #282b24 !important;
 }
 
+/* Privacy Policy page */
+.privacy-page-custom {
+  animation: fadeIn 0.3s ease;
+}
+.privacy-policy-card {
+  padding: 28px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+.privacy-section h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #f6f5f1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.privacy-section-num {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-weight: 400;
+  color: #c9f36a;
+}
+.privacy-section p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: #c1c4ba;
+}
+.privacy-section p:last-child {
+  margin-bottom: 0;
+}
+.privacy-section a {
+  color: #c9f36a;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+.privacy-sub {
+  margin: 12px 0 0;
+}
+.privacy-sub h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #eef0e9;
+}
+.privacy-section ul {
+  margin: 8px 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.privacy-section li {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #c1c4ba;
+}
+.privacy-section li::marker {
+  color: #c9f36a;
+}
+.privacy-footnote {
+  color: #eef0e9 !important;
+  font-weight: 500;
+}
+@media (max-width: 640px) {
+  .privacy-policy-card {
+    padding: 22px 18px;
+    gap: 22px;
+  }
+  .privacy-section h2 {
+    font-size: 18px;
+  }
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

@@ -92,6 +92,7 @@ import LandingPage from './components/LandingPage'
 import OverviewPage from './components/OverviewPage'
 import WorkspacePage from './components/WorkspacePage'
 import PublicProfilePage from './components/PublicProfilePage'
+import PrivacyPolicyPage from './components/PrivacyPolicyPage'
 import NotFoundPage from './components/NotFoundPage'
 import AuthScreen from './features/auth/components/AuthModal'
 import AuthTransitionOverlay from './features/auth/components/AuthTransitionOverlay'
@@ -369,7 +370,8 @@ function App() {
   const shareMatch = normalizedPath.match(/^\/u\/([a-zA-Z0-9_-]+)$/)
   const shareUsername = shareMatch ? shareMatch[1] : null
   const isProfileRoute = normalizedPath.startsWith('/u')
-  const isOutOfBound = !isRootPath && !shareUsername
+  const isPrivacyPolicy = normalizedPath === '/privacy-policy'
+  const isOutOfBound = !isRootPath && !shareUsername && !isPrivacyPolicy
 
   const [publicData, setPublicData] = useState(null)
   const [publicLoading, setPublicLoading] = useState(Boolean(shareUsername))
@@ -377,7 +379,11 @@ function App() {
   const [publicYear, setPublicYear] = useState(new Date().getFullYear())
 
   useEffect(() => {
-    if (shareUsername) {
+  if (isPrivacyPolicy) {
+    return <PrivacyPolicyPage headerHidden={headerHidden} />
+  }
+
+  if (shareUsername) {
       const fetchPublic = async () => {
         setPublicLoading(true)
         setPublicError('')
