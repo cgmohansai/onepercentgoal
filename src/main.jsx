@@ -419,6 +419,7 @@ function App() {
   const [gisReady, setGisReady] = useState(false)
   const googleSignInInFlight = useRef(false)
   const gisInitializedRef = useRef(false)
+  const socialLoginInitRef = useRef(false)
   const [nativeAuthReturn, setNativeAuthReturn] = useState(() => getNativeAuthReturn())
   const [appReturnFlow, setAppReturnFlow] = useState(null)
 
@@ -1065,7 +1066,7 @@ function App() {
     refreshProfile(sessionToken, selectedTimelineYear)
   }, [selectedTimelineYear, currentUser, sessionToken])
 
-  const finishGoogleSignIn = async (payload) => {
+  const finishGoogleSignIn = async (payload, opts = {}) => {
     if (!payload || googleSignInInFlight.current) return
     googleSignInInFlight.current = true
     setAuthLoading(true)
@@ -1075,8 +1076,29 @@ function App() {
     try {
       await new Promise(resolve => requestAnimationFrame(resolve))
       // Bounded verification: never leave "Signing you in…" hanging if the
-      // backend stalls (e.g. localhost server not responding).
-      const result = await verifyGoogleCredential(payload, { timeout: 15000 })
+      // backend stalls (cold Render instance, slow network). Native gets a
+      // longer deadline; one automatic retry covers a sleeping backend —
+      // the first attempt wakes it, the retry succeeds.
+      const verifyTimeout = opts.timeoutMs || 15000
+      const maxAttempts = opts.retry === false ? 1 : 2
+      let result = null
+      for (let attempt = 1; ; attempt++) {
+        try {
+          result = await verifyGoogleCredential(payload, { timeout: verifyTimeout })
+          break
+        } catch (verifyErr) {
+          const msg = String(verifyErr?.message || '')
+          const retriable = verifyErr?.code === 'TIMEOUT'
+            || /service is unavailable \((5\d\d|429)\)/i.test(msg)
+            || /unreadable response/i.test(msg)
+          if (attempt < maxAttempts && retriable) {
+            setAuthStatus('Waking up server… retrying sign-in')
+            await new Promise(r => setTimeout(r, 1500))
+            continue
+          }
+          throw verifyErr
+        }
+      }
 
       // Always save session and log into the website Overview page first
       setStoredToken(result.token)
@@ -1156,8 +1178,10 @@ function App() {
       }
     } catch (err) {
       const isTimeout = err && err.code === 'TIMEOUT'
-      setAuthError(isTimeout
-        ? 'Sign-in timed out — the server took too long to respond. Please check your connection (and that the backend is running on localhost) and try again.'
+      const msg = String(err?.message || '')
+      const wakingUp = isTimeout || /service is unavailable \((5\d\d|429)\)/i.test(msg) || /unreadable response/i.test(msg)
+      setAuthError(wakingUp
+        ? 'Server is waking up — please wait a few seconds and try again.'
         : (err.message || 'Google authentication failed'))
       setShowAuthModal(true)
     } finally {
@@ -1189,27 +1213,51 @@ function App() {
     setAuthLoading(true)
     setAuthStatus('Choose your Google account…')
     setAuthError('')
+    // Wake the backend NOW while the account chooser is open: Render's free
+    // tier sleeps when idle and the first request can take 20-50s. Warming up
+    // here means verification (after account selection) hits a warm server.
     try {
-      await SocialLogin.initialize({ google: { webClientId: GOOGLE_CLIENT_ID } })
+      apiFetch('/api/sprint/current', { timeout: 25000 }).catch(() => {})
+    } catch {}
+    try {
+      if (!socialLoginInitRef.current) {
+        await SocialLogin.initialize({ google: { webClientId: GOOGLE_CLIENT_ID } })
+        socialLoginInitRef.current = true
+      }
       const { result } = await SocialLogin.login({
         provider: 'google',
         options: { scopes: ['email', 'profile'] },
       })
-      const idToken = result?.idToken || ''
-      const rawAccess = result?.accessToken
+      if (!result) throw new Error('Google sign-in returned no credential.')
+      // Offline-mode responses carry only serverAuthCode, which our backend
+      // cannot exchange — surface that distinctly instead of a vague failure.
+      if (result.responseType === 'offline' || (!result.idToken && !result.accessToken && result.serverAuthCode)) {
+        throw new Error('Google returned an offline auth code only. Please update the app and try again.')
+      }
+      const idToken = result.idToken || result.id_token || ''
+      const rawAccess = result.accessToken ?? result.access_token
       const accessToken = (typeof rawAccess === 'string' ? rawAccess : rawAccess?.token) || ''
-      if (!idToken && !accessToken) throw new Error('Google sign-in returned no credential.')
+      if (!idToken && !accessToken) {
+        console.warn('SocialLogin returned unexpected shape:', Object.keys(result))
+        throw new Error('Google sign-in returned no credential.')
+      }
+      setAuthStatus('Verifying with server…')
       await finishGoogleSignIn({
         credential: idToken || undefined,
         access_token: accessToken || undefined,
-      })
+      }, { timeoutMs: 30000 })
     } catch (error) {
       setAuthLoading(false)
       googleSignInInFlight.current = false
       const message = String(error?.message || '')
+      const code = String(error?.code || '')
       // User dismissing the chooser is not an error — just stop loading.
-      if (/cancel/i.test(message) || /USER_CANCELLED/i.test(message)) return
-      // [28444] = app SHA-1 / package not registered in Google Cloud Console.
+      if (/cancel/i.test(message) || /USER_CANCELLED/i.test(message) || /USER_CANCELLED/i.test(code)) return
+      // App SHA-1 / package not registered in Google Cloud Console.
+      if (/28444|DEVELOPER_ERROR|unregistered|SHA-?1/i.test(message)) {
+        setAuthError('Google sign-in is not set up for this app build yet. Please contact support.')
+        return
+      }
       setAuthError(message || 'Unable to sign in with Google. Please try again.')
     }
   }
