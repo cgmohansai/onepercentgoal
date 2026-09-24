@@ -681,10 +681,10 @@ a:focus-visible,
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #8e9189;
-  margin: 0 0 10px;
+  margin: 0 0 8px;
 }
 .notes-masonry + .notes-section-label {
-  margin-top: 18px;
+  margin-top: 8px;
 }
 .note-card {
   display: inline-block;
@@ -717,9 +717,7 @@ a:focus-visible,
   font-size: 15px;
   font-weight: 600;
   color: #f6f5f1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .note-card-icons {
   display: inline-flex;
