@@ -1069,9 +1069,18 @@ button.ghost.btn-delete:hover:not(:disabled) {
 @media (max-width: 768px) {
   .notes-grid {
     grid-template-columns: 1fr;
+    gap: 8px;
   }
   .notes-header-actions {
     width: 100%;
+  }
+  /* Overview rote card title: normal size on phones */
+  .rote-overview-card .sprint-summary-header h2 {
+    font-size: 24px !important;
+  }
+  .rote-overview-card .sprint-summary-header h2 .daywise-badge {
+    font-size: 9px !important;
+    margin-bottom: 4px !important;
   }
 }
 
@@ -7121,6 +7130,11 @@ html, body { overflow-x: clip; }
 .compounding-watermark { max-width: 100%; overflow: hidden; }
 button.mini-goal-item { min-height: 44px; }
 button.mini-goal-item:disabled { cursor: default; opacity: .85; }
+/* Mini goal/rote rows: title flexes and ellipsizes, status badge never wraps
+   or splits (fixes "DON / E" stacking on narrow phones with long text). */
+button.mini-goal-item { gap: 8px !important; }
+button.mini-goal-item > div:first-child { flex: 1 1 auto !important; min-width: 0 !important; }
+button.mini-goal-item > span:last-child { flex: none !important; white-space: nowrap !important; }
 @media (hover: none) {
   .goal-inline-actions { opacity: 1; }
   .track-thumb { opacity: 1; }
