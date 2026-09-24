@@ -139,7 +139,7 @@ export function WorkspacePage({
     const [hour, minute] = (localStorage.getItem('opg.reminders.time') || '21:00').split(':').map(Number)
     checkNotificationPermission()
       .then(granted => {
-        if (granted) return scheduleDailyReminders(hour, minute)
+        if (granted) return scheduleDailyReminders(hour, minute, data?.checkpointEnd, data?.sprintStart)
         setRemindersEnabled(false)
         return null
       })
@@ -164,7 +164,7 @@ export function WorkspacePage({
           return
         }
         const [hour, minute] = reminderTime.split(':').map(Number)
-        const pending = await scheduleDailyReminders(hour, minute)
+        const pending = await scheduleDailyReminders(hour, minute, data?.checkpointEnd, data?.sprintStart)
         setRemindersEnabled(true)
         localStorage.setItem('opg.reminders.enabled', '1')
         localStorage.setItem('opg.reminders.time', reminderTime)
@@ -215,7 +215,7 @@ export function WorkspacePage({
           showToast('Permission denied — allow notifications in Settings')
           return
         }
-        await scheduleDailyReminders(hour, minute)
+        await scheduleDailyReminders(hour, minute, data?.checkpointEnd, data?.sprintStart)
         localStorage.setItem('opg.reminders.enabled', '1')
         localStorage.setItem('opg.reminders.time', value)
         const exactAlarms = await areExactAlarmsAllowed()

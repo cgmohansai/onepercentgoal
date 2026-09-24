@@ -1955,6 +1955,7 @@ function App() {
         <CompletedShareModal
           completedShare={completedShare}
           onClose={() => setCompletedShare(null)}
+          onShowToast={showToast}
         />
         <GoalDetailsModal
           goal={selectedGoalDetails}

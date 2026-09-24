@@ -389,6 +389,11 @@ a:focus-visible,
   font-size: 11px !important;
   letter-spacing: 0.12em !important;
 }
+/* Equal vertical rhythm at the top of every modal: eyebrow → title → body */
+.completion-modal > .eyebrow:first-child,
+.modal-content > .eyebrow:first-child {
+  margin: 0 0 12px !important;
+}
 .modal-title-lg {
   font-size: 26px !important;
   line-height: 1.15 !important;
@@ -526,6 +531,37 @@ a:focus-visible,
   align-items: center;
   gap: 8px;
 }
+/* Info icon sits tight against the reflection label, pinned to its top-right */
+.reflection-label-row .cloud-info-container {
+  margin-left: 0 !important;
+  margin-top: 1px !important;
+  align-self: flex-start !important;
+}
+/* Completed-goal title: centered, green, serif italic */
+.completion-goal-title {
+  text-align: center !important;
+  color: #c9f36a !important;
+  font-family: 'Instrument Serif', serif !important;
+  font-style: italic !important;
+  font-weight: 400 !important;
+  margin-bottom: 12px !important;
+}
+/* Congrats hero: ecstatic, calm, satisfying — serif italic with a soft glow */
+.congrats-eyebrow {
+  text-align: center !important;
+}
+.congrats-hero {
+  margin: 0 0 20px !important;
+  text-align: center !important;
+  font-family: 'Instrument Serif', serif !important;
+  font-style: italic !important;
+  font-weight: 400 !important;
+  font-size: clamp(38px, 9vw, 52px) !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.01em !important;
+  color: #c9f36a !important;
+  text-shadow: 0 0 24px rgba(201, 243, 106, 0.35), 0 2px 12px rgba(0, 0, 0, 0.5) !important;
+}
 .confirm-goal-title {
   font-size: 24px;
 }
@@ -639,7 +675,7 @@ a:focus-visible,
   gap: 12px;
 }
 .note-card {
-  padding: 14px 16px;
+  padding: 12px 14px;
   cursor: pointer;
   text-align: left;
   font: inherit;
@@ -659,7 +695,7 @@ a:focus-visible,
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .note-card-title {
   font-size: 15px;
@@ -694,14 +730,13 @@ a:focus-visible,
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 58px;
 }
 .note-card-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 .note-card-date {
   font-family: 'DM Mono', monospace;
@@ -774,10 +809,18 @@ a:focus-visible,
   border-radius: var(--opg-radius-lg);
 }
 .note-editor-modal .notes-eyebrow {
-  font-size: 13px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  color: #c9f36a;
 }
 .note-editor-modal .notes-title-input {
-  font-size: 19px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  padding: 6px 2px 10px;
+  margin-bottom: 8px;
 }
 .note-editor-top {
   display: flex;
@@ -823,9 +866,14 @@ a:focus-visible,
   color: #f6f5f1;
   font-size: 14px;
   line-height: 1.6;
-  padding: 12px;
+  padding: 12px 14px;
   resize: vertical;
   min-height: 160px;
+  margin-top: 2px;
+}
+.note-editor-body:focus {
+  outline: none;
+  border-color: rgba(201, 243, 106, 0.5);
 }
 .note-editor-actions {
   display: flex;
@@ -7503,7 +7551,9 @@ body.capacitor-native .sprint-modal {
 .landing-footer + footer.app-main-footer,
 .landing-footer + .app-main-footer,
 .overview-staggered-grid + footer.app-main-footer,
-.overview-staggered-grid + .app-main-footer {
+.overview-staggered-grid + .app-main-footer,
+.reminders-card + footer.app-main-footer,
+.reminders-card + .app-main-footer {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   border-top: 1px solid #282b24 !important;

@@ -17,8 +17,8 @@ export function CompletionFlowModal({ flow, setFlow, onContinue, onComplete, onC
           }}
         >
         <p className="eyebrow eyebrow-sm" style={{ color: '#c9f36a' }}>MARK AS COMPLETED</p>
-        <h2 className="modal-title-lg">{flow.goal.title}</h2>
-        <div className="reflection-label-row" style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h2 className="modal-title-lg completion-goal-title">“{flow.goal.title}”</h2>
+        <div className="reflection-label-row" style={{ marginBottom: '12px', display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
           <label htmlFor="completion-reflection-note" className="reflection-label" style={{ margin: 0 }}>
             How did you complete it? (Required)
           </label>
@@ -51,7 +51,7 @@ export function CompletionFlowModal({ flow, setFlow, onContinue, onComplete, onC
             onComplete()
           }}
         >
-          <p className="eyebrow" style={{ color: '#c9f36a' }}>CONFIRMATION</p>
+          <p className="eyebrow eyebrow-sm" style={{ color: '#c9f36a' }}>CONFIRMATION</p>
           <h2 style={{ fontSize: '24px', marginBottom: '16px', fontWeight: '500', letterSpacing: '-.035em' }}>Ready to mark this goal as complete?</h2>
           
           <div className="confirm-summary-simple" style={{ display: 'block', width: '100%', boxSizing: 'border-box', background: '#171916', border: '1px solid #32352f', padding: '20px 24px', borderRadius: '6px', marginBottom: '24px', textAlign: 'center', wordBreak: 'break-word', maxHeight: '320px', overflowY: 'auto' }}>

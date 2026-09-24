@@ -26,6 +26,17 @@ export function calculateSprintTimeLeft(hour, minute, sprintEndInput) {
       }
     } catch {}
   }
+  // The cached sprint end goes stale after rollover (sprints last ~3.6 days).
+  // Recompute the live boundary offline instead of reporting 0h 0m.
+  if (!endDate || isNaN(endDate.getTime()) || endDate.getTime() <= Date.now()) {
+    try {
+      const yearData = getYearData()
+      const liveEnd = yearData.checkpointEnd || (yearData.sprint_end ? new Date(yearData.sprint_end) : null)
+      if (liveEnd && !isNaN(liveEnd.getTime()) && liveEnd.getTime() > Date.now()) {
+        endDate = liveEnd
+      }
+    } catch {}
+  }
   if (!endDate || isNaN(endDate.getTime())) {
     const yearData = getYearData()
     endDate = yearData.checkpointEnd || new Date(yearData.sprint_end)
@@ -164,10 +175,11 @@ export function getTargetDates(hour, minute) {
   return { targetGoal, targetRote }
 }
 
-export async function scheduleDailyReminders(hour, minute, sprintEndInput = null) {
+export async function scheduleDailyReminders(hour, minute, sprintEndInput = null, sprintStartInput = null) {
   await ensureNotificationChannel()
 
   let sprintEndMs = 0
+  let sprintStartMs = 0
   let endDate = null
   if (sprintEndInput) endDate = new Date(sprintEndInput)
   if (!endDate || isNaN(endDate.getTime())) {
@@ -185,6 +197,29 @@ export async function scheduleDailyReminders(hour, minute, sprintEndInput = null
   }
   if (endDate && !isNaN(endDate.getTime())) {
     sprintEndMs = endDate.getTime()
+  }
+  // Sprint start lets the native alarm roll the boundary forward on fire day,
+  // so the countdown never sticks at 0h 0m after a sprint rolls over.
+  let startDate = null
+  if (sprintStartInput) startDate = new Date(sprintStartInput)
+  if ((!startDate || isNaN(startDate.getTime())) && endDate && !isNaN(endDate.getTime())) {
+    try {
+      const stored = localStorage.getItem('opg.sprint.current')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (parsed?.sprint_start) startDate = new Date(parsed.sprint_start)
+      }
+    } catch {}
+  }
+  if ((!startDate || isNaN(startDate.getTime())) && endDate && !isNaN(endDate.getTime())) {
+    try {
+      const yearData = getYearData()
+      const liveStart = yearData.sprintStart || (yearData.sprint_start ? new Date(yearData.sprint_start) : null)
+      if (liveStart && !isNaN(liveStart.getTime())) startDate = liveStart
+    } catch {}
+  }
+  if (startDate && !isNaN(startDate.getTime())) {
+    sprintStartMs = startDate.getTime()
   }
 
   // Clear any legacy delivered notifications and pending alarms
@@ -209,7 +244,8 @@ export async function scheduleDailyReminders(hour, minute, sprintEndInput = null
       await NativeAlarmPlugin.scheduleDailyReminders({
         hour,
         minute,
-        sprintEndMs
+        sprintEndMs,
+        sprintStartMs
       })
       return 2
     } catch (e) {

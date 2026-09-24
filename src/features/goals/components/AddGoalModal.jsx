@@ -23,7 +23,7 @@ export function AddGoalModal({ isOpen, onClose, onSubmit, loading, deadline }) {
         <h2 className="modal-title-lg">What is the sprint goal?</h2>
         
         {deadline && (
-          <p className="goal-deadline" style={{ color: '#ff6b6b', fontFamily: '"DM Mono", monospace', fontSize: '11px', margin: '-12px 0 20px', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <p className="goal-deadline" style={{ color: '#ff6b6b', fontFamily: '"DM Mono", monospace', fontSize: '11px', margin: '-4px 0 16px', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
             DEADLINE: {deadline.toUpperCase()}
           </p>
         )}
