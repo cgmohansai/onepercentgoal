@@ -15,10 +15,10 @@ import { apiFetch, buildHeaders } from '../../services/apiClient.js'
  * @param {string|null} [token=null] - Optional session token
  * @returns {Promise<{ year: number, years: Array<number>, start_sprint: number, end_sprint: number, sprints: Array<object> }>}
  */
-export async function fetchTimeline(year = null, token = null) {
+export async function fetchTimeline(year = null, token = null, fetchOptions = {}) {
   const query = year ? `?year=${encodeURIComponent(year)}` : ''
   const headers = buildHeaders({}, token)
-  const res = await apiFetch(`/api/timeline${query}`, { headers })
+  const res = await apiFetch(`/api/timeline${query}`, { ...fetchOptions, headers })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || `Failed to fetch timeline (${res.status})`)

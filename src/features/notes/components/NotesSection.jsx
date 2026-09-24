@@ -47,7 +47,7 @@ function linksOf(note) {
  * reference links to any number of goals and rotes. Account-only,
  * local-first, idempotent sync via client-generated ids.
  */
-export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDetails, onNavigateRote }) {
+export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDetails, onNavigateRote, isLoading = false }) {
   const [notes, setNotes] = useState(() => getStoredNotes())
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -55,6 +55,9 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
   const [creating, setCreating] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [busy, setBusy] = useState(false)
+  // First-open gate: when the cache starts empty, show a syncing skeleton
+  // instead of "No notes yet" until the first server refresh settles.
+  const [initialLoading, setInitialLoading] = useState(() => getStoredNotes().length === 0)
   const searchInputRef = useRef(null)
 
   const goalList = useMemo(
@@ -116,7 +119,7 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
   }, [])
 
   useEffect(() => {
-    refresh()
+    refresh().finally(() => setInitialLoading(false))
     // Reconcile after background queue flushes (e.g. offline creates that
     // just synced) whenever the tab regains focus or becomes visible.
     const onFocus = () => refresh()
@@ -459,7 +462,13 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
               )}
             </div>
             <div className="notes-search-results">
-              {visible.length === 0 ? (
+      {((isLoading || initialLoading) && notes.filter(n => !n.deleted).length === 0) ? (
+        <div className="rote-skeleton-wrap" aria-label="Syncing notes">
+          <div className="rote-skeleton-row" />
+          <div className="rote-skeleton-row" />
+          <div className="rote-skeleton-row" />
+        </div>
+      ) : visible.length === 0 ? (
                 <p className="notes-empty">No matching notes.</p>
               ) : (
                 visible.slice(0, 30).map(note => (

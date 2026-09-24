@@ -68,6 +68,7 @@ export function WorkspacePage({
   setActive,
   roteStats,
   isGoalsLoading = false,
+  isNotesLoading = false,
 }) {
 
   // Profile image cropping state
@@ -377,6 +378,7 @@ export function WorkspacePage({
         showToast={showToast}
         onShowGoalDetails={onShowGoalDetails}
         onNavigateRote={() => { if (setActive) setActive('Rote') }}
+        isLoading={isNotesLoading}
       />
     )
   }

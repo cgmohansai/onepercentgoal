@@ -141,14 +141,14 @@ export function createLocalNote({ body, title = '', links = [], goalId = null, r
   };
 }
 
-export async function fetchNotes({ goalId = null, roteId = null, includeDeleted = false, token = null } = {}) {
+export async function fetchNotes({ goalId = null, roteId = null, includeDeleted = false, token = null, timeout = 0 } = {}) {
   const params = new URLSearchParams()
   if (goalId !== null && goalId !== undefined) params.set('goal_id', String(goalId))
   if (roteId !== null && roteId !== undefined) params.set('rote_id', String(roteId))
   if (includeDeleted) params.set('include_deleted', 'true')
   const qs = params.toString()
   const headers = buildHeaders({}, token || getStoredToken())
-  const res = await apiFetch(`/api/notes${qs ? `?${qs}` : ''}`, { headers })
+  const res = await apiFetch(`/api/notes${qs ? `?${qs}` : ''}`, { headers, ...(timeout > 0 ? { timeout } : {}) })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || `Unable to load notes (${res.status})`)

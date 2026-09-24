@@ -62,6 +62,12 @@ import {
   fetchSprintHistory as fetchSprintHistoryApi,
 } from './features/timeline/timelineService'
 import {
+  getStoredNotes,
+  persistNotes,
+  mergeNotes,
+  fetchNotes as fetchNotesApi,
+} from './features/notes/noteService'
+import {
   createEmptyTimeline,
   updateSprintInTimeline,
   syncTimelineWithGoals,
@@ -224,6 +230,7 @@ function App() {
 
   const [isGoalsLoading, setIsGoalsLoading] = useState(true)
   const [isRotesLoading, setIsRotesLoading] = useState(true)
+  const [isNotesLoading, setIsNotesLoading] = useState(true)
 
   const [roteOverviewStats, setRoteOverviewStats] = useState(() => {
     const todayStr = getTodayYMD()
@@ -815,14 +822,17 @@ function App() {
   const greeting = hr < 4 ? 'Good night' : hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : hr < 22 ? 'Good evening' : 'Good night'
   const completeGoals = goals.filter(g => g.done).length
 
-  const refreshProfile = async (token, year) => {
+  const refreshProfile = async (token, year, fetchOptions = {}) => {
     const activeToken = token || sessionToken
     if (!activeToken) return
     const yr = year || selectedTimelineYear
+    // Bounded so full-sync gates (login overlay, startup ripple) can never
+    // hang on a stalled profile/timeline request.
+    const timeout = typeof fetchOptions.timeout === 'number' ? fetchOptions.timeout : 10000
     try {
       const [profileRes, timelineData] = await Promise.all([
-        apiFetch(`/api/profile?year=${yr}`, { headers: { Authorization: `Bearer ${activeToken}` } }),
-        fetchTimelineApi(yr, activeToken).catch(() => null)
+        apiFetch(`/api/profile?year=${yr}`, { headers: { Authorization: `Bearer ${activeToken}` }, timeout }),
+        fetchTimelineApi(yr, activeToken, { timeout }).catch(() => null)
       ])
       if (!profileRes.ok) throw new Error('Unable to load profile')
       const profileData = await profileRes.json()
@@ -855,7 +865,7 @@ function App() {
         if (isBackground && haveGoalsDiffered(prev, merged)) {
           // Cross-device update: apply instantly so TASK OVERVIEW never
           // shows a stale count, flash the ripple without blocking data.
-          triggerTransientSync(900)
+          triggerTransientSync(500)
           updateGoalsAndSyncTimeline(merged)
           return merged
         }
@@ -895,12 +905,34 @@ function App() {
         const merged = mergeRotes(rotesData.rotes, localRotes)
         if (isBackground && haveRotesDiffered(localRotes, merged)) {
           // Apply instantly, ripple only as visual feedback.
-          triggerTransientSync(900)
+          triggerTransientSync(500)
         }
         handleRotesChanged({ ...rotesData, rotes: merged })
       }
     } catch {} finally {
       setIsRotesLoading(false)
+    }
+  }
+
+  const loadNotes = async (token, isBackground = false) => {
+    const activeToken = token || sessionToken || getStoredToken()
+    if (!activeToken) {
+      setIsNotesLoading(false)
+      return
+    }
+    if (!isBackground) setIsNotesLoading(true)
+    try {
+      const server = await fetchNotesApi({ includeDeleted: true, token: activeToken })
+      const serverList = Array.isArray(server) ? server : (server?.notes || [])
+      const local = getStoredNotes()
+      const merged = mergeNotes(serverList, local)
+      if (isBackground && JSON.stringify(merged) !== JSON.stringify(local)) {
+        // Fresh notes arrived from another device — ripple only, data first.
+        triggerTransientSync(500)
+      }
+      persistNotes(merged)
+    } catch {} finally {
+      setIsNotesLoading(false)
     }
   }
 
@@ -919,6 +951,7 @@ function App() {
       if (getSyncState().status === SyncStatus.SYNCING) return
       loadDashboard(sessionToken, true)
       loadRotes(sessionToken, true)
+      loadNotes(sessionToken, true)
       flushSyncQueue(sessionToken)
     }
 
@@ -966,9 +999,11 @@ function App() {
   }, [currentUser, sessionToken])
 
   // Startup & Post-Login Synchronization:
-  // Fetch updated goals & rotes from the server in parallel and apply them to
-  // the UI the instant they arrive — the blue ripple is purely visual and must
-  // never block fresh TASK OVERVIEW counts.
+  // Fetch updated goals, rotes, notes and profile from the server in parallel
+  // and apply each to the UI the instant it arrives. The sync loading (blue
+  // ripple + skeletons) only disappears after ALL of them have settled, so
+  // Overview, Goals, Rote, Notes, Timeline and Profile open fully fresh —
+  // never with an empty/stale section that fills in seconds later.
   useEffect(() => {
     if (!currentUser || !sessionToken) return
 
@@ -977,13 +1012,14 @@ function App() {
       setSyncStatus(SyncStatus.SYNCING)
       setIsGoalsLoading(true)
       setIsRotesLoading(true)
+      setIsNotesLoading(true)
       const startTime = Date.now()
       const todayStr = getTodayYMD()
 
       try {
         // Bounded: each request aborts on its own deadline so a stalled
-        // backend can never leave the sync badge / goals skeleton stuck.
-        // Goals and rotes apply independently the moment each resolves.
+        // backend can never leave the sync badge / skeletons stuck.
+        // Each dataset applies independently the moment it resolves.
         const dashPromise = fetchDashboard(sessionToken, { timeout: 10000 })
           .then(dashData => {
             if (cancelled) return
@@ -1017,16 +1053,29 @@ function App() {
             if (!cancelled) setIsRotesLoading(false)
           })
 
+        const notesPromise = fetchNotesApi({ includeDeleted: true, token: sessionToken, timeout: 10000 })
+          .then(server => {
+            if (cancelled) return
+            const serverList = Array.isArray(server) ? server : (server?.notes || [])
+            persistNotes(mergeNotes(serverList, getStoredNotes()))
+            setIsNotesLoading(false)
+          })
+          .catch(() => {
+            if (!cancelled) setIsNotesLoading(false)
+          })
+
+        const profilePromise = refreshProfile(sessionToken, undefined, { timeout: 10000 }).catch(() => {})
+
         const flushPromise = flushSyncQueue(sessionToken).catch(() => {})
 
-        await Promise.allSettled([dashPromise, rotesPromise, flushPromise])
+        await Promise.allSettled([dashPromise, rotesPromise, notesPromise, profilePromise, flushPromise])
         if (cancelled) return
 
-        // Keep the blue ripple visible for at least 750ms for perception,
+        // Keep the blue ripple visible briefly for perception,
         // but the fresh data above is already on screen.
         const elapsed = Date.now() - startTime
-        if (elapsed < 750) {
-          await new Promise(r => setTimeout(r, 750 - elapsed))
+        if (elapsed < 400) {
+          await new Promise(r => setTimeout(r, 400 - elapsed))
         }
         if (cancelled) return
 
@@ -1037,6 +1086,7 @@ function App() {
         if (!cancelled) {
           setIsGoalsLoading(false)
           setIsRotesLoading(false)
+          setIsNotesLoading(false)
         }
       }
     }
@@ -1116,16 +1166,24 @@ function App() {
         }
       } catch {}
 
-      // Fetch fresh goals & routines from server while "Your dashboard is almost ready" is showing!
-      // Bounded preload: each request aborts after 12s so the overlay can
+      // Fetch fresh goals, routines, notes and profile from the server while
+      // "Preparing your dashboard…" is showing. The overlay only lifts after
+      // ALL of them have settled, so Overview opens with every section
+      // already reflecting this exact moment — nothing fills in seconds later.
+      // Bounded preload: each request aborts after 8s so the overlay can
       // never get stuck here — login always completes and the background
       // sync effect picks up whatever is still missing.
       setAuthStatus('Preparing your dashboard…')
+      setIsGoalsLoading(true)
+      setIsRotesLoading(true)
+      setIsNotesLoading(true)
       const todayStr = getTodayYMD()
       try {
-        const [dashResult, rotesResult] = await Promise.allSettled([
+        const [dashResult, rotesResult, notesResult] = await Promise.allSettled([
           fetchDashboard(result.token, { timeout: 8000 }),
           fetchRotesApi(todayStr, result.token, { timeout: 8000 }),
+          fetchNotesApi({ includeDeleted: true, token: result.token, timeout: 8000 }),
+          refreshProfile(result.token, undefined, { timeout: 8000 }),
         ])
 
         if (dashResult.status === 'fulfilled' && dashResult.value) {
@@ -1150,8 +1208,18 @@ function App() {
             handleRotesChanged({ ...rotesData, rotes: mergedRotes })
           }
         }
+
+        if (notesResult.status === 'fulfilled' && notesResult.value !== undefined) {
+          const server = notesResult.value
+          const serverList = Array.isArray(server) ? server : (server?.notes || [])
+          persistNotes(mergeNotes(serverList, getStoredNotes()))
+        }
       } catch (loadErr) {
         console.warn('Initial data load warning:', loadErr)
+      } finally {
+        setIsGoalsLoading(false)
+        setIsRotesLoading(false)
+        setIsNotesLoading(false)
       }
 
       setSyncStatus(SyncStatus.SYNCED)
@@ -1329,6 +1397,7 @@ function App() {
     setRoteOverviewStats({ total: 0, completed: 0, percentage: 0, rotes: [] })
     setIsGoalsLoading(false)
     setIsRotesLoading(false)
+    setIsNotesLoading(false)
     setProfile(null)
     setTimelineHistory(createEmptyTimeline())
     setHistoryModal(null)
@@ -1840,6 +1909,7 @@ function App() {
             setActive={setActive}
             roteStats={roteOverviewStats}
             isGoalsLoading={isGoalsLoading}
+            isNotesLoading={isNotesLoading}
           />
         ) : (
           <OverviewPage
@@ -1857,8 +1927,6 @@ function App() {
             setAddGoalModalOpen={setAddGoalModalOpen}
             showGoalDetails={showGoalDetails}
             toggleRoteFromOverview={toggleRoteFromOverview}
-            isGoalsLoading={isGoalsLoading}
-            isRotesLoading={isRotesLoading}
           />
         )}
 
