@@ -2,6 +2,8 @@
  * Timeline utilities and transformation helpers for OnePercentGoal (OPG).
  */
 
+import { getSprintBoundary } from '../../utils/dateUtils.js'
+
 /**
  * Creates an empty timeline history container.
  *
@@ -191,6 +193,10 @@ export function syncTimelineWithGoals(timeline, currentYear, currentSprintNumber
         {
           year: currentYear,
           sprint_number: sNum,
+          // Date range so the tile never renders empty "()" before the
+          // server timeline arrives.
+          sprint_start: getSprintBoundary(currentYear, sNum - 1).toISOString(),
+          sprint_end: getSprintBoundary(currentYear, sNum).toISOString(),
           goal_count: total,
           completed_count: completed,
           average_progress,

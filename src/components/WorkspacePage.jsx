@@ -427,38 +427,6 @@ export function WorkspacePage({
         </header>
 
         <section className="timeline">
-          {Number(history?.start_sprint) > 1 && (() => {
-            const preJoinTiles = []
-            for (let N = 1; N < Number(history.start_sprint); N++) {
-              const preJoinStart = getSprintBoundary(selectedYear, N - 1)
-              const preJoinEnd = getSprintBoundary(selectedYear, N)
-              const preJoinDateStr = formatSprintDateRange(preJoinStart, preJoinEnd)
-
-              preJoinTiles.push(
-                <div key={`prejoin-${N}`} className="sprint-tile upcoming" style={{ background: '#161815', border: '1px dashed #343630', borderRadius: '6px', cursor: 'default', opacity: 0.55, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
-                  <div>
-                    <span style={{ color: '#7f8279', fontFamily: '"DM Mono", monospace', fontSize: '8px', letterSpacing: '.12em', textTransform: 'uppercase', display: 'block' }}>SPRINT</span>
-                    <b style={{ display: 'block', marginTop: '9px', color: '#676a62', fontFamily: '"Instrument Serif", serif', fontSize: '30px', fontWeight: '400' }}>
-                      #{String(N).padStart(2, '0')}
-                      <span className="sprint-tile-dates">
-                        ({preJoinDateStr})
-                      </span>
-                    </b>
-                  </div>
-                  <div>
-                    <small style={{ display: 'block', marginTop: '18px', color: '#989c92', fontFamily: '"DM Mono", monospace', fontSize: '9px', letterSpacing: '.08em', textTransform: 'uppercase' }}>
-                      NOT JOINED
-                    </small>
-                    <strong style={{ display: 'block', marginTop: '6px', color: '#676a62', fontFamily: '"DM Mono", monospace', fontSize: '12px', fontWeight: '500' }}>
-                      Before you joined
-                    </strong>
-                  </div>
-                </div>
-              )
-            }
-            return preJoinTiles
-          })()}
-
           {(history?.sprints || []).map(summary => {
             const number = summary.sprint_number
             const state = getSprintTileState(number, selectedYear, data.year, data.sprint)

@@ -3708,7 +3708,7 @@ body.capacitor-native .completion-modal .cloud-info-btn svg {
   flex-direction: column !important;
   align-items: flex-start !important;
   justify-content: flex-start !important;
-  gap: 12px !important;
+  gap: 0 !important;
   margin-bottom: 24px !important;
   border-bottom: 1px solid #2f322b !important;
   padding-top: 0 !important;
@@ -3716,17 +3716,16 @@ body.capacitor-native .completion-modal .cloud-info-btn svg {
   overflow: visible !important;
 }
 
-.profile-page-custom .profile-page-header {
-  padding-bottom: 24px !important;
-  margin-bottom: 24px !important;
+@media (min-width: 769px) {
+  .profile-page-custom .profile-page-header {
+    padding-bottom: 12px !important;
+    margin-bottom: 16px !important;
+  }
 }
 .goals-badge-row,
 .profile-badge-row {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  align-self: flex-start;
-  width: auto;
   margin: 0 !important;
   padding: 0 !important;
 }
@@ -3841,7 +3840,7 @@ body.capacitor-native .completion-modal .cloud-info-btn svg {
   .goals-page-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px !important;
+    gap: 8px !important;
     padding-top: 18px;
     padding-bottom: 24px;
     margin-bottom: 22px;
@@ -3872,9 +3871,7 @@ body.capacitor-native .completion-modal .cloud-info-btn svg {
 .timeline-page-header {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 12px !important;
+  gap: 0 !important;
   margin-bottom: 24px;
   border-bottom: 1px solid #2f322b;
   padding-bottom: 24px;
@@ -3970,15 +3967,19 @@ body.capacitor-native .completion-modal .cloud-info-btn svg {
   animation: fadeIn 0.3s ease;
 }
 .profile-page-header {
-  display: flex !important;
-  flex-direction: column !important;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #2f322b;
+  padding-bottom: 24px;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+/* Keep ACCOUNT OVERVIEW badge + title left-aligned like Goals/Timeline/Rotes/Notes */
+.profile-page-header {
   align-items: flex-start !important;
   justify-content: flex-start !important;
-  margin-bottom: 24px !important;
-  border-bottom: 1px solid #2f322b !important;
-  padding-bottom: 24px !important;
-  gap: 12px !important;
-  flex-wrap: nowrap !important;
 }
 .profile-header-left {
   flex: 1 1 400px;
@@ -4160,13 +4161,12 @@ body.capacitor-native .completion-modal .cloud-info-btn svg {
 }
 
 @media (max-width: 640px) {
-  .timeline-page-header, .profile-page-header,
-  .goals-page-header, .rote-page-header {
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 12px !important;
-    padding-bottom: 18px !important;
-    margin-bottom: 20px !important;
+  .timeline-page-header, .profile-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 18px;
+    padding-bottom: 18px;
+    margin-bottom: 20px;
   }
   .timeline-header-left, .profile-header-left {
     flex-basis: 100%;
@@ -6673,7 +6673,7 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   .timeline-page-header,
   .profile-page-header,
   .rote-page-header {
-    gap: 12px !important;
+    gap: 0 !important;
     padding-top: 8px !important;
     padding-bottom: 24px !important;
     margin-bottom: 22px !important;
@@ -6860,10 +6860,9 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
     margin-top: 0 !important;
     padding-top: 6px !important;
   }
-  .app-shell.section-mode .goals-badge-row,
-  .app-shell.section-mode .profile-badge-row {
+  .app-shell.section-mode .goals-badge-row {
     margin-top: 0 !important;
-    margin-bottom: 0 !important;
+    margin-bottom: 8px !important;
   }
   .goals-page-custom .goals-sprint-title,
   .rote-page-custom .goals-sprint-title,
@@ -7565,9 +7564,7 @@ body.capacitor-native .sprint-modal {
 .landing-footer + footer.app-main-footer,
 .landing-footer + .app-main-footer,
 .overview-staggered-grid + footer.app-main-footer,
-.overview-staggered-grid + .app-main-footer,
-.reminders-card + footer.app-main-footer,
-.reminders-card + .app-main-footer {
+.overview-staggered-grid + .app-main-footer {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   border-top: 1px solid #282b24 !important;
