@@ -27,6 +27,7 @@ export function OverviewPage({
   showGoalDetails,
   toggleRoteFromOverview,
   isGoalsLoading = false,
+  isRotesLoading = false,
 }) {
   useEffect(() => {
     try {
@@ -106,8 +107,17 @@ export function OverviewPage({
                 <div className="quick-widget-info">
                   <Target size={24} weight="bold" className="quick-widget-icon goals" />
                   <div className="quick-widget-text">
-                    <strong>{goals.filter(g => !g.done).length} Goals Remaining</strong>
-                    <small>Sprint Goal Targets</small>
+                    {isGoalsLoading ? (
+                      <>
+                        <span className="task-overview-skeleton" aria-label="Syncing goals" />
+                        <small>Syncing sprint goals…</small>
+                      </>
+                    ) : (
+                      <>
+                        <strong>{goals.filter(g => !g.done).length} Goals Remaining</strong>
+                        <small>Sprint Goal Targets</small>
+                      </>
+                    )}
                   </div>
                 </div>
                 <AnimatedPlusButton
@@ -123,8 +133,17 @@ export function OverviewPage({
                 <div className="quick-widget-info">
                   <Repeat size={24} weight="bold" className="quick-widget-icon rotes" />
                   <div className="quick-widget-text">
-                    <strong>{Math.max(0, (roteOverviewStats.total || 0) - (roteOverviewStats.completed || 0))} Rotes Remaining</strong>
-                    <small>Daily Routine Tasks</small>
+                    {isRotesLoading ? (
+                      <>
+                        <span className="task-overview-skeleton" aria-label="Syncing rotes" />
+                        <small>Syncing daily rotes…</small>
+                      </>
+                    ) : (
+                      <>
+                        <strong>{Math.max(0, (roteOverviewStats.total || 0) - (roteOverviewStats.completed || 0))} Rotes Remaining</strong>
+                        <small>Daily Routine Tasks</small>
+                      </>
+                    )}
                   </div>
                 </div>
                 <AnimatedPlusButton

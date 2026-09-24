@@ -19,8 +19,8 @@ export function AddRoteModal({ isOpen, onClose, onSubmit }) {
           setTitle('')
         }}
       >
-        <p className="eyebrow" style={{ color: '#c9f36a' }}>FORCEFUL TASKS</p>
-        <h2>Create a New Routine Rote</h2>
+        <p className="eyebrow eyebrow-sm" style={{ color: '#c9f36a' }}>FORCEFUL TASKS</p>
+        <h2 className="modal-title-lg">Create a New Routine Rote</h2>
         <p className="auth-copy" style={{ marginBottom: '20px' }}>
           Completing unwanted tasks that you feel don't develop yourself (e.g. record writing, mandatory paperwork).
         </p>

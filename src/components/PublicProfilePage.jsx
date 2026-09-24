@@ -52,11 +52,11 @@ export function PublicProfilePage({
       <section className="content" style={{ paddingBottom: '60px' }}>
         <div className="workspace-page profile-page-custom" style={{ animation: 'fadeIn 0.3s ease' }}>
             <header className="profile-page-header">
-              <div className="profile-header-left" style={{ width: '100%' }}>
-                <div className="profile-badge-row">
-                  <span className="profile-badge">PUBLIC DASHBOARD</span>
-                </div>
-                <div className="profile-title-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '16px' }}>
+              <div className="goals-badge-row">
+                <span className="goals-sprint-badge">PUBLIC DASHBOARD</span>
+              </div>
+              <div className="goals-title-action-row">
+                <div className="goals-title-col">
                   <h1 className="profile-title" style={{ margin: 0, display: 'inline-flex', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
                     <span className="title-main-text" style={{ whiteSpace: 'nowrap' }}>
                       User <em>Profile</em>

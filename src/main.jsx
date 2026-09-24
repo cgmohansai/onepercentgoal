@@ -223,6 +223,7 @@ function App() {
   })
 
   const [isGoalsLoading, setIsGoalsLoading] = useState(true)
+  const [isRotesLoading, setIsRotesLoading] = useState(true)
 
   const [roteOverviewStats, setRoteOverviewStats] = useState(() => {
     const todayStr = getTodayYMD()
@@ -851,17 +852,11 @@ function App() {
       setGoals(prev => {
         const merged = mergeGoals(prev, serverGoals)
         if (isBackground && haveGoalsDiffered(prev, merged)) {
-          // Cross-device update incoming from server!
-          // 1. Immediately start blue ripple
-          setSyncStatus(SyncStatus.SYNCING)
-          // 2. Wait 700ms so ripple is clearly seen radiating
-          setTimeout(() => {
-            // 3. When loaded, update entire app (goals, timeline, stats) simultaneously
-            updateGoalsAndSyncTimeline(merged)
-            // 4. Blue ripple completes and goes back to green
-            setSyncStatus(SyncStatus.SYNCED)
-          }, 700)
-          return prev
+          // Cross-device update: apply instantly so TASK OVERVIEW never
+          // shows a stale count, flash the ripple without blocking data.
+          triggerTransientSync(900)
+          updateGoalsAndSyncTimeline(merged)
+          return merged
         }
         try { localStorage.setItem('opg.dashboard.goals', JSON.stringify(merged)) } catch {}
         return merged
@@ -886,7 +881,11 @@ function App() {
   const loadRotes = async (token, isBackground = false) => {
     const todayStr = getTodayYMD()
     const activeToken = token || sessionToken || localStorage.getItem('onepercentgoal.token') || localStorage.getItem('token')
-    if (!activeToken) return
+    if (!activeToken) {
+      setIsRotesLoading(false)
+      return
+    }
+    if (!isBackground) setIsRotesLoading(true)
     try {
       const rotesData = await fetchRotesApi(todayStr, activeToken)
       if (rotesData && Array.isArray(rotesData.rotes)) {
@@ -894,16 +893,14 @@ function App() {
         const localRotes = stored?.rotes || []
         const merged = mergeRotes(rotesData.rotes, localRotes)
         if (isBackground && haveRotesDiffered(localRotes, merged)) {
-          setSyncStatus(SyncStatus.SYNCING)
-          setTimeout(() => {
-            handleRotesChanged({ ...rotesData, rotes: merged })
-            setSyncStatus(SyncStatus.SYNCED)
-          }, 700)
-        } else {
-          handleRotesChanged({ ...rotesData, rotes: merged })
+          // Apply instantly, ripple only as visual feedback.
+          triggerTransientSync(900)
         }
+        handleRotesChanged({ ...rotesData, rotes: merged })
       }
-    } catch {}
+    } catch {} finally {
+      setIsRotesLoading(false)
+    }
   }
 
   // Cross-device live synchronization: fast poll every 1 second and on focus/resume.
@@ -924,13 +921,22 @@ function App() {
       flushSyncQueue(sessionToken)
     }
 
-    // Re-sync immediately on mount / refresh when already logged in, so a
-    // page reload with a stored session still flashes the syncing ripple and
-    // pulls the latest server state into every view at once.
+    // Re-sync immediately on mount / refresh / reopen when already logged in,
+    // so a page reload with a stored session pulls the latest server state
+    // into every view at once without showing stale TASK OVERVIEW counts.
+    // requestAnimationFrame + setTimeout(0) fires before first paint completes.
+    try {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => triggerSilentSync())
+      }
+    } catch {}
+    const immediateTimer = setTimeout(() => triggerSilentSync(), 0)
     triggerSilentSync()
 
     const interval = setInterval(triggerSilentSync, 1000)
     window.addEventListener('focus', triggerSilentSync)
+    window.addEventListener('pageshow', triggerSilentSync)
+    window.addEventListener('online', triggerSilentSync)
     document.addEventListener('visibilitychange', triggerSilentSync)
 
     // Native Android: WebView focus/visibility events are unreliable on
@@ -949,79 +955,88 @@ function App() {
 
     return () => {
       clearInterval(interval)
+      clearTimeout(immediateTimer)
       window.removeEventListener('focus', triggerSilentSync)
+      window.removeEventListener('pageshow', triggerSilentSync)
+      window.removeEventListener('online', triggerSilentSync)
       document.removeEventListener('visibilitychange', triggerSilentSync)
       try { if (resumeHandle && typeof resumeHandle.remove === 'function') resumeHandle.remove() } catch {}
     }
   }, [currentUser, sessionToken])
 
   // Startup & Post-Login Synchronization:
-  // Immediately start the blue ripple, fetch updated goals & rotes from the server in parallel,
-  // and smoothly update the entire application (overview, goals, routines) simultaneously when complete.
+  // Fetch updated goals & rotes from the server in parallel and apply them to
+  // the UI the instant they arrive — the blue ripple is purely visual and must
+  // never block fresh TASK OVERVIEW counts.
   useEffect(() => {
     if (!currentUser || !sessionToken) return
 
     let cancelled = false
     const initialSync = async () => {
       setSyncStatus(SyncStatus.SYNCING)
+      setIsGoalsLoading(true)
+      setIsRotesLoading(true)
       const startTime = Date.now()
       const todayStr = getTodayYMD()
 
       try {
         // Bounded: each request aborts on its own deadline so a stalled
         // backend can never leave the sync badge / goals skeleton stuck.
-        const [dashResult, rotesResult] = await Promise.allSettled([
-          fetchDashboard(sessionToken, { timeout: 10000 }),
-          fetchRotesApi(todayStr, sessionToken, { timeout: 10000 }),
-          flushSyncQueue(sessionToken),
-        ])
+        // Goals and rotes apply independently the moment each resolves.
+        const dashPromise = fetchDashboard(sessionToken, { timeout: 10000 })
+          .then(dashData => {
+            if (cancelled) return
+            if (dashData.year) {
+              setServerSprint(dashData.year)
+              try { localStorage.setItem('opg.sprint.current', JSON.stringify(dashData.year)) } catch {}
+            }
+            const deletedIds = getDeletedGoalIds()
+            const freshGoals = (dashData.goals || [])
+              .filter(g => !deletedIds.has(String(g.id)))
+              .map(presentGoal)
+            updateGoalsAndSyncTimeline(prev => mergeGoals(prev, freshGoals))
+            setIsGoalsLoading(false)
+          })
+          .catch(() => {
+            if (!cancelled) setIsGoalsLoading(false)
+          })
 
+        const rotesPromise = fetchRotesApi(todayStr, sessionToken, { timeout: 10000 })
+          .then(rotesData => {
+            if (cancelled) return
+            if (rotesData && Array.isArray(rotesData.rotes)) {
+              const stored = getStoredRotes(todayStr)
+              const localRotes = stored?.rotes || []
+              const mergedRotes = mergeRotes(rotesData.rotes, localRotes)
+              handleRotesChanged({ ...rotesData, rotes: mergedRotes })
+            }
+            setIsRotesLoading(false)
+          })
+          .catch(() => {
+            if (!cancelled) setIsRotesLoading(false)
+          })
+
+        const flushPromise = flushSyncQueue(sessionToken).catch(() => {})
+
+        await Promise.allSettled([dashPromise, rotesPromise, flushPromise])
         if (cancelled) return
 
-        let freshGoals = null
-        if (dashResult.status === 'fulfilled' && dashResult.value) {
-          const dashData = dashResult.value
-          if (dashData.year) {
-            setServerSprint(dashData.year)
-            try { localStorage.setItem('opg.sprint.current', JSON.stringify(dashData.year)) } catch {}
-          }
-          const deletedIds = getDeletedGoalIds()
-          freshGoals = (dashData.goals || [])
-            .filter(g => !deletedIds.has(String(g.id)))
-            .map(presentGoal)
-        }
-
-        let freshRotesPayload = null
-        if (rotesResult.status === 'fulfilled' && rotesResult.value) {
-          const rotesData = rotesResult.value
-          if (rotesData && Array.isArray(rotesData.rotes)) {
-            const stored = getStoredRotes(todayStr)
-            const localRotes = stored?.rotes || []
-            const mergedRotes = mergeRotes(rotesData.rotes, localRotes)
-            freshRotesPayload = { ...rotesData, rotes: mergedRotes }
-          }
-        }
-
-        // Smooth perception: guarantee blue ripple is visibly radiating for at least 750ms
+        // Keep the blue ripple visible for at least 750ms for perception,
+        // but the fresh data above is already on screen.
         const elapsed = Date.now() - startTime
         if (elapsed < 750) {
           await new Promise(r => setTimeout(r, 750 - elapsed))
         }
         if (cancelled) return
 
-        // Update entire app simultaneously with real server data
-        if (freshGoals !== null) {
-          updateGoalsAndSyncTimeline(prev => mergeGoals(prev, freshGoals))
-        }
-        if (freshRotesPayload !== null) {
-          handleRotesChanged(freshRotesPayload)
-        }
-
         setSyncStatus(SyncStatus.SYNCED)
       } catch (err) {
         if (!cancelled) setSyncStatus(SyncStatus.SYNCED)
       } finally {
-        if (!cancelled) setIsGoalsLoading(false)
+        if (!cancelled) {
+          setIsGoalsLoading(false)
+          setIsRotesLoading(false)
+        }
       }
     }
 
@@ -1263,6 +1278,9 @@ function App() {
     setSessionToken('')
     setCurrentUser(null)
     setGoals([])
+    setRoteOverviewStats({ total: 0, completed: 0, percentage: 0, rotes: [] })
+    setIsGoalsLoading(false)
+    setIsRotesLoading(false)
     setProfile(null)
     setTimelineHistory(createEmptyTimeline())
     setHistoryModal(null)
@@ -1792,6 +1810,7 @@ function App() {
             showGoalDetails={showGoalDetails}
             toggleRoteFromOverview={toggleRoteFromOverview}
             isGoalsLoading={isGoalsLoading}
+            isRotesLoading={isRotesLoading}
           />
         )}
 
