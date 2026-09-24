@@ -2,16 +2,29 @@
  * Private Notes service: account-only notes (global, per-goal, per-rote).
  * Local-first: persisted to localStorage immediately, synced in background.
  * Never exposed on public profiles or public API payloads.
+ *
+ * Account isolation: every read/write takes a userId and uses a per-account
+ * key (`opg.notes.<uid>`), so one account's notes can never leak into
+ * another account on the same device — even if a logout/switch wipe is
+ * missed. The legacy shared `opg.notes` key is only adopted when it
+ * provably belongs to the requesting account.
  */
 
 import { apiFetch, buildHeaders, getStoredToken } from '../../services/apiClient.js'
 
 export const NOTES_STORAGE_KEY = 'opg.notes'
+export const NOTES_STORAGE_PREFIX = 'opg.notes.'
+export const SESSION_UID_KEY = 'opg.session.uid'
 
-export function getStoredNotes() {
+export function notesKey(userId) {
+  const uid = String(userId || '').trim()
+  return uid ? `${NOTES_STORAGE_PREFIX}${uid}` : NOTES_STORAGE_KEY
+}
+
+function readKey(key) {
   try {
     if (typeof localStorage === 'undefined') return []
-    const raw = localStorage.getItem(NOTES_STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return []
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed : []
@@ -20,10 +33,48 @@ export function getStoredNotes() {
   }
 }
 
-export function persistNotes(notes) {
+export function getStoredNotes(userId) {
+  const key = notesKey(userId)
+  let notes = readKey(key)
+  if (notes.length === 0 && key !== NOTES_STORAGE_KEY) {
+    // One-time safe adoption of the legacy device cache: only when it
+    // provably belongs to this account (tracked session uid matches, or no
+    // uid was ever tracked). Otherwise the legacy cache is left untouched —
+    // logout/switch wipes handle it — so foreign notes can never leak in.
+    try {
+      const legacy = readKey(NOTES_STORAGE_KEY)
+      if (legacy.length > 0) {
+        const tracked = localStorage.getItem(SESSION_UID_KEY) || ''
+        if (!tracked || tracked === String(userId || '')) {
+          notes = legacy
+          try { localStorage.setItem(key, JSON.stringify(legacy)) } catch {}
+          try { localStorage.removeItem(NOTES_STORAGE_KEY) } catch {}
+        }
+      }
+    } catch {}
+  }
+  return notes
+}
+
+export function persistNotes(notes, userId) {
   try {
     if (typeof localStorage === 'undefined') return
-    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(Array.isArray(notes) ? notes : []))
+    localStorage.setItem(notesKey(userId), JSON.stringify(Array.isArray(notes) ? notes : []))
+  } catch {}
+}
+
+/** Removes every notes cache on this device (all accounts + legacy). */
+export function clearAllNotesCaches() {
+  try {
+    if (typeof localStorage === 'undefined') return
+    const doomed = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (key === NOTES_STORAGE_KEY || key.startsWith(NOTES_STORAGE_PREFIX))) {
+        doomed.push(key)
+      }
+    }
+    doomed.forEach(key => localStorage.removeItem(key))
   } catch {}
 }
 
@@ -137,7 +188,6 @@ export function createLocalNote({ body, title = '', links = [], goalId = null, r
     deleted: false,
     created_at: now,
     updated_at: now,
-    _pending: true,
   };
 }
 

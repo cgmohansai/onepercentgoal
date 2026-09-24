@@ -67,7 +67,7 @@ import {
   mergeNotes,
   fetchNotes as fetchNotesApi,
 } from './features/notes/noteService'
-import { NOTES_STORAGE_KEY } from './features/notes/noteService'
+import { clearAllNotesCaches } from './features/notes/noteService'
 import { ROTES_STORAGE_PREFIX } from './features/rotes/roteUtils'
 import {
   createEmptyTimeline,
@@ -925,16 +925,18 @@ function App() {
       return
     }
     if (!isBackground) setIsNotesLoading(true)
+    // Strictly this account's cache — never another account's.
+    const uid = String(currentUser?.id || '')
     try {
       const server = await fetchNotesApi({ includeDeleted: true, token: activeToken })
       const serverList = Array.isArray(server) ? server : (server?.notes || [])
-      const local = getStoredNotes()
+      const local = getStoredNotes(uid)
       const merged = mergeNotes(serverList, local)
       if (isBackground && JSON.stringify(merged) !== JSON.stringify(local)) {
         // Fresh notes arrived from another device — ripple only, data first.
         triggerTransientSync(500)
       }
-      persistNotes(merged)
+      persistNotes(merged, uid)
     } catch {} finally {
       setIsNotesLoading(false)
     }
@@ -1061,7 +1063,8 @@ function App() {
           .then(server => {
             if (cancelled) return
             const serverList = Array.isArray(server) ? server : (server?.notes || [])
-            persistNotes(mergeNotes(serverList, getStoredNotes()))
+            const uid = String(currentUser?.id || '')
+            persistNotes(mergeNotes(serverList, getStoredNotes(uid)), uid)
             setIsNotesLoading(false)
           })
           .catch(() => {
@@ -1119,6 +1122,26 @@ function App() {
     } catch {}
     refreshProfile(sessionToken, selectedTimelineYear)
   }, [selectedTimelineYear, currentUser, sessionToken])
+
+  // Timeline self-healing: if the authoritative server timeline never arrived
+  // (cold backend / failed fetch), history degrades to a single current
+  // sprint and sticks there. A genuine server response always carries
+  // start_sprint; until we have it, retry the fetch every 15s while the
+  // current year is selected. Stops on its own once real history lands —
+  // even if the user genuinely has just one sprint.
+  const timelineSprintCount = (timelineHistory?.sprints || []).length
+  const timelineHasServerRange = timelineHistory?.start_sprint != null
+  const timelineYear = data?.year
+  useEffect(() => {
+    if (!currentUser || !sessionToken) return
+    if (Number(selectedTimelineYear) !== Number(timelineYear)) return
+    if (timelineHasServerRange || timelineSprintCount > 1) return
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return
+    const t = setTimeout(() => {
+      refreshProfile(sessionToken, selectedTimelineYear)
+    }, 15000)
+    return () => clearTimeout(t)
+  }, [currentUser, sessionToken, selectedTimelineYear, timelineYear, timelineSprintCount, timelineHasServerRange])
 
   const finishGoogleSignIn = async (payload, opts = {}) => {
     if (!payload || googleSignInInFlight.current) return
@@ -1225,7 +1248,8 @@ function App() {
         if (notesResult.status === 'fulfilled' && notesResult.value !== undefined) {
           const server = notesResult.value
           const serverList = Array.isArray(server) ? server : (server?.notes || [])
-          persistNotes(mergeNotes(serverList, getStoredNotes()))
+          const uid = String(result.user?.id || '')
+          persistNotes(mergeNotes(serverList, getStoredNotes(uid)), uid)
         }
       } catch (loadErr) {
         console.warn('Initial data load warning:', loadErr)
@@ -1397,7 +1421,7 @@ function App() {
   // year info) are intentionally kept.
   const clearAccountCaches = useCallback(() => {
     try {
-      localStorage.removeItem(NOTES_STORAGE_KEY)
+      clearAllNotesCaches()
       const doomed = []
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
@@ -1488,7 +1512,15 @@ function App() {
       setTimelineHistory(prevTimeline => {
         const nextTimeline = syncTimelineWithGoals(prevTimeline, data.year, data.sprint, nextGoals)
         try {
-          localStorage.setItem(`opg.timeline.${data.year}`, JSON.stringify(nextTimeline))
+          // Anti-poison: the goals path only ever touches the current sprint,
+          // so it must never shrink the persisted timeline (a single-sprint
+          // stub built from goals alone would wipe real history on a failed
+          // server fetch and stick forever).
+          const prevCount = (prevTimeline?.sprints || []).length
+          const nextCount = (nextTimeline?.sprints || []).length
+          if (nextCount >= prevCount) {
+            localStorage.setItem(`opg.timeline.${data.year}`, JSON.stringify(nextTimeline))
+          }
         } catch {}
         return nextTimeline
       })

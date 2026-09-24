@@ -26,7 +26,7 @@ import { getStoredToken } from '../../../services/apiClient.js'
 
 function snippet(body) {
   const clean = String(body || '').trim().replace(/\s+/g, ' ')
-  return clean.length > 140 ? `${clean.slice(0, 140)}…` : clean
+  return clean.length > 200 ? `${clean.slice(0, 200)}…` : clean
 }
 
 function formatDate(iso) {
@@ -42,22 +42,53 @@ function linksOf(note) {
   return noteLinks(note)
 }
 
+/** Ids with changes not yet on the server (queued creates/updates). */
+function pendingNoteIds() {
+  const ids = new Set()
+  try {
+    for (const q of getSyncQueue()) {
+      if (q.type === 'CREATE_NOTE' && (q.tempId || q.clientId)) ids.add(String(q.tempId || q.clientId))
+      else if (q.type === 'UPDATE_NOTE' && q.noteId != null) ids.add(String(q.noteId))
+    }
+  } catch {}
+  return ids
+}
+
 /**
- * Personal Notes (FR-06): dedicated section for private notes with optional
- * reference links to any number of goals and rotes. Account-only,
- * local-first, idempotent sync via client-generated ids.
+ * The orange dot means exactly one thing: this note's latest content has
+ * not reached the server yet (fresh offline note, or an edit/pin waiting
+ * in the sync queue). Synced notes never show it.
+ */
+function needsSyncDot(note, queuedIds) {
+  if (!note || note.deleted) return false
+  if (isTempNote(note)) return true
+  return queuedIds.has(String(note.id))
+}
+
+/**
+ * Personal Notes: private, account-only notes with optional reference
+ * links to goals and rotes.
+ *
+ * Storage is strictly per-account (`opg.notes.<uid>`) — notes are read
+ * from and written to this account's cache only, so switching accounts
+ * can never leak one account's notes into another's. Layout is a
+ * Keep-style responsive masonry: cards size to their content, pinned
+ * notes get their own section on top.
  */
 export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDetails, onNavigateRote, isLoading = false, userId = '' }) {
-  const [notes, setNotes] = useState(() => getStoredNotes())
+  const uid = String(userId || '')
+  const [notes, setNotes] = useState(() => getStoredNotes(uid))
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [editorNote, setEditorNote] = useState(null)
   const [creating, setCreating] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [busy, setBusy] = useState(false)
-  // First-open gate: when the cache starts empty, show a syncing skeleton
-  // instead of "No notes yet" until the first server refresh settles.
-  const [initialLoading, setInitialLoading] = useState(() => getStoredNotes().length === 0)
+  // Re-render trigger so the pending dot tracks the sync queue exactly.
+  const [queueTick, setQueueTick] = useState(0)
+  // First-open gate: when this account's cache starts empty, show a syncing
+  // skeleton instead of "No notes yet" until the first server refresh settles.
+  const [initialLoading, setInitialLoading] = useState(() => getStoredNotes(uid).length === 0)
   const searchInputRef = useRef(null)
 
   const goalList = useMemo(
@@ -105,18 +136,18 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
   }
   const offlineSavedMsg = (err) => syncFailMsg(err)
 
+  // Server refresh merges into THIS account's cache only (read fresh from
+  // storage, never from possibly-stale cross-account state).
   const refresh = useCallback(async () => {
     const token = getStoredToken()
     if (!token) return
     try {
       const server = await fetchNotes({ includeDeleted: true, token })
-      setNotes(prev => {
-        const merged = mergeNotes(server, prev)
-        persistNotes(merged)
-        return merged
-      })
+      const merged = mergeNotes(server, getStoredNotes(uid))
+      persistNotes(merged, uid)
+      setNotes(merged)
     } catch {}
-  }, [])
+  }, [uid])
 
   useEffect(() => {
     refresh().finally(() => setInitialLoading(false))
@@ -129,9 +160,11 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisible)
     // Refresh right after any sync settles so freshly flushed creates
-    // replace their local temps instead of lingering as duplicates.
+    // replace their local temps instead of lingering as duplicates — and
+    // bump the tick so pending dots track the queue exactly.
     let prevSyncing = false
     const unsub = subscribeSyncStatus((state) => {
+      setQueueTick(t => t + 1)
       const syncing = state.status === SyncStatus.SYNCING
       if (prevSyncing && !syncing) refresh()
       prevSyncing = syncing
@@ -144,25 +177,32 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
   }, [refresh])
 
   // Account switch guard: drop any in-memory notes from the previous account
-  // and reload from that account's (already wiped + refetched) cache.
-  const userIdRef = useRef(userId)
+  // and reload strictly from the new account's cache + server.
+  const userIdRef = useRef(uid)
   useEffect(() => {
-    if (userIdRef.current !== userId) {
-      userIdRef.current = userId
-      const fresh = getStoredNotes()
+    if (userIdRef.current !== uid) {
+      userIdRef.current = uid
+      const fresh = getStoredNotes(uid)
       setNotes(fresh)
+      setQuery('')
+      setEditorNote(null)
+      setCreating(false)
+      setConfirmDeleteId(null)
       setInitialLoading(fresh.length === 0)
       refresh().finally(() => setInitialLoading(false))
     }
-  }, [userId, refresh])
+  }, [uid, refresh])
 
   const upsertLocal = (fn) => {
     setNotes(prev => {
       const next = fn(prev)
-      persistNotes(next)
+      persistNotes(next, uid)
       return next
     })
   }
+
+  // Ids whose latest content is still waiting in the offline queue.
+  const queuedIds = useMemo(() => pendingNoteIds(), [queueTick, notes])
 
   const linkPayload = (links) => (Array.isArray(links) ? links : []).map(l => ({
     goal_id: l.goal_id ?? null,
@@ -344,6 +384,12 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
     })
   }, [notes, query])
 
+  // Keep-style sections: pinned notes on top, everything else below.
+  // (Labels hidden while searching so results read as one flat set.)
+  const searching = query.trim().length > 0
+  const pinnedNotes = useMemo(() => visible.filter(n => n.pinned), [visible])
+  const otherNotes = useMemo(() => (searching ? visible : visible.filter(n => !n.pinned)), [visible, searching])
+
   const openSearch = () => {
     setSearchOpen(true)
     setTimeout(() => {
@@ -380,6 +426,41 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
     )
   }
 
+  const renderCard = (note) => (
+    <article
+      key={note.id}
+      className={`note-card card${note.pinned ? ' pinned' : ''}`}
+      onClick={() => { setEditorNote(note); setConfirmDeleteId(null) }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter') { setEditorNote(note); setConfirmDeleteId(null) } }}
+    >
+      <div className="note-card-top">
+        <span className="note-card-title">{note.title || 'Untitled'}</span>
+        <span className="note-card-icons">
+          <button
+            type="button"
+            aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
+            className={`note-pin-btn inline${note.pinned ? ' active' : ''}`}
+            onClick={(e) => { e.stopPropagation(); togglePin(note) }}
+          >
+            <PushPin size={14} weight={note.pinned ? 'fill' : 'regular'} />
+          </button>
+        </span>
+      </div>
+      <p className="note-card-snippet">{snippet(note.body)}</p>
+      <div className="note-card-foot">
+        {renderLinkChip(note)}
+        <span className="note-card-right">
+          {needsSyncDot(note, queuedIds) && <span className="note-pending-dot" title="Not on the server yet — will sync automatically" />}
+          <span className="note-card-date">{formatDate(note.updated_at)}</span>
+        </span>
+      </div>
+    </article>
+  )
+
+  const storedCount = notes.filter(n => !n.deleted).length
+
   return (
     <div className="workspace-page notes-page-custom">
       <header className="goals-page-header">
@@ -406,54 +487,38 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
         </div>
       </header>
 
-      {visible.length === 0 ? (
+      {((isLoading || initialLoading) && storedCount === 0) ? (
+        <div className="rote-skeleton-wrap" aria-label="Syncing notes">
+          <div className="rote-skeleton-row" />
+          <div className="rote-skeleton-row" />
+          <div className="rote-skeleton-row" />
+        </div>
+      ) : visible.length === 0 ? (
         <div className="rote-empty-state notes-empty-state">
           <p>
-            {notes.filter(n => !n.deleted).length === 0
+            {storedCount === 0
               ? 'No notes yet. Capture anything — ideas, reflections, reminders.'
               : 'Nothing matches. Try a different search.'}
           </p>
-          {notes.filter(n => !n.deleted).length === 0 && (
+          {storedCount === 0 && (
             <button className="add-button" style={{ marginTop: '12px', display: 'inline-block' }} onClick={() => setCreating(true)}>
               + Write your first note
             </button>
           )}
         </div>
       ) : (
-        <div className="notes-grid">
-          {visible.map(note => (
-            <article
-              key={note.id}
-              className={`note-card card${note.pinned ? ' pinned' : ''}`}
-              onClick={() => { setEditorNote(note); setConfirmDeleteId(null) }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={e => { if (e.key === 'Enter') { setEditorNote(note); setConfirmDeleteId(null) } }}
-            >
-              <div className="note-card-top">
-                <span className="note-card-title">{note.title || 'Untitled'}</span>
-                <span className="note-card-icons">
-                  <button
-                    type="button"
-                    aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
-                    className={`note-pin-btn inline${note.pinned ? ' active' : ''}`}
-                    onClick={(e) => { e.stopPropagation(); togglePin(note) }}
-                  >
-                    <PushPin size={14} weight={note.pinned ? 'fill' : 'regular'} />
-                  </button>
-                </span>
-              </div>
-              <p className="note-card-snippet">{snippet(note.body)}</p>
-              <div className="note-card-foot">
-                {renderLinkChip(note)}
-                <span className="note-card-right">
-                  {isTempNote(note) && <span className="note-pending-dot" title="Not synced yet — will sync when online" />}
-                  <span className="note-card-date">{formatDate(note.updated_at)}</span>
-                </span>
-              </div>
-            </article>
-          ))}
-        </div>
+        <>
+          {!searching && pinnedNotes.length > 0 && (
+            <p className="notes-section-label">Pinned</p>
+          )}
+          {!searching && pinnedNotes.length > 0 && (
+            <div className="notes-masonry">{pinnedNotes.map(renderCard)}</div>
+          )}
+          {!searching && pinnedNotes.length > 0 && otherNotes.length > 0 && (
+            <p className="notes-section-label">Others</p>
+          )}
+          <div className="notes-masonry">{otherNotes.map(renderCard)}</div>
+        </>
       )}
 
       {searchOpen && (
@@ -475,13 +540,7 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
               )}
             </div>
             <div className="notes-search-results">
-      {((isLoading || initialLoading) && notes.filter(n => !n.deleted).length === 0) ? (
-        <div className="rote-skeleton-wrap" aria-label="Syncing notes">
-          <div className="rote-skeleton-row" />
-          <div className="rote-skeleton-row" />
-          <div className="rote-skeleton-row" />
-        </div>
-      ) : visible.length === 0 ? (
+              {visible.length === 0 ? (
                 <p className="notes-empty">No matching notes.</p>
               ) : (
                 visible.slice(0, 30).map(note => (
