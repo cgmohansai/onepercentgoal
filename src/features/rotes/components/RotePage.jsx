@@ -15,6 +15,7 @@ import {
   createOptimisticRote,
   reconcileRotesData,
   haveRotesDiffered,
+  trackDeletedRoteId,
 } from '../roteUtils'
 import AddRoteModal from './AddRoteModal'
 import HeaderInfoTooltip from '../../../components/HeaderInfoTooltip'
@@ -48,6 +49,9 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
   const [confirmingRoteId, setConfirmingRoteId] = useState(null)
   const [deletingRoteId, setDeletingRoteId] = useState(null)
   const [syncingRoteId, setSyncingRoteId] = useState(null)
+  // Date whose fresh server data is currently loading (calendar switches).
+  // Silent background polls never touch it — no flicker on every tick.
+  const [loadingDate, setLoadingDate] = useState(null)
 
   // Confetti origin just above the "Routine completed" toast popup (FR-18)
   const originAboveToast = () => {
@@ -70,8 +74,12 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
     // instantly and never fluctuate into another day's data.
     const mySeq = ++fetchSeqRef.current
     const isCurrent = () => mySeq === fetchSeqRef.current && dateStr === selectedDateRef.current
+    const clearLoading = () => {
+      if (mySeq === fetchSeqRef.current) setLoadingDate(null)
+    }
 
     if (!isSilent) {
+      setLoadingDate(dateStr)
       if (cacheRef.current[dateStr]) {
         setRotesData(cacheRef.current[dateStr])
         setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
@@ -118,12 +126,14 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
         if (dateStr === todayStr && onRotesChanged) {
           onRotesChanged(mergedData)
         }
+        clearLoading()
       }
     } catch (err) {
       if (!isSilent && isCurrent()) {
         console.error('Failed to fetch rotes:', err)
         setLoadedDates(prev => ({ ...prev, [dateStr]: true }))
       }
+      clearLoading()
     }
   }
 
@@ -217,7 +227,12 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
           unmarkRoteInFlight(targetIdStr)
           enqueueSyncAction({ type: 'TOGGLE_ROTE', roteId, date: selectedDate, completed: targetStatus })
           if (onShowToast) {
-            onShowToast('Routine saved locally (waiting for internet)', true)
+            onShowToast(
+              typeof navigator !== 'undefined' && navigator.onLine === false
+                ? 'Routine saved locally (waiting for internet)'
+                : 'Could not save on server — retrying automatically',
+              true
+            )
           }
         }
       })
@@ -273,7 +288,14 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
         onError: () => {
           unmarkRoteInFlight(targetIdStr)
           enqueueSyncAction({ type: 'PASS_ROTE', roteId, date: selectedDate })
-          if (onShowToast) onShowToast('Routine postponed locally (waiting for internet)', true)
+          if (onShowToast) {
+            onShowToast(
+              typeof navigator !== 'undefined' && navigator.onLine === false
+                ? 'Routine postponed locally (waiting for internet)'
+                : 'Could not postpone on server — retrying automatically',
+              true
+            )
+          }
         }
       })
     } catch (err) {
@@ -304,6 +326,10 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
       return
     }
 
+    // Tombstone first: background merges can never resurrect it, even if the
+    // server delete fails and is retried from the offline queue.
+    trackDeletedRoteId(targetIdStr)
+
     try {
       await executeSyncWithRipple(async () => {
         const ok = await deleteRoteApi(roteId)
@@ -316,7 +342,16 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
         },
         onError: () => {
           enqueueSyncAction({ type: 'DELETE_ROTE', roteId })
-          if (onShowToast) onShowToast('Routine deleted locally (waiting for internet)', true)
+          // The queued retry lands within seconds via the background flush;
+          // only claim "waiting for internet" when actually offline.
+          if (onShowToast) {
+            onShowToast(
+              typeof navigator !== 'undefined' && navigator.onLine === false
+                ? 'Routine deleted locally (waiting for internet)'
+                : 'Could not delete on server — retrying automatically',
+              true
+            )
+          }
         }
       })
     } catch (err) {
@@ -373,7 +408,14 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
         },
         onError: () => {
           enqueueSyncAction({ type: 'CREATE_ROTE', tempId, title, date: todayStr })
-          if (onShowToast) onShowToast('Routine saved locally (waiting for internet)', true)
+          if (onShowToast) {
+            onShowToast(
+              typeof navigator !== 'undefined' && navigator.onLine === false
+                ? 'Routine saved locally (waiting for internet)'
+                : 'Could not save on server — retrying automatically',
+              true
+            )
+          }
         }
       })
     } catch (err) {
@@ -562,6 +604,9 @@ export function RotePage({ user, onRotesChanged, onShowToast, isLoading }) {
           )}
 
           <div className="rote-list">
+            {Boolean(loadingDate) && (isCurrentDateLoaded || (rotesData.rotes && rotesData.rotes.length > 0)) && (
+              <div className="rote-list-loading" aria-hidden="true"><span /></div>
+            )}
             {!isCurrentDateLoaded && (!rotesData.rotes || rotesData.rotes.length === 0) ? (
               <div className="rote-skeleton-wrap">
                 <div className="rote-skeleton-row" />

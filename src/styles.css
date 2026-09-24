@@ -5976,6 +5976,27 @@ button.profile-settings-btn.circular-settings-btn svg {
   border-radius: 10px;
   border: 1px solid #2b2d27;
 }
+/* Slim loading strip shown at the top of the rote list while a calendar
+   date switch is fetching fresh data (cached rows stay visible beneath). */
+.rote-list-loading {
+  height: 3px;
+  border-radius: 999px;
+  background: #232622;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.rote-list-loading > span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, #c9f36a, transparent);
+  animation: roteListLoadingSlide 1.1s ease-in-out infinite;
+}
+@keyframes roteListLoadingSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
 @keyframes roteSkeletonShimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }

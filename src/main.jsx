@@ -56,6 +56,7 @@ import {
   computeRoteStats,
   mergeRotes,
   haveRotesDiffered,
+  clearDeletedRoteIds,
 } from './features/rotes/roteUtils'
 import {
   fetchTimeline as fetchTimelineApi,
@@ -1436,6 +1437,7 @@ function App() {
     } catch {}
     try { setSyncQueue([]) } catch {}
     try { clearDeletedGoalIds() } catch {}
+    try { clearDeletedRoteIds() } catch {}
     try {
       setSyncStatus(
         typeof navigator !== 'undefined' && navigator.onLine === false

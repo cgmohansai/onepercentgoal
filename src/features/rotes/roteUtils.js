@@ -8,6 +8,42 @@ import { isRoteInFlight } from '../../services/syncManager.js'
 
 export const ROTES_STORAGE_PREFIX = 'opg.rotes.'
 
+export const DELETED_ROTES_STORAGE_KEY = 'opg.deleted_rotes'
+
+/**
+ * Tombstones for rotes the user deleted locally: background merges must
+ * never resurrect them (e.g. server still has the rote because the delete
+ * request failed and is queued for retry). Same pattern as goal tombstones.
+ */
+export function getDeletedRoteIds() {
+  try {
+    if (typeof localStorage === 'undefined') return new Set()
+    const raw = localStorage.getItem(DELETED_ROTES_STORAGE_KEY)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw)
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+export function trackDeletedRoteId(roteId) {
+  try {
+    if (typeof localStorage === 'undefined') return
+    if (roteId === null || roteId === undefined) return
+    const ids = getDeletedRoteIds()
+    ids.add(String(roteId))
+    localStorage.setItem(DELETED_ROTES_STORAGE_KEY, JSON.stringify(Array.from(ids)))
+  } catch {}
+}
+
+export function clearDeletedRoteIds() {
+  try {
+    if (typeof localStorage === 'undefined') return
+    localStorage.removeItem(DELETED_ROTES_STORAGE_KEY)
+  } catch {}
+}
+
 /**
  * Returns the localStorage key for rotes on a specific date.
  *
@@ -103,7 +139,12 @@ export function computeRoteStats(rotes = []) {
 export function mergeRotes(serverRotes = [], localRotes = [], pendingTempToggles = null) {
   const safeServer = Array.isArray(serverRotes) ? serverRotes : []
   const safeLocal = Array.isArray(localRotes) ? localRotes : []
-  const localMap = new Map(safeLocal.map(r => [String(r.id), r]))
+  // Locally deleted rotes stay deleted: filter tombstoned ids from both
+  // sides so a lagging server response can never resurrect them.
+  const dead = getDeletedRoteIds()
+  const liveServer = dead.size > 0 ? safeServer.filter(r => !dead.has(String(r?.id))) : safeServer
+  const liveLocal = dead.size > 0 ? safeLocal.filter(r => !dead.has(String(r?.id))) : safeLocal
+  const localMap = new Map(liveLocal.map(r => [String(r.id), r]))
 
   const isPending = id => {
     const idStr = String(id)
@@ -118,7 +159,7 @@ export function mergeRotes(serverRotes = [], localRotes = [], pendingTempToggles
     return false
   }
 
-  let merged = safeServer.map(sr => {
+  let merged = liveServer.map(sr => {
     const lr = localMap.get(String(sr.id))
     if (lr && isPending(String(sr.id))) {
       return { ...sr, completed: lr.completed, passed: lr.passed }
@@ -126,7 +167,7 @@ export function mergeRotes(serverRotes = [], localRotes = [], pendingTempToggles
     return sr
   })
 
-  const pendingTemps = safeLocal.filter(r => String(r.id).startsWith('temp-'))
+  const pendingTemps = liveLocal.filter(r => String(r.id).startsWith('temp-'))
   for (const temp of pendingTemps) {
     if (!merged.some(m => m.title === temp.title || String(m.id) === String(temp.id))) {
       merged.push(temp)
