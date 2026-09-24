@@ -456,11 +456,6 @@ function App() {
     }
   }, [authReady, shareUsername])
 
-  useEffect(() => {
-    if (authReady && !authLoading && active === 'Overview') {
-      startMorphTimer(5000)
-    }
-  }, [authReady, authLoading, active])
 
   useEffect(() => {
     // Desktop web: remove any static boot-loader immediately so only React's AdaptiveLoader is active
@@ -494,6 +489,12 @@ function App() {
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const exitPendingRef = useRef(false)
+ 
+  useEffect(() => {
+    if (authReady && !authLoading && active === 'Overview') {
+      startMorphTimer(5000)
+    }
+  }, [authReady, authLoading, active])
 
   useEffect(() => {
     if (isNativeApp()) {

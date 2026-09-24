@@ -51,13 +51,30 @@ async def auth_google_verify(payload: GoogleVerifyPayload, response: Response, b
     credential = (payload.credential or "").strip()
     access_token = (payload.access_token or "").strip()
     if credential:
-        if not google_id_token or not _google_auth_request:
-            raise HTTPException(status_code=500, detail="Google token verification is unavailable")
-        try:
-            idinfo = google_id_token.verify_oauth2_token(
-                credential, _google_auth_request, GOOGLE_CLIENT_ID,
-            )
-        except Exception:
+        idinfo = None
+        if google_id_token and _google_auth_request:
+            try:
+                idinfo = google_id_token.verify_oauth2_token(
+                    credential, _google_auth_request, GOOGLE_CLIENT_ID,
+                )
+            except Exception:
+                idinfo = None
+
+        if not idinfo:
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.get(
+                        "https://oauth2.googleapis.com/tokeninfo",
+                        params={"id_token": credential},
+                    )
+                    if resp.is_success:
+                        data = resp.json()
+                        if data.get("aud") == GOOGLE_CLIENT_ID:
+                            idinfo = data
+            except Exception:
+                idinfo = None
+
+        if not idinfo:
             raise HTTPException(status_code=400, detail="Invalid or expired Google credential")
     elif access_token:
         try:
