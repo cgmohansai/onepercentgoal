@@ -437,16 +437,6 @@ export function NotesSection({ goals = [], rotes = [], showToast, onShowGoalDeta
     >
       <div className="note-card-top">
         <span className="note-card-title">{note.title || 'Untitled'}</span>
-        <span className="note-card-icons">
-          <button
-            type="button"
-            aria-label={note.pinned ? 'Unpin note' : 'Pin note'}
-            className={`note-pin-btn inline${note.pinned ? ' active' : ''}`}
-            onClick={(e) => { e.stopPropagation(); togglePin(note) }}
-          >
-            <PushPin size={14} weight={note.pinned ? 'fill' : 'regular'} />
-          </button>
-        </span>
       </div>
       <p className="note-card-snippet">{snippet(note.body)}</p>
       <div className="note-card-foot">

@@ -6982,8 +6982,9 @@ h1, h2, h3, h4, h5, h6, p, span, a, label, strong, em, b, small {
   .glass-dock-mobile-wrapper {
     bottom: calc(20px + var(--safe-bottom, 0px)) !important;
   }
-  /* Single spacing rule for every card-like block */
-  .card,
+  /* Single spacing rule for every card-like block (note cards manage
+     their own masonry gutters and are exempt) */
+  .card:not(.note-card),
   .goals-card,
   .sprint-summary,
   .rote-overview-card,
